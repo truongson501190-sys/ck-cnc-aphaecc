@@ -36,7 +36,7 @@ import { User, UserPermissions, DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS, UserLog 
 import { toast } from 'sonner';
 
 export function UserManagement() {
-  const { currentUser } = useAuth();
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
@@ -186,7 +186,7 @@ export function UserManagement() {
   };
 
   const handleAddUser = () => {
-    if (!currentUser || currentUser.role !== 'Admin') {
+    if (!currentUser || currentUser.role !== 'admin') {
       toast.error('Chỉ Admin mới có quyền thêm người dùng');
       return;
     }
@@ -218,7 +218,7 @@ export function UserManagement() {
       position: formData.position!,
       role: formData.role as any,
       status: formData.status as any,
-      permissions: formData.role === 'Admin' ? ADMIN_PERMISSIONS : (formData.permissions || DEFAULT_PERMISSIONS),
+      permissions: formData.role === 'admin' ? ADMIN_PERMISSIONS : (formData.permissions || DEFAULT_PERMISSIONS),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -250,7 +250,7 @@ export function UserManagement() {
   };
 
   const handleEditUser = () => {
-    if (!currentUser || currentUser.role !== 'Admin') {
+    if (!currentUser || currentUser.role !== 'admin') {
       toast.error('Chỉ Admin mới có quyền sửa thông tin người dùng');
       return;
     }
@@ -267,7 +267,7 @@ export function UserManagement() {
       position: formData.position!,
       role: formData.role as any,
       status: formData.status as any,
-      permissions: formData.role === 'Admin' ? ADMIN_PERMISSIONS : (formData.permissions || selectedUser.permissions),
+      permissions: formData.role === 'admin' ? ADMIN_PERMISSIONS : (formData.permissions || selectedUser.permissions),
       updatedAt: new Date().toISOString()
     };
 
@@ -283,7 +283,7 @@ export function UserManagement() {
   };
 
   const handleChangePassword = () => {
-    if (!currentUser || currentUser.role !== 'Admin') {
+    if (!currentUser || currentUser.role !== 'admin') {
       toast.error('Chỉ Admin mới có quyền đổi mật khẩu');
       return;
     }
@@ -321,7 +321,7 @@ export function UserManagement() {
   };
 
   const handleDeleteUser = (msnv: string) => {
-    if (!currentUser || currentUser.role !== 'Admin') {
+    if (!currentUser || currentUser.role !== 'admin') {
       toast.error('Chỉ Admin mới có quyền xóa người dùng');
       return;
     }
@@ -346,7 +346,7 @@ export function UserManagement() {
   };
 
   const toggleUserStatus = (msnv: string) => {
-    if (!currentUser || currentUser.role !== 'Admin') {
+    if (!currentUser || currentUser.role !== 'admin') {
       toast.error('Chỉ Admin mới có quyền thay đổi trạng thái');
       return;
     }
@@ -448,7 +448,7 @@ export function UserManagement() {
     export: 'Xuất file'
   };
 
-  if (!currentUser || currentUser.role !== 'Admin') {
+  if (!currentUser || currentUser.role !== 'admin') {
     return (
       <div className="p-6">
         <Card>
@@ -554,7 +554,7 @@ export function UserManagement() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-purple-600 text-sm font-medium">Admin</p>
-                <p className="text-2xl font-bold text-purple-900">{users.filter(u => u.role === 'Admin').length}</p>
+                <p className="text-2xl font-bold text-purple-900">{users.filter(u => u.role === 'admin').length}</p>
               </div>
               <Shield className="w-8 h-8 text-purple-600" />
             </div>
@@ -644,10 +644,10 @@ export function UserManagement() {
                         </TableCell>
                         <TableCell>
                           <Badge 
-                            variant={user.role === 'Admin' ? 'default' : user.role === 'Duyệt' ? 'secondary' : 'outline'}
+                            variant={user.role === 'admin' ? 'default' : user.role === 'manager' ? 'secondary' : 'outline'}
                             className={
-                              user.role === 'Admin' ? 'bg-red-100 text-red-800 border-red-200' :
-                              user.role === 'Duyệt' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
+                              user.role === 'admin' ? 'bg-red-100 text-red-800 border-red-200' :
+                              user.role === 'manager' ? 'bg-yellow-100 text-yellow-800 border-yellow-200' :
                               'bg-gray-100 text-gray-800 border-gray-200'
                             }
                           >
@@ -1155,7 +1155,7 @@ function UserForm({
         </Card>
       )}
 
-      {formData.role === 'Admin' && (
+      {formData.role === 'admin' && (
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-3 text-center">

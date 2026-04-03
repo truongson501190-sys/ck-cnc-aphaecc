@@ -54,17 +54,17 @@ const SECTION_MODULE: Record<string, keyof UserPermissions> = {
 };
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
-  const { currentUser, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<string[]>(['production', 'warehouse', 'reports', 'management']);
   const navigate = useNavigate();
 
   const canView = (sectionId: string | null): boolean => {
-    if (!currentUser) return false;
+    if (!user) return false;
     if (!sectionId) return true;
     const key = SECTION_MODULE[sectionId];
     if (!key) return true;
-    return !!currentUser.permissions?.[key]?.view;
+    return !!user.permissions?.[key]?.view;
   };
 
   const handleLogout = () => {
@@ -79,7 +79,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
     setExpandedGroups((prev) => (prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]));
   };
 
-  const isUserAdmin = currentUser?.role === 'Admin';
+  const isUserAdmin = user?.role === 'admin';
 
   const menuGroups: MenuGroup[] = [
     {
@@ -195,7 +195,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
       </div>
 
       {/* Thông tin người dùng thu gọn */}
-      {!isCollapsed && currentUser && (
+      {!isCollapsed && user && (
         <div className="p-3 border-b border-blue-200/50 bg-blue-100/30">
           <div className="flex items-center space-x-2">
             <div className="w-6 h-6 bg-blue-300 rounded-full flex items-center justify-center">
@@ -204,16 +204,16 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center space-x-1 mb-1">
                 <span className="text-xs font-medium text-blue-800 truncate">
-                  {currentUser.fullName || (currentUser as any).name || 'Admin'}
+                  {user.fullName || (user as any).name || 'Admin'}
                 </span>
                 <Badge
-                  variant={currentUser.role === 'Admin' ? 'default' : 'secondary'}
+                  variant={user.role === 'admin' ? 'default' : 'secondary'}
                   className="text-xs px-1 py-0 h-3 bg-blue-500/20 text-blue-700 border-blue-400/30"
                 >
-                  {currentUser.role === 'Admin' ? 'A' : 'U'}
+                  {user.role === 'admin' ? 'A' : 'U'}
                 </Badge>
               </div>
-              <div className="text-xs text-blue-600">{currentUser.msnv || ''}</div>
+              <div className="text-xs text-blue-600">{user.msnv || ''}</div>
             </div>
           </div>
         </div>

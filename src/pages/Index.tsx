@@ -41,7 +41,7 @@ const SECTION_MODULE: Record<string, keyof UserPermissions> = {
 };
 
 export default function Index() {
-  const { currentUser, isAdmin } = useAuth();
+  const { user, isAdmin } = useAuth();
   const { can } = usePermission();
   const [activeSection, setActiveSection] = useState<string | null>(null);
   const [warehouseTransactions, setWarehouseTransactions] = useState<WarehouseTransaction[]>([]);
@@ -59,11 +59,11 @@ export default function Index() {
   }, []);
 
   const canViewSection = (sectionId: string | null): boolean => {
-    if (!currentUser) return false;
+    if (!user) return false;
     if (!sectionId) return true;
     const key = SECTION_MODULE[sectionId];
     if (!key) return true;
-    return !!currentUser.permissions?.[key]?.view;
+    return !!user.permissions?.[key]?.view;
   };
 
   const handleWarehouseTransaction = (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => {
@@ -106,7 +106,7 @@ export default function Index() {
 
   const stats = getQuickStats();
 
-  if (!currentUser) {
+  if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
         <Card className="w-full max-w-md">
@@ -148,8 +148,8 @@ export default function Index() {
             </h1>
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 mt-2">
               <Badge variant="secondary" className="text-xs sm:text-sm px-2 sm:px-3 py-1 w-fit"></Badge>
-              <Badge variant={currentUser.role === 'Admin' ? 'default' : 'outline'} className="text-xs sm:text-sm px-2 sm:px-3 py-1 w-fit">
-                {currentUser.role === 'Admin' ? 'Quản trị viên' : ''}
+              <Badge variant={user.role === 'admin' ? 'default' : 'outline'} className="text-xs sm:text-sm px-2 sm:px-3 py-1 w-fit">
+                {user.role === 'admin' ? 'Quản trị viên' : ''}
               </Badge>
             </div>
           </div>

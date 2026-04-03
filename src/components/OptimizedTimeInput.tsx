@@ -21,7 +21,7 @@ function computeIntervalHours(itv: TimeInterval): number {
   const end = new Date(`2000-01-01T${itv.endTime}`);
 
   // Xử lý qua đêm
-  let endAdj = new Date(end);
+  const endAdj = new Date(end);
   if (endAdj < start) {
     endAdj.setDate(endAdj.getDate() + 1);
   }

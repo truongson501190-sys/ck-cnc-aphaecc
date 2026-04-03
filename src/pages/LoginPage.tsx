@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { toast } from 'sonner';
 import { Factory, User, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
@@ -209,8 +209,8 @@ const LoginPage: React.FC = () => {
                       key={i}
                       className="absolute w-5 h-0.5 bg-white rounded-full origin-left shadow-sm"
                       style={{
-                        transform: `rotate(${i * 30}deg)`,
-                        transformOrigin: '0 50%'
+                        transform: `rotate(${i * 50}deg)`,
+                        transformOrigin: '0 80%'
                       }}
                     ></div>
                   ))}
@@ -281,7 +281,7 @@ const LoginPage: React.FC = () => {
             Xưởng CNC-CK
           </h1>
           <p className="text-white/95 text-lg font-medium drop-shadow-md">
-            Hệ thống quản lý sản xuất
+            Hệ thống quản lý kho nôi bộ
           </p>
         </div>
 

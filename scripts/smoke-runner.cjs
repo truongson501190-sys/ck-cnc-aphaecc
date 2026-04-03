@@ -105,7 +105,7 @@ function startStaticServer(dir, port) {
     fullName: 'Quản trị viên hệ thống',
     department: 'Quản trị',
     position: 'Quản trị viên',
-    role: 'Admin',
+    role: 'admin',
     status: 'active',
     permissions: {
       'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },

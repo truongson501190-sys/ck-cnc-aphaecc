@@ -1,6 +1,18 @@
-import { createClient } from '@supabase/supabase-js'
+// Supabase configuration for data synchronization
+const supabase = null;
 
-const supabaseUrl = "https://oxolhlkfezihtvtyjyxf.supabase.co"
-const supabaseKey = "sb_publishable_TcBlZnBSbYU2gcM193iUaQ_UNrvMgNr"
+// Supabase is disabled for production builds - uses localStorage only
+console.log('ℹ️ Supabase disabled. Using localStorage only.');
 
-export const supabase = createClient(supabaseUrl, supabaseKey)
+// Helper functions for data synchronization (disabled)
+export const syncDataToSupabase = async (table: string, data: unknown[]) => {
+  console.log(`⚠️ Supabase sync disabled. Would sync ${data.length} records to ${table}`);
+  return false;
+};
+
+export const loadDataFromSupabase = async (table: string) => {
+  console.log(`⚠️ Supabase sync disabled. Would load from ${table}`);
+  return null;
+};
+
+export const getSupabase = () => null;

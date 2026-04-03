@@ -14,29 +14,29 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredRole,
   requiredModule,
 }) => {
-  const { isAuthenticated, currentUser } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const location = useLocation();
 
   console.log('🛡️ ProtectedRoute check:', {
     isAuthenticated,
-    currentUser: currentUser ? { msnv: currentUser.msnv, role: currentUser.role } : null,
+    user: user ? { msnv: user.msnv, role: user.role } : null,
     requiredRole,
     requiredModule,
     path: location.pathname,
   });
 
   // If not authenticated, redirect to login
-  if (!isAuthenticated || !currentUser) {
+  if (!isAuthenticated || !user) {
     console.log('❌ Not authenticated, redirecting to login');
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   // Check role requirement via hierarchy
   if (requiredRole) {
-    const hasRequiredRole = checkRolePermission(currentUser.role, requiredRole);
+    const hasRequiredRole = checkRolePermission(user.role, requiredRole);
     if (!hasRequiredRole) {
       console.log('❌ Insufficient role permissions:', {
-        userRole: currentUser.role,
+        userRole: user.role,
         requiredRole,
       });
       return <Navigate to="/" replace />;
@@ -45,11 +45,11 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Check module-based view permission
   if (requiredModule) {
-    const canView = !!currentUser.permissions?.[requiredModule]?.view;
+    const canView = !!user.permissions?.[requiredModule]?.view;
     if (!canView) {
       console.log('❌ No module view permission:', {
         requiredModule,
-        user: currentUser.msnv,
+        user: user.msnv,
       });
       return <Navigate to="/" replace />;
     }
@@ -62,9 +62,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 // Helper function to check role permissions
 function checkRolePermission(userRole: string, requiredRole: string): boolean {
   const roleHierarchy = {
-    Admin: ['admin', 'manager', 'user'],
-    Duyệt: ['manager', 'user'],
-    User: ['user'],
+    admin: ['admin', 'manager', 'user'],
+    manager: ['manager', 'user'],
+    user: ['user'],
   };
 
   const allowedRoles = roleHierarchy[userRole as keyof typeof roleHierarchy] || [];

@@ -91,7 +91,7 @@ export function MobileSidebar({ activeSection, onSectionChange }: MobileSidebarP
 
   // Admin menu
   const adminItems =
-    currentUser?.role === 'Admin'
+    currentUser?.role === 'admin'
       ? [
           { id: 'categories', label: 'Quản lý danh mục', icon: FolderTree },
           { id: 'users', label: 'Quản lý người dùng', icon: Users },
@@ -149,8 +149,8 @@ export function MobileSidebar({ activeSection, onSectionChange }: MobileSidebarP
                       <span className="text-xs font-medium text-gray-900 truncate">
                         {currentUser.fullName || (currentUser as any).name || 'Admin'}
                       </span>
-                      <Badge variant={currentUser.role === 'Admin' ? 'default' : 'secondary'} className="text-xs px-1 py-0 h-3">
-                        {currentUser.role === 'Admin' ? 'A' : 'U'}
+                      <Badge variant={currentUser.role === 'admin' ? 'default' : 'secondary'} className="text-xs px-1 py-0 h-3">
+                        {currentUser.role === 'admin' ? 'A' : 'U'}
                       </Badge>
                     </div>
                     <div className="text-xs text-gray-500">{currentUser.msnv || ''}</div>

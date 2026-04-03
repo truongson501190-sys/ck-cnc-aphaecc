@@ -6,11 +6,11 @@ localStorage.clear();
 // Create fresh users data
 const users = [
   {
-    msnv: 'ADM001',
-    fullName: 'Nguyễn Văn Admin',
+    msnv: '1118',
+    fullName: 'Nguyễn Trường Sơn',
     department: 'Admin',
     position: 'Quản trị viên hệ thống',
-    role: 'Admin',
+    role: 'admin',
     status: 'active',
     permissions: {
       'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
@@ -21,23 +21,6 @@ const users = [
     },
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString()
-  },
-  {
-    msnv: 'CNC001',
-    fullName: 'Trần Văn Công',
-    department: 'Tổ CNC',
-    position: 'Thợ CNC',
-    role: 'User',
-    status: 'active',
-    permissions: {
-      'kho-tong': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-      'kho-co-khi': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-      'kho-cnc': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-      'kho-dau': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-      'bao-cao-tong-hop': { view: false, add: false, edit: false, delete: false, approve: false, export: false }
-    },
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
   }
 ];
 
@@ -45,24 +28,13 @@ const users = [
 const userRecords = [
   {
     id: '1',
-    msnv: 'ADM001',
-    fullName: 'Nguyễn Văn Admin',
+    msnv: '1118',
+    fullName: 'Nguyễn Trường Sơn',
     department: 'Admin',
     position: 'Quản trị viên hệ thống',
-    role: 'Admin',
+    role: 'admin',
     status: true,
     passwordHash: btoa('admin123'),
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: '2',
-    msnv: 'CNC001',
-    fullName: 'Trần Văn Công',
-    department: 'Tổ CNC',
-    position: 'Thợ CNC',
-    role: 'User',
-    status: true,
-    passwordHash: btoa('123456'),
     createdAt: new Date().toISOString()
   }
 ];
@@ -71,9 +43,8 @@ localStorage.setItem('users', JSON.stringify(users));
 localStorage.setItem('userRecords', JSON.stringify(userRecords));
 
 console.log('✅ Fresh data created!');
-console.log('🔑 Test accounts:');
-console.log('- ADM001 / admin123');
-console.log('- CNC001 / 123456');
+console.log('🔑 Test account:');
+console.log('- 1118 / admin123');
 
 // Test login function
 function testLogin(msnv, password) {
@@ -97,5 +68,4 @@ function testLogin(msnv, password) {
 }
 
 // Test both accounts
-testLogin('ADM001', 'admin123');
-testLogin('CNC001', '123456');
+testLogin('1118', 'admin123');

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { LogOut, User, ChevronDown, Settings, Shield, Users } from 'lucide-react';
 import { toast } from 'sonner';
+import { SyncStatus } from './SyncStatus';
 
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
@@ -46,8 +47,11 @@ const Header: React.FC = () => {
           </p>
         </div>
 
-        {user && (
-          <div className="relative">
+        <div className="flex items-center space-x-4">
+          <SyncStatus />
+
+          {user && (
+            <div className="relative">
             <button
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center space-x-3 bg-gray-50 hover:bg-gray-100 rounded-lg px-4 py-2 transition-colors"
@@ -119,6 +123,7 @@ const Header: React.FC = () => {
             )}
           </div>
         )}
+        </div>
       </div>
 
       {/* Click outside to close menu */}

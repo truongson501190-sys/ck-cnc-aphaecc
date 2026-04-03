@@ -7,15 +7,15 @@ import type { UserPermissions, ModulePermission } from '@/types/user';
  * - action: một key trong ModulePermission (view, add, edit, delete, approve, export)
  */
 export function usePermission() {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
 
   const can = (module: keyof UserPermissions, action: keyof ModulePermission): boolean => {
-    const perms = currentUser?.permissions?.[module];
+    const perms = user?.permissions?.[module];
     return !!perms && !!perms[action];
   };
 
   const canView = (module: keyof UserPermissions): boolean => {
-    return !!currentUser?.permissions?.[module]?.view;
+    return !!user?.permissions?.[module]?.view;
   };
 
   return { can, canView };
