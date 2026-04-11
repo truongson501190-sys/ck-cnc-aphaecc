@@ -5,6 +5,6 @@
 		}
 	],
 	"settings": {
-		"powershell.cwd": "my-mgx-app"
+		"powershell.cwd": "my-kho-app"
 	}
 }

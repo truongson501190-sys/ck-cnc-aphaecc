@@ -1,48 +1,35 @@
-// Category Types
+// Category Types (Chủng loại)
 export interface Category {
   id: string;
-  tenChungLoai: string;
+  maLoai: string;
+  tenLoai: string;
   donVi: string;
-  gia: number;
+  gia?: number;
+  minimumStock?: number;
   moTa?: string;
   ghiChu?: string;
   createdAt: string;
 }
 
-// Machine Types  
+// Machine Types (Máy móc)
 export interface Machine {
   id: string;
-  // UI-friendly name
+  maMay: string;
   tenMay: string;
-  // legacy/optional identifiers
-  maMay?: string;
   loaiMay?: string;
-
-  // pricing variants (some pages use these names)
   giaGioSang?: number;
   giaGioChieu?: number;
   giaGioToi?: number;
-
-  // alternate naming conventions used in oil export
-  giaGio8h1Ca?: number;
-  giaGio10h1Ca?: number;
-  giaGio8h2Ca?: number;
-  giaGio10h2Ca?: number;
-  giaGio12h1Ca?: number;
-
-  // optional metadata
   moTa?: string;
   ghiChu?: string;
-
-  // optional QR payload stored with the machine
   qrData?: string;
-
   createdAt: string;
 }
 
-// Warehouse Types - Only tenKho and ghiChu
+// Warehouse Types (Kho)
 export interface Warehouse {
   id: string;
+  maKho: string;
   tenKho: string;
   loaiKho?: string;
   ghiChu?: string;
@@ -67,5 +54,23 @@ export interface User {
   lastLogin?: string | Date;
   email?: string;
   soDienThoai?: string;
+  createdAt: string;
+}
+
+// Project Types (Dự Án)
+export interface Project {
+  id: string;
+  maDuAn: string;
+  tenDuAn: string;
+  ghiChu?: string;
+  createdAt: string;
+}
+
+// Operator Types (Người vận hành)
+export interface Operator {
+  id: string;
+  maNguoi: string;
+  tenNguoi: string;
+  ghiChu?: string;
   createdAt: string;
 }

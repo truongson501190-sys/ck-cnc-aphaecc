@@ -27,6 +27,8 @@ export interface WarehouseTransaction {
   toLocation?: string;
   // optional machine reference used by oil-export flows
   machineId?: string;
+  projectId?: string;
+  customerName?: string;
   reason: string;
   referenceNumber: string;
   operator: string;

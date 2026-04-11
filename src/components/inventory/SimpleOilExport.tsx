@@ -7,14 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { toast } from 'sonner';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
-import { Category, Machine, User } from '@/types/categories';
+import { Category, Machine, User, Project } from '@/types/categories';
 
 interface SimpleOilExportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
 }
 
 export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
@@ -38,34 +38,47 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
 
   const loadData = () => {
     try {
-      // Load categories - ONLY oil-related from localStorage, NO default data
-      const savedCategories = localStorage.getItem('categoryTypes');
+      // Load categories from localStorage
+      const savedCategories = localStorage.getItem('category_items');
       if (savedCategories) {
         const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories) && parsedCategories.length > 0) {
+        if (Array.isArray(parsedCategories)) {
           // Filter only oil-related categories
-          setCategories(parsedCategories.filter(cat => 
-            cat.tenChungLoai.toLowerCase().includes('dầu') || 
-            cat.tenChungLoai.toLowerCase().includes('oil') ||
-            cat.tenChungLoai.toLowerCase().includes('mỡ')
-          ));
+          setCategories(parsedCategories
+            .filter(cat => 
+              cat.tenChungLoai.toLowerCase().includes('dầu') || 
+              cat.tenChungLoai.toLowerCase().includes('oil') ||
+              cat.tenChungLoai.toLowerCase().includes('mỡ')
+            )
+            .map(cat => ({
+              id: cat.id,
+              tenChungLoai: cat.tenChungLoai,
+              donVi: cat.donViTinh,
+              gia: parseFloat(cat.donGia) || 0,
+              createdAt: new Date().toISOString()
+            })));
         }
       }
 
-      // Load machines - ONLY from localStorage, NO default data
-      const savedMachines = localStorage.getItem('machines');
+      // Load machines from localStorage
+      const savedMachines = localStorage.getItem('category_machines');
       if (savedMachines) {
         const parsedMachines = JSON.parse(savedMachines);
-        if (Array.isArray(parsedMachines) && parsedMachines.length > 0) {
-          setMachines(parsedMachines);
+        if (Array.isArray(parsedMachines)) {
+          setMachines(parsedMachines.map(m => ({
+            id: m.id,
+            tenMay: m.tenMayMoc,
+            maMay: m.maMayMoc,
+            createdAt: new Date().toISOString()
+          })));
         }
       }
 
-      // Load users - ONLY from localStorage, NO default data
+      // Load users
       const savedUsers = localStorage.getItem('users');
       if (savedUsers) {
         const parsedUsers = JSON.parse(savedUsers);
-        if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
+        if (Array.isArray(parsedUsers)) {
           setUsers(parsedUsers);
         }
       }
@@ -100,7 +113,7 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
     e.preventDefault();
     
     if (!formData.loaiDau || !formData.soLuong || !formData.mayMoc) {
-      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
       return;
     }
 
@@ -117,7 +130,7 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
       totalValue: parseFloat(formData.thanhTien) || 0,
       reason: `Xuất dầu cho máy ${selectedMachine?.tenMay || formData.mayMoc}`,
       referenceNumber: `DM${Date.now()}`,
-      operator: currentUser?.name || formData.nguoiVanHanh,
+      operator: user?.name || formData.nguoiVanHanh,
       status: 'pending',
       transactionDate: formData.ngayXuat,
       notes: formData.ghiChu,

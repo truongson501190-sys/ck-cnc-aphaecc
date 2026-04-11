@@ -13,7 +13,7 @@ export interface User {
   email?: string;
   username?: string;
   lastLogin?: string | Date;
-  department: 'Tổ CNC' | 'Tổ Cơ khí' | 'Kho' | 'Bảo trì' | 'QC xưởng' | 'Quản lý' | 'Admin' | 'Khác' | 'Quản trị';
+  department: 'Tổ CNC' | 'Tổ Cơ khí' | 'Kho' | 'Admin' | 'Khác' | 'Quản trị';
   position: string; // Chức danh
   role: 'user' | 'manager' | 'admin';
   status: string;

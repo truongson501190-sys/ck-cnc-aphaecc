@@ -11,11 +11,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Category, Warehouse, User, Project, Machine } from '@/types/categories';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
-interface ExactLayoutWarehouseImportProps {
+interface ExactLayoutWarehouseTransferProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
 }
 
-export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImportProps) {
+export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseTransferProps) {
   const { user } = useAuth();
   
   const [categories, setCategories] = useState<Category[]>([]);
@@ -29,14 +29,15 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
   });
   
   const [formData, setFormData] = useState({
-    ngayNhap: new Date().toISOString().split('T')[0],
+    ngayChuyen: new Date().toISOString().split('T')[0],
     chungLoai: '',
     soLuong: '',
     donVi: '',
     donGia: '',
     thanhTien: '0',
+    khoXuat: '',
     khoNhap: '',
-    nguoiNhap: '',
+    nguoiChuyen: '',
     ghiChu: ''
   });
 
@@ -90,74 +91,6 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
       }
     } catch (error) {
       console.error('Error loading data:', error);
-    }
-  };
-
-  const getCurrentStock = (categoryId: string) => {
-    try {
-      const transactions = JSON.parse(localStorage.getItem('warehouseTransactions') || '[]');
-      
-      // Load categories from both possible sources
-      let allCategories: any[] = [];
-      try {
-        const categoryTypes = JSON.parse(localStorage.getItem('categoryTypes') || '[]');
-        const categoryItems = JSON.parse(localStorage.getItem('category_items') || '[]');
-        
-        allCategories = [...categoryTypes, ...categoryItems.map((cat: any) => ({
-          id: cat.id,
-          maLoai: cat.maLoai || cat.tenChungLoai,
-          tenLoai: cat.tenLoai || cat.tenChungLoai,
-          tenChungLoai: cat.tenChungLoai || cat.tenLoai,
-          donVi: cat.donVi || cat.donViTinh,
-          minimumStock: cat.minimumStock || 0
-        }))];
-        
-        // Remove duplicates
-        allCategories = allCategories.filter((cat, index, self) => 
-          index === self.findIndex(c => c.id === cat.id)
-        );
-      } catch (error) {
-        console.error('Error loading categories for stock calculation:', error);
-      }
-      
-      let currentStock = 0;
-
-      transactions.forEach((transaction: any) => {
-        if (transaction.items) {
-          transaction.items.forEach((item: any) => {
-            const category = allCategories.find(c => 
-              c.tenLoai === item.itemName || 
-              c.maLoai === item.itemName ||
-              c.tenChungLoai === item.itemName
-            );
-            if (category && category.id === categoryId) {
-              if (transaction.type === 'import') {
-                currentStock += item.quantity;
-              } else if (transaction.type === 'export' || transaction.type === 'oil_export') {
-                currentStock -= item.quantity;
-              }
-            }
-          });
-        } else {
-          // Handle old format
-          const category = allCategories.find(c => 
-            c.tenLoai === transaction.itemName ||
-            c.tenChungLoai === transaction.itemName
-          );
-          if (category && category.id === categoryId) {
-            if (transaction.type === 'import') {
-              currentStock += transaction.quantity;
-            } else if (transaction.type === 'export' || transaction.type === 'oil_export') {
-              currentStock -= transaction.quantity;
-            }
-          }
-        }
-      });
-
-      return currentStock;
-    } catch (error) {
-      console.error('Error calculating stock:', error);
-      return 0;
     }
   };
 
@@ -239,8 +172,13 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.chungLoai || !formData.soLuong || !formData.khoNhap) {
+    if (!formData.chungLoai || !formData.soLuong || !formData.khoXuat || !formData.khoNhap) {
       toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
+      return;
+    }
+
+    if (formData.khoXuat === formData.khoNhap) {
+      toast.error('Kho xuất và kho nhận không được trùng nhau');
       return;
     }
 
@@ -254,32 +192,33 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
 
     const selectedCategory = categories.find(cat => cat.id === formData.chungLoai);
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
-      type: 'import',
+      type: 'transfer',
       itemId: Date.now().toString(),
       itemName: selectedCategory?.tenChungLoai || formData.chungLoai,
       quantity: parseFloat(formData.soLuong),
       unit: formData.donVi,
       price: parseFloat(formData.donGia) || 0,
       totalValue: parseFloat(formData.thanhTien) || 0,
+      fromLocation: formData.khoXuat,
       toLocation: formData.khoNhap,
-      reason: 'Nhập kho',
-      referenceNumber: `NK${Date.now()}`,
-      operator: user?.name || formData.nguoiNhap,
+      reason: 'Chuyển kho',
+      referenceNumber: `CK${Date.now()}`,
+      operator: user?.name || formData.nguoiChuyen,
       status: 'pending',
-      transactionDate: formData.ngayNhap,
+      transactionDate: formData.ngayChuyen,
       notes: formData.ghiChu
     };
     
     onSubmit(transaction);
-    toast.success('Đã thêm phiếu nhập kho thành công!');
+    toast.success('Đã thêm phiếu chuyển kho thành công!');
   };
 
   return (
     <div className="max-w-7xl mx-auto bg-white">
       {/* Header Lọc Và Chỉnh Sửa */}
-      <div className="bg-gradient-to-r from-green-400 to-blue-500 text-white p-4 rounded-t-lg">
+      <div className="bg-gradient-to-r from-indigo-400 to-purple-500 text-white p-4 rounded-t-lg">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">✅ Lọc Và Chỉnh Sửa</h2>
+          <h2 className="text-xl font-semibold">🔄 Phiếu Chuyển Kho</h2>
           <Button 
             variant="ghost" 
             size="sm" 
@@ -341,57 +280,6 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Người dùng</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.hoTen}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label className="text-sm font-medium">Sắp xếp</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Mới nhất" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Mới nhất</SelectItem>
-                  <SelectItem value="oldest">Cũ nhất</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Hiển thị</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="25 bản ghi" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="25">25 bản ghi</SelectItem>
-                  <SelectItem value="50">50 bản ghi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm">📋 Đặt lại</Button>
-              <Button type="button" variant="outline" size="sm" className="bg-blue-50">📊 Chỉnh sửa</Button>
-              <Button type="button" variant="outline" size="sm" className="bg-green-50">📤 Xuất Excel</Button>
-            </div>
-          </div>
-
           <div className="text-sm text-gray-600 mt-2">
             Hiển thị {dataList.length} bản ghi
           </div>
@@ -404,8 +292,8 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
           {/* Header Info: chỉ ngày */}
           <div className="grid grid-cols-1 gap-4 bg-gray-50 p-4 rounded-lg border">
             <div>
-              <Label className="text-sm font-medium">Ngày nhập *</Label>
-              <Input type="date" value={formData.ngayNhap} onChange={(e) => handleInputChange('ngayNhap', e.target.value)} required />
+              <Label className="text-sm font-medium">Ngày chuyển *</Label>
+              <Input type="date" value={formData.ngayChuyen} onChange={(e) => handleInputChange('ngayChuyen', e.target.value)} required />
             </div>
           </div>
 
@@ -443,7 +331,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                 </DialogContent>
               </Dialog>
               <div>
-                <Button type="button" onClick={addRow} variant="default" size="sm" className="bg-green-500 hover:bg-green-600 ml-2">
+                <Button type="button" onClick={addRow} variant="default" size="sm" className="bg-indigo-500 hover:bg-indigo-600 ml-2">
                   <Plus className="w-4 h-4 mr-1" /> Thêm dòng
                 </Button>
               </div>
@@ -469,23 +357,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                       <Select value={formData.chungLoai} onValueChange={(value) => handleInputChange('chungLoai', value)}>
                         <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
                         <SelectContent>
-                          {categories.map((c) => {
-                            const currentStock = getCurrentStock(c.id);
-                            const isLowStock = currentStock <= (c.minimumStock || 0);
-                            return (
-                              <SelectItem key={c.id} value={c.id}>
-                                <div className="flex items-center justify-between w-full">
-                                  <span>{c.tenChungLoai}</span>
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                                      Tồn: {currentStock}
-                                    </span>
-                                    {isLowStock && <span className="text-red-600 font-medium">⚠️ Sắp hết</span>}
-                                  </div>
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
+                          {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.tenChungLoai}</SelectItem>)}
                         </SelectContent>
                       </Select>
                     </td>
@@ -499,7 +371,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                       <Input type="number" className="h-9 border-gray-200 bg-gray-50 text-gray-600" value={formData.donGia} readOnly />
                     </td>
                     <td className="p-2">
-                      <div className="font-semibold text-green-600">{Number(formData.thanhTien).toLocaleString('vi-VN')}</div>
+                      <div className="font-semibold text-indigo-600">{Number(formData.thanhTien).toLocaleString('vi-VN')}</div>
                     </td>
                     <td className="p-2 text-center">
                       <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => setFormData({ ...formData, chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' })}>X</Button>
@@ -512,23 +384,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                         <Select value={row.chungLoai} onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}>
                           <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
                           <SelectContent>
-                            {categories.map((c) => {
-                              const currentStock = getCurrentStock(c.id);
-                              const isLowStock = currentStock <= (c.minimumStock || 0);
-                              return (
-                                <SelectItem key={c.id} value={c.id}>
-                                  <div className="flex items-center justify-between w-full">
-                                    <span>{c.tenChungLoai}</span>
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                                        Tồn: {currentStock}
-                                      </span>
-                                      {isLowStock && <span className="text-red-600 font-medium">⚠️ Sắp hết</span>}
-                                    </div>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
+                            {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.tenChungLoai}</SelectItem>)}
                           </SelectContent>
                         </Select>
                       </td>
@@ -542,7 +398,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                         <Input type="number" className="h-9 border-gray-200 bg-gray-50 text-gray-600" value={row.donGia} readOnly />
                       </td>
                       <td className="p-2">
-                        <div className="font-semibold text-green-600">{Number(row.thanhTien).toLocaleString('vi-VN')}</div>
+                        <div className="font-semibold text-indigo-600">{Number(row.thanhTien).toLocaleString('vi-VN')}</div>
                       </td>
                       <td className="p-2 text-center">
                         <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500 hover:text-red-700" onClick={() => removeRow(row.id)}>
@@ -558,31 +414,40 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
             {/* Các field dưới bảng */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
               <div>
-                <Label className="text-sm font-medium">Kho nhập</Label>
-                <Select value={formData.khoNhap} onValueChange={(value) => handleInputChange('khoNhap', value)}>
-                  <SelectTrigger><SelectValue placeholder="Chọn kho nhập" /></SelectTrigger>
+                <Label className="text-sm font-medium">Kho xuất *</Label>
+                <Select value={formData.khoXuat} onValueChange={(value) => handleInputChange('khoXuat', value)}>
+                  <SelectTrigger><SelectValue placeholder="Kho đi" /></SelectTrigger>
                   <SelectContent>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.tenKho}>{w.tenKho} ({w.loaiKho})</SelectItem>)}
+                    {warehouses.map((w) => <SelectItem key={w.id} value={w.tenKho}>{w.tenKho}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Người nhập</Label>
-                <Select value={formData.nguoiNhap} onValueChange={(value) => handleInputChange('nguoiNhap', value)}>
-                  <SelectTrigger><SelectValue placeholder="Chọn người nhập..." /></SelectTrigger>
+                <Label className="text-sm font-medium">Kho nhận *</Label>
+                <Select value={formData.khoNhap} onValueChange={(value) => handleInputChange('khoNhap', value)}>
+                  <SelectTrigger><SelectValue placeholder="Kho đến" /></SelectTrigger>
+                  <SelectContent>
+                    {warehouses.map((w) => <SelectItem key={w.id} value={w.tenKho}>{w.tenKho}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Người thực hiện</Label>
+                <Select value={formData.nguoiChuyen} onValueChange={(value) => handleInputChange('nguoiChuyen', value)}>
+                  <SelectTrigger><SelectValue placeholder="Chọn người thực hiện..." /></SelectTrigger>
                   <SelectContent>
                     {users.map((u) => <SelectItem key={u.id} value={u.hoTen}>{u.hoTen} - {u.msnv}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
-              <div>
+              <div className="md:col-span-3">
                 <Label className="text-sm font-medium">Ghi chú</Label>
                 <Textarea value={formData.ghiChu} onChange={(e) => handleInputChange('ghiChu', e.target.value)} placeholder="Ghi chú thêm (tùy chọn)" rows={2} />
               </div>
             </div>
           </div>
 
-          <Button type="submit" className="w-full bg-green-500 hover:bg-green-600 text-white">➕ Thêm Phiếu Nhập</Button>
+          <Button type="submit" className="w-full bg-indigo-500 hover:bg-indigo-600 text-white">🔄 Thêm Phiếu Chuyển</Button>
         </form>
       </div>
     </div>

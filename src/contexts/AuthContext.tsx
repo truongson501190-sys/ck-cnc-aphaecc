@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import type { UserPermissions, User } from '@/types/user';
-import { dataSync } from '@/lib/dataSync';
-import { getSupabase } from '@/lib/supabase';
 
 interface UserRecord {
   id: string;
@@ -40,23 +38,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore session and sync data
   useEffect(() => {
-    const initializeApp = async () => {
+    const initializeApp = () => {
       try {
         // Seed data if not present or wrong user
         const existingRecords = localStorage.getItem('userRecords');
         const existingUsers = localStorage.getItem('users');
         let needsSeeding = !existingRecords || !existingUsers;
-        
+
         if (existingRecords && existingUsers) {
-          const records = JSON.parse(existingRecords);
-          const users = JSON.parse(existingUsers);
-          const userRecord = records.find((u: any) => u.msnv === '1118');
-          const user = users.find((u: any) => u.msnv === '1118');
-          if (!userRecord || !user || atob(userRecord.passwordHash) !== 'admin123' || user.role !== 'admin') {
+          try {
+            const records = JSON.parse(existingRecords);
+            const users = JSON.parse(existingUsers);
+            const userRecord = records.find((u: any) => u.msnv === '1118');
+            const user = users.find((u: any) => u.msnv === '1118');
+            if (!userRecord || !user || atob(userRecord.passwordHash) !== 'admin123' || user.role !== 'admin') {
+              needsSeeding = true;
+            }
+          } catch (error) {
+            console.error('Error parsing auth seed data:', error);
             needsSeeding = true;
           }
         }
-        
+
         if (needsSeeding) {
           console.log('🌱 Seeding/updating data...');
           const users = [
@@ -96,12 +99,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.log('✅ Data seeded!');
         }
 
-        // Sync data from cloud first
-        const client = getSupabase();
-        if (client) {
-          await dataSync.syncFromCloud();
-        }
-
         // Restore session
         const local = localStorage.getItem("sessionUser");
         const session = sessionStorage.getItem("sessionUser");
@@ -111,10 +108,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (session) {
           setUser(JSON.parse(session));
         }
-
-        // Start watching for local changes
-        dataSync.watchLocalChanges();
-
       } catch (error) {
         console.error('Error initializing app:', error);
       } finally {
@@ -123,7 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initializeApp();
-  }, []);
+  }, []); // Empty dependency array to run only once
 
   // LOGIN
   const login = async (msnv: string, password: string, remember = false) => {
@@ -131,41 +124,78 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     try {
       // Get userRecords from localStorage
-      const userRecordsJson = localStorage.getItem("userRecords");
-      if (!userRecordsJson) {
-        console.log("🚫 No user records found in localStorage");
-        return false;
+      let userRecordsJson = localStorage.getItem("userRecords");
+      let usersJson = localStorage.getItem("users");
+      
+      // If not found, seed data first
+      if (!userRecordsJson || !usersJson) {
+        console.log("📋 Missing auth data, seeding now...");
+        const seedUsers = [
+          {
+            msnv: '1118',
+            fullName: 'Nguyễn Trường Sơn',
+            department: 'Admin',
+            position: 'Quản trị viên hệ thống',
+            role: 'admin',
+            status: 'active',
+            permissions: {
+              'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+              'kho-co-khi': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+              'kho-cnc': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+              'kho-dau': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+              'bao-cao-tong-hop': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+            },
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          }
+        ];
+        const seedRecords = [
+          {
+            id: '1',
+            msnv: '1118',
+            fullName: 'Nguyễn Trường Sơn',
+            department: 'Admin',
+            position: 'Quản trị viên hệ thống',
+            role: 'admin',
+            status: true,
+            passwordHash: btoa('admin123'),
+            createdAt: new Date().toISOString()
+          }
+        ];
+        localStorage.setItem('users', JSON.stringify(seedUsers));
+        localStorage.setItem('userRecords', JSON.stringify(seedRecords));
+        userRecordsJson = JSON.stringify(seedRecords);
+        usersJson = JSON.stringify(seedUsers);
+        console.log("✅ Auth data seeded");
       }
 
       const userRecords: UserRecord[] = JSON.parse(userRecordsJson);
       
       // Find user by msnv
+      console.log("🔍 Looking for user:", msnv, "in records:", userRecords.map(u => u.msnv));
       const userRecord = userRecords.find((u: UserRecord) => u.msnv === msnv && u.status);
       
       if (!userRecord) {
         console.log("🚫 User not found or inactive:", msnv);
+        console.log("Available users:", userRecords.map(u => ({ msnv: u.msnv, status: u.status })));
         return false;
       }
 
       // Verify password (stored as base64 for mock purposes)
       const storedPassword = atob(userRecord.passwordHash);
+      console.log("🔑 Password check - stored:", storedPassword, "provided:", password);
       if (password !== storedPassword) {
         console.log("🚫 Wrong password");
         return false;
       }
 
       // Get full user data from users list
-      const usersJson = localStorage.getItem("users");
-      if (!usersJson) {
-        console.log("🚫 No users list found in localStorage");
-        return false;
-      }
-
       const users: User[] = JSON.parse(usersJson);
+      console.log("👥 Available users:", users.map(u => u.msnv));
       const fullUser = users.find((u: User) => u.msnv === msnv);
 
       if (!fullUser) {
-        console.log("🚫 User details not found");
+        console.log("🚫 User details not found in users array");
         return false;
       }
 
@@ -174,16 +204,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (remember) {
         localStorage.setItem("sessionUser", JSON.stringify(fullUser));
-        console.log("💾 Saved to localStorage");
+        console.log("💾 Saved to localStorage with remember");
       } else {
         sessionStorage.setItem("sessionUser", JSON.stringify(fullUser));
         console.log("💾 Saved to sessionStorage");
       }
 
       // Sync data after successful login
-      const client = getSupabase();
-      if (client) {
+      try {
+        const { dataSync } = await import('@/lib/dataSync');
         dataSync.fullSync().catch(err => console.error('Sync after login failed:', err));
+      } catch (err) {
+        console.log('Sync not available, continuing without sync');
       }
 
       return true;

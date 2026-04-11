@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -17,10 +18,8 @@ import {
 } from 'lucide-react';
 import { ExactLayoutWarehouseImport } from '@/components/inventory/ExactLayoutWarehouseImport';
 import { ExactLayoutWarehouseExport } from '@/components/inventory/ExactLayoutWarehouseExport';
-import { WarehouseExport } from '@/components/inventory/WarehouseExport';
 import { ExactLayoutOilExport } from '@/components/inventory/ExactLayoutOilExport';
-import { SimpleWarehouseTransfer } from '@/components/inventory/SimpleWarehouseTransfer';
-import { WarehouseTransfer } from '@/components/inventory/WarehouseTransfer';
+import { ExactLayoutWarehouseTransfer } from '@/components/inventory/ExactLayoutWarehouseTransfer';
 import { CategoryManagement } from '@/components/inventory/CategoryManagement';
 import { ReportsPage } from '@/components/ReportsPage';
 import { UserManagement } from '@/pages/UserManagement';
@@ -38,12 +37,18 @@ const SECTION_MODULE: Record<string, keyof UserPermissions> = {
   transfer: 'kho-tong',
   oil: 'kho-dau',
   reports: 'bao-cao-tong-hop',
+  inventory: 'bao-cao-tong-hop',
 };
 
-export default function Index() {
+interface IndexProps {
+  initialSection?: string | null;
+}
+
+export default function Index({ initialSection }: IndexProps) {
   const { user, isAdmin } = useAuth();
   const { can } = usePermission();
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const [activeSection, setActiveSection] = useState<string | null>(initialSection ?? null);
   const [warehouseTransactions, setWarehouseTransactions] = useState<WarehouseTransaction[]>([]);
 
   useEffect(() => {
@@ -141,8 +146,9 @@ export default function Index() {
               {activeSection === 'import' && 'Phiếu Nhập Kho'}
               {activeSection === 'export' && 'Phiếu Xuất Kho'}
               {activeSection === 'oil' && 'Phiếu Xuất Dầu'}
-              {activeSection === 'transfer' && 'Phiếu Chuyển Kho'}
-              {activeSection === 'reports' && 'Báo Cáo Tổng Hợp'}
+          {activeSection === 'transfer' && 'Phiếu Chuyển Kho'}
+          {activeSection === 'reports' && 'Báo Cáo Tổng Hợp'}
+          {activeSection === 'inventory' && 'Tồn kho'}
               {activeSection === 'categories' && 'Quản Lý Danh Mục'}
               {activeSection === 'users' && 'Quản Lý Nhân Sự'}
             </h1>
@@ -269,6 +275,21 @@ export default function Index() {
                   </Card>
                 )}
 
+                {canViewSection('inventory') && (
+                  <Card className="hover:shadow-lg transition-shadow cursor-pointer group mobile-touch-target" onClick={() => navigate('/ton-kho')}>
+                    <CardHeader className="text-center pb-3 md:pb-4">
+                      <div className="mx-auto w-12 h-12 md:w-16 md:h-16 bg-sky-100 rounded-full flex items-center justify-center group-hover:bg-sky-200 transition-colors">
+                        <BarChart3 className="w-6 h-6 md:w-8 md:h-8 text-sky-600" />
+                      </div>
+                      <CardTitle className="text-lg md:text-xl font-bold text-sky-600">Tồn kho</CardTitle>
+                    </CardHeader>
+                    <CardContent className="text-center">
+                      <p className="text-gray-600 mb-3 md:mb-4 text-sm md:text-base">Xem tồn kho chi tiết theo mức tồn và cảnh báo sắp hết</p>
+                      <Badge variant="outline" className="text-xs md:text-sm">Trang riêng</Badge>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Admin Only Cards */}
                 {isAdmin && isAdmin() && (
                   <>
@@ -313,9 +334,9 @@ export default function Index() {
 
           {/* Render selected section (guarded) */}
           {activeSection === 'import' && canViewSection('import') && <ExactLayoutWarehouseImport onSubmit={handleWarehouseTransaction} />}
-          {activeSection === 'export' && canViewSection('export') && <WarehouseExport />}
+          {activeSection === 'export' && canViewSection('export') && <ExactLayoutWarehouseExport onSubmit={handleWarehouseTransaction} />}
           {activeSection === 'oil' && canViewSection('oil') && <ExactLayoutOilExport onSubmit={handleWarehouseTransaction} />}
-          {activeSection === 'transfer' && canViewSection('transfer') && <WarehouseTransfer />}
+          {activeSection === 'transfer' && canViewSection('transfer') && <ExactLayoutWarehouseTransfer onSubmit={handleWarehouseTransaction} />}
           {activeSection === 'categories' && isAdmin && isAdmin() && <CategoryManagement />}
           {activeSection === 'users' && isAdmin && isAdmin() && <UserManagement />}
           {activeSection === 'reports' && canViewSection('reports') && (

@@ -1,37 +1,54 @@
 import { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { WarehouseTransaction } from '@/types/inventory';
+import { ChevronDown, ChevronUp, Plus, Trash2, Download } from 'lucide-react';
+import { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
 import { Category, Machine, User } from '@/types/categories';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Badge } from '@/components/ui/badge';
 
 interface ExactLayoutOilExportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
 }
 
 export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState({
+    tenChungLoai: '',
+    donVi: 'Lít',
+    gia: ''
+  });
   
-  const [formData, setFormData] = useState({
+  const [headerData, setHeaderData] = useState({
     ngayXuat: new Date().toISOString().split('T')[0],
-    loaiDau: '',
-    soLuong: '',
-    donVi: '',
-    donGia: '',
-    thanhTien: '0',
     mayMoc: '',
     nguoiVanHanh: '',
+    trangThaiBanDau: '',
     ghiChu: ''
   });
+
+  const [items, setItems] = useState<WarehouseTransactionItem[]>([
+    {
+      id: Date.now().toString(),
+      itemId: '',
+      itemName: '',
+      quantity: 0,
+      unit: '',
+      price: 0,
+      totalValue: 0,
+      ghiChu: ''
+    }
+  ]);
 
   const [dataList, setDataList] = useState<any[]>([]);
   const [showFilter, setShowFilter] = useState(false);
@@ -42,357 +59,335 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
 
   const loadData = () => {
     try {
-      // Load categories - ONLY oil-related from localStorage, NO default data
       const savedCategories = localStorage.getItem('categoryTypes');
       if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories) && parsedCategories.length > 0) {
-          // Filter only oil-related categories
-          setCategories(parsedCategories.filter(cat => 
+        const parsed = JSON.parse(savedCategories);
+        if (Array.isArray(parsed)) {
+          setCategories(parsed.filter(cat => 
             cat.tenChungLoai.toLowerCase().includes('dầu') || 
             cat.tenChungLoai.toLowerCase().includes('oil') ||
             cat.tenChungLoai.toLowerCase().includes('mỡ')
           ));
         }
       }
-
-      // Load machines - ONLY from localStorage, NO default data
       const savedMachines = localStorage.getItem('machines');
       if (savedMachines) {
-        const parsedMachines = JSON.parse(savedMachines);
-        if (Array.isArray(parsedMachines) && parsedMachines.length > 0) {
-          setMachines(parsedMachines);
-        }
+        const parsed = JSON.parse(savedMachines);
+        if (Array.isArray(parsed)) setMachines(parsed);
       }
-
-      // Load users - ONLY from localStorage, NO default data
       const savedUsers = localStorage.getItem('users');
       if (savedUsers) {
-        const parsedUsers = JSON.parse(savedUsers);
-        if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
-          setUsers(parsedUsers);
-        }
+        const parsed = JSON.parse(savedUsers);
+        if (Array.isArray(parsed)) setUsers(parsed);
       }
     } catch (error) {
       console.error('Error loading data:', error);
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
-    const newData = { ...formData, [field]: value };
-    
-    // Auto-fill related fields when category is selected
-    if (field === 'loaiDau') {
-      const selectedCategory = categories.find(cat => cat.id === value);
-      if (selectedCategory) {
-        newData.donVi = selectedCategory.donVi;
-        newData.donGia = selectedCategory.gia.toString();
+  const handleAddCategory = () => {
+    if (!newCategory.tenChungLoai || !newCategory.donVi) {
+      toast.error('Vui lòng nhập tên và đơn vị');
+      return;
+    }
+    const categoryToAdd: Category = {
+      id: Date.now().toString(),
+      tenChungLoai: newCategory.tenChungLoai,
+      donVi: newCategory.donVi,
+      gia: parseFloat(newCategory.gia) || 0,
+      createdAt: new Date().toISOString()
+    };
+    const savedCategories = localStorage.getItem('categoryTypes');
+    let allCategories: Category[] = savedCategories ? JSON.parse(savedCategories) : [];
+    allCategories.push(categoryToAdd);
+    localStorage.setItem('categoryTypes', JSON.stringify(allCategories));
+    setCategories(prev => [...prev, categoryToAdd]);
+    setIsAddCategoryOpen(false);
+    setNewCategory({ tenChungLoai: '', donVi: 'Lít', gia: '' });
+    toast.success('Đã thêm loại dầu mới');
+  };
+
+  const handleAddItem = () => {
+    setItems([...items, {
+      id: Date.now().toString(),
+      itemId: '',
+      itemName: '',
+      quantity: 0,
+      unit: '',
+      price: 0,
+      totalValue: 0,
+      ghiChu: ''
+    }]);
+  };
+
+  const handleRemoveItem = (id: string) => {
+    if (items.length === 1) {
+      toast.error('Phải có ít nhất một dòng vật tư');
+      return;
+    }
+    setItems(items.filter(item => item.id !== id));
+  };
+
+  const handleItemChange = (id: string, field: keyof WarehouseTransactionItem, value: any) => {
+    setItems(items.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, [field]: value };
+        if (field === 'itemId') {
+          const selectedCategory = categories.find(cat => cat.id === value);
+          if (selectedCategory) {
+            updatedItem.itemName = selectedCategory.tenChungLoai;
+            updatedItem.unit = selectedCategory.donVi;
+            updatedItem.price = selectedCategory.gia;
+            updatedItem.totalValue = updatedItem.quantity * updatedItem.price;
+          }
+        }
+        if (field === 'quantity' || field === 'price') {
+          updatedItem.totalValue = (updatedItem.quantity || 0) * (updatedItem.price || 0);
+        }
+        return updatedItem;
       }
-    }
-    
-    if (field === 'soLuong' || field === 'donGia') {
-      const soLuong = parseFloat(field === 'soLuong' ? value : newData.soLuong) || 0;
-      const donGia = parseFloat(field === 'donGia' ? value : newData.donGia) || 0;
-      newData.thanhTien = (soLuong * donGia).toString();
-    }
-    
-    setFormData(newData);
+      return item;
+    }));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.loaiDau || !formData.soLuong || !formData.mayMoc) {
-      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+    if (!headerData.mayMoc || items.some(item => !item.itemId || item.quantity <= 0)) {
+      toast.error('Vui lòng chọn máy móc và vật tư');
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      ...formData,
-      createdAt: new Date().toLocaleString('vi-VN')
-    };
-
-    setDataList([...dataList, newItem]);
-
-    const selectedCategory = categories.find(cat => cat.id === formData.loaiDau);
-    const selectedMachine = machines.find(machine => machine.id === formData.mayMoc);
+    const totalValue = items.reduce((sum, item) => sum + item.totalValue, 0);
+    const selectedMachine = machines.find(m => m.id === headerData.mayMoc);
     
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
       type: 'oil_export',
-      itemId: Date.now().toString(),
-      itemName: selectedCategory?.tenChungLoai || formData.loaiDau,
-      quantity: parseFloat(formData.soLuong),
-      unit: formData.donVi,
-      price: parseFloat(formData.donGia) || 0,
-      totalValue: parseFloat(formData.thanhTien) || 0,
-      reason: `Xuất dầu cho máy ${selectedMachine?.tenMay || formData.mayMoc}`,
+      items: items,
+      totalValue: totalValue,
+      machineId: headerData.mayMoc,
+      reason: `Xuất dầu cho máy ${selectedMachine?.tenMay || headerData.mayMoc}`,
       referenceNumber: `DM${Date.now()}`,
-      operator: currentUser?.name || formData.nguoiVanHanh,
+      operator: user?.name || headerData.nguoiVanHanh,
       status: 'pending',
-      transactionDate: formData.ngayXuat,
-      notes: formData.ghiChu,
-      machineId: formData.mayMoc
+      transactionDate: headerData.ngayXuat,
+      notes: headerData.ghiChu,
+      trangThaiBanDau: headerData.trangThaiBanDau
     };
-    
+
+    const newItem = {
+      id: Date.now(),
+      ...headerData,
+      items: [...items],
+      totalValue,
+      createdAt: new Date().toLocaleString('vi-VN')
+    };
+
+    setDataList([newItem, ...dataList]);
     onSubmit(transaction);
+    setItems([{
+      id: Date.now().toString(),
+      itemId: '',
+      itemName: '',
+      quantity: 0,
+      unit: '',
+      price: 0,
+      totalValue: 0,
+      ghiChu: ''
+    }]);
+    setHeaderData({
+      ...headerData,
+      trangThaiBanDau: '',
+      ghiChu: ''
+    });
     toast.success('Đã thêm phiếu xuất dầu thành công!');
+  };
+
+  const handleExportExcel = () => {
+    if (dataList.length === 0) {
+      toast.error('Không có dữ liệu để xuất');
+      return;
+    }
+
+    const exportData = dataList.flatMap(phieu => 
+      phieu.items.map((item: any, index: number) => ({
+        'STT': index + 1,
+        'Ngày Xuất': phieu.ngayXuat,
+        'Số Phiếu': phieu.id,
+        'Máy Móc': machines.find(m => m.id === phieu.mayMoc)?.tenMay || phieu.mayMoc,
+        'Người Vận Hành': phieu.nguoiVanHanh,
+        'Trạng Thái Ban Đầu': phieu.trangThaiBanDau || '',
+        'Loại Dầu': item.itemName,
+        'Số Lượng': item.quantity,
+        'Đơn Vị': item.unit,
+        'Đơn Giá': item.price,
+        'Thành Tiền': item.totalValue,
+        'Ghi Chú': phieu.ghiChu || ''
+      }))
+    );
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'XuatDau');
+    XLSX.writeFile(wb, `Bao_Cao_Xuat_Dau_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Đã xuất file Excel thành công');
   };
 
   return (
     <div className="max-w-7xl mx-auto bg-white">
-      {/* Header Lọc Và Chỉnh Sửa */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-orange-400 to-yellow-500 text-white p-4 rounded-t-lg">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">🛢️ Phiếu Xuất Dầu Mỡ</h2>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setShowFilter(!showFilter)}
-            className="text-white hover:bg-white/20"
-          >
-            {showFilter ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {showFilter ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
-          </Button>
+          <h2 className="text-xl font-semibold">🛢️ Phiếu Xuất Dầu Mỡ (Nhiều Loại)</h2>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" onClick={handleExportExcel} className="text-white hover:bg-white/20">
+              <Download className="w-4 h-4 mr-1" /> Xuất Excel
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setShowFilter(!showFilter)} className="text-white hover:bg-white/20">
+              {showFilter ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              {showFilter ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
+            </Button>
+          </div>
         </div>
       </div>
 
-      {/* Phần Filter - Có thể ẩn/hiện */}
+      {/* Filter */}
       {showFilter && (
         <div className="bg-gray-50 p-4 border-b">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div>
-              <Label className="text-sm font-medium">Từ ngày</Label>
-              <Input type="date" className="w-full" />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div><Label className="text-sm font-medium">Từ ngày</Label><Input type="date" className="w-full" /></div>
+            <div><Label className="text-sm font-medium">Đến ngày</Label><Input type="date" className="w-full" /></div>
+            <div><Label className="text-sm font-medium">Máy móc</Label>
+              <Select><SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger>
+              <SelectContent>{machines.map(m => <SelectItem key={m.id} value={m.id}>{m.tenMay}</SelectItem>)}</SelectContent></Select>
             </div>
-            
-            <div>
-              <Label className="text-sm font-medium">Đến ngày</Label>
-              <Input type="date" className="w-full" />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Loại dầu</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.tenChungLoai}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Máy móc</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  {machines.map((machine) => (
-                    <SelectItem key={machine.id} value={machine.id}>
-                      {machine.tenMay}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-600 mt-2">
-            Hiển thị {dataList.length} bản ghi
+            <div className="flex items-end"><Button type="button" variant="outline" size="sm" className="w-full">Đặt lại</Button></div>
           </div>
         </div>
       )}
 
-      {/* Layout 2 cột: Form bên trái, Bảng bên phải */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-        {/* Cột trái: Form Phiếu Xuất Dầu */}
-        <div>
-          <div className="bg-gradient-to-r from-orange-500 to-yellow-500 text-white p-3 rounded-t-lg">
-            <h3 className="text-lg font-semibold">🛢️ Phiếu Xuất Dầu Mỡ</h3>
+      <div className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Header Info */}
+          <div className="grid grid-cols-1 md:grid-cols-1 gap-4 bg-gray-50 p-4 rounded-lg border">
+            <div>
+              <Label className="text-sm font-medium">Ngày xuất *</Label>
+              <Input type="date" value={headerData.ngayXuat} onChange={(e) => setHeaderData({...headerData, ngayXuat: e.target.value})} required />
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded-b-lg space-y-4">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-sm font-medium">Ngày xuất *</Label>
-                <Input
-                  type="date"
-                  value={formData.ngayXuat}
-                  onChange={(e) => handleInputChange('ngayXuat', e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium">Loại dầu *</Label>
-                <Select value={formData.loaiDau} onValueChange={(value) => handleInputChange('loaiDau', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn loại dầu..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">Chưa có loại dầu nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                    ) : (
-                      categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.tenChungLoai}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Số lượng *</Label>
-                <Input
-                  type="number"
-                  value={formData.soLuong}
-                  onChange={(e) => handleInputChange('soLuong', e.target.value)}
-                  placeholder="Nhập số lượng"
-                  min="0"
-                  step="0.01"
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium">Đơn vị *</Label>
-                <Input
-                  value={formData.donVi}
-                  onChange={(e) => handleInputChange('donVi', e.target.value)}
-                  placeholder="Tự động điền khi chọn loại dầu"
-                  readOnly
-                  className="bg-gray-100"
-                />
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Đơn giá (VND) *</Label>
-                <Input
-                  type="number"
-                  value={formData.donGia}
-                  onChange={(e) => handleInputChange('donGia', e.target.value)}
-                  placeholder="Tự động điền khi chọn loại dầu"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium">Thành tiền (VND)</Label>
-                <Input
-                  value={formData.thanhTien}
-                  readOnly
-                  className="bg-gray-100"
-                  placeholder="0 VND"
-                />
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Máy móc *</Label>
-                <Select value={formData.mayMoc} onValueChange={(value) => handleInputChange('mayMoc', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn máy móc..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {machines.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">Chưa có máy móc nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                    ) : (
-                      machines.map((machine) => (
-                        <SelectItem key={machine.id} value={machine.id}>
-                          {machine.tenMay} ({machine.maMay})
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium">Người vận hành</Label>
-                <Select value={formData.nguoiVanHanh} onValueChange={(value) => handleInputChange('nguoiVanHanh', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn người vận hành..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">Chưa có người dùng nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                    ) : (
-                      users.map((user) => (
-                        <SelectItem key={user.id} value={user.hoTen}>
-                          {user.hoTen} - {user.msnv}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Ghi chú</Label>
-                <Textarea
-                  value={formData.ghiChu}
-                  onChange={(e) => handleInputChange('ghiChu', e.target.value)}
-                  placeholder="Ghi chú thêm (tùy chọn)"
-                  rows={3}
-                />
+          {/* Items Section */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold flex items-center gap-2">🛢️ Danh sách dầu mỡ <Badge variant="secondary">{items.length}</Badge></h3>
+              <div className="flex gap-2">
+                <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+                  <DialogTrigger asChild><Button type="button" variant="outline" size="sm" className="text-blue-600 border-blue-200"><Plus className="w-4 h-4 mr-1" /> Thêm loại dầu mới</Button></DialogTrigger>
+                  <DialogContent><DialogHeader><DialogTitle>Thêm loại dầu mỡ mới</DialogTitle></DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2"><Label>Tên loại dầu/mỡ *</Label><Input value={newCategory.tenChungLoai} onChange={(e) => setNewCategory({...newCategory, tenChungLoai: e.target.value})} /></div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2"><Label>Đơn vị *</Label><Input value={newCategory.donVi} onChange={(e) => setNewCategory({...newCategory, donVi: e.target.value})} /></div>
+                        <div className="space-y-2"><Label>Đơn giá</Label><Input type="number" value={newCategory.gia} onChange={(e) => setNewCategory({...newCategory, gia: e.target.value})} /></div>
+                      </div>
+                      <Button className="w-full" onClick={handleAddCategory}>Lưu</Button>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+                <Button type="button" onClick={handleAddItem} variant="default" size="sm" className="bg-orange-600 hover:bg-orange-700"><Plus className="w-4 h-4 mr-1" /> Thêm dòng</Button>
               </div>
             </div>
 
-            <Button 
-              type="submit" 
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white"
-            >
-              🛢️ Thêm Phiếu Xuất Dầu
-            </Button>
-          </form>
-        </div>
-
-        {/* Cột phải: Bảng hiển thị dữ liệu */}
-        <div>
-          <div className="bg-white border rounded-lg">
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-800">Danh sách phiếu xuất dầu</h3>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 border-b">
+                  <tr>
+                    <th className="p-2 text-left w-10">STT</th>
+                    <th className="p-2 text-left">Loại dầu *</th>
+                    <th className="p-2 text-left w-24">Số lượng *</th>
+                    <th className="p-2 text-left w-20">Đơn vị</th>
+                    <th className="p-2 text-left w-32">Đơn giá</th>
+                    <th className="p-2 text-left w-32">Thành tiền</th>
+                    <th className="p-2 text-center w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y bg-white">
+                  {items.map((item, index) => (
+                    <tr key={item.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="p-2 text-center text-gray-500">{index + 1}</td>
+                      <td className="p-2">
+                        <Select value={item.itemId} onValueChange={(v) => handleItemChange(item.id, 'itemId', v)}>
+                          <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn loại dầu..." /></SelectTrigger>
+                          <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.tenChungLoai}</SelectItem>)}</SelectContent>
+                        </Select>
+                      </td>
+                      <td className="p-2"><Input type="number" className="h-9 border-gray-200" value={item.quantity || ''} onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value))} /></td>
+                      <td className="p-2"><Input className="h-9 bg-gray-50 border-gray-200" value={item.unit} readOnly /></td>
+                      <td className="p-2"><Input type="number" className="h-9 border-gray-200" value={item.price || ''} onChange={(e) => handleItemChange(item.id, 'price', parseFloat(e.target.value))} /></td>
+                      <td className="p-2"><div className="font-semibold text-orange-600">{item.totalValue.toLocaleString('vi-VN')}</div></td>
+                      <td className="p-2 text-center">
+                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => handleRemoveItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-orange-50 font-bold border-t border-orange-100">
+                  <tr><td colSpan={5} className="p-3 text-right text-orange-800">Tổng cộng xuất dầu:</td><td className="p-3 text-orange-700 text-lg">{items.reduce((sum, i) => sum + i.totalValue, 0).toLocaleString('vi-VN')} VND</td><td></td></tr>
+                </tfoot>
+              </table>
             </div>
             
-            <div className="p-4">
-              {dataList.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">
-                  <p>Chưa có dữ liệu</p>
-                  <p className="text-sm mt-2">Nhập thông tin vào form bên trái để hiển thị dữ liệu</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {dataList.map((item, index) => (
-                    <div key={item.id} className="bg-gray-50 p-3 rounded border">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div><strong>STT:</strong> {index + 1}</div>
-                        <div><strong>Ngày:</strong> {item.ngayXuat}</div>
-                        <div><strong>Loại dầu:</strong> {categories.find(cat => cat.id === item.loaiDau)?.tenChungLoai || item.loaiDau}</div>
-                        <div><strong>Số lượng:</strong> {item.soLuong} {item.donVi}</div>
-                        <div><strong>Đơn giá:</strong> {Number(item.donGia).toLocaleString('vi-VN')} VND</div>
-                        <div><strong>Thành tiền:</strong> {Number(item.thanhTien).toLocaleString('vi-VN')} VND</div>
-                        <div><strong>Máy móc:</strong> {machines.find(machine => machine.id === item.mayMoc)?.tenMay || item.mayMoc}</div>
-                        <div><strong>Người vận hành:</strong> {item.nguoiVanHanh}</div>
-                        {item.ghiChu && (
-                          <div className="col-span-2"><strong>Ghi chú:</strong> {item.ghiChu}</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+            {/* Moved fields: Máy móc sử dụng, Người vận hành, Ghi chú (trạng thái ban đầu) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
+              <div>
+                <Label className="text-sm font-medium">Máy móc sử dụng *</Label>
+                <Select value={headerData.mayMoc} onValueChange={(v) => setHeaderData({...headerData, mayMoc: v})}>
+                  <SelectTrigger><SelectValue placeholder="Chọn máy" /></SelectTrigger>
+                  <SelectContent>{machines.map(m => <SelectItem key={m.id} value={m.id}>{m.tenMay}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Người vận hành</Label>
+                <Select value={headerData.nguoiVanHanh} onValueChange={(v) => setHeaderData({...headerData, nguoiVanHanh: v})}>
+                  <SelectTrigger><SelectValue placeholder="Chọn người" /></SelectTrigger>
+                  <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.hoTen}>{u.hoTen}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Ghi chú</Label>
+                <Input 
+                  placeholder="VD: Mức dầu thấp, máy bình thường..." 
+                  value={headerData.trangThaiBanDau} 
+                  onChange={(e) => setHeaderData({...headerData, trangThaiBanDau: e.target.value})} 
+                />
+              </div>
             </div>
+          </div>
+
+          <Button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 h-12 text-lg font-bold shadow-lg">💾 Lưu Phiếu Xuất Dầu</Button>
+        </form>
+
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold border-b pb-2 text-gray-700">Các phiếu vừa tạo</h3>
+          <div className="grid grid-cols-1 gap-4">
+            {dataList.map((phieu) => (
+              <div key={phieu.id} className="border border-orange-100 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <div className="font-bold text-orange-700">Phiếu: {phieu.id}</div>
+                    <div className="text-sm text-gray-500">
+                      Ngày: {phieu.ngayXuat} | Máy: {machines.find(m => m.id === phieu.mayMoc)?.tenMay || phieu.mayMoc}
+                    </div>
+                    {phieu.trangThaiBanDau && (
+                      <div className="text-xs text-blue-600 font-medium mt-1">
+                        Trạng thái ban đầu: {phieu.trangThaiBanDau}
+                      </div>
+                    )}
+                  </div>
+                  <div className="text-right"><div className="font-bold text-orange-600 text-lg">{phieu.totalValue.toLocaleString('vi-VN')} VND</div><div className="text-xs text-gray-400">{phieu.createdAt}</div></div>
+                </div>
+                <div className="text-sm text-gray-600 bg-orange-50/50 p-2 rounded italic">Loại: {phieu.items.map((i: any) => `${i.itemName} (${i.quantity} ${i.unit})`).join(', ')}</div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

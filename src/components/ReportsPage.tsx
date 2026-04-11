@@ -1,4 +1,6 @@
 import { useState, useMemo } from 'react';
+import * as XLSX from 'xlsx';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,12 +12,9 @@ import {
   BarChart3, 
   TrendingUp, 
   Package, 
-  Factory, 
   Calendar,
   Download,
-  Filter,
-  Eye,
-  Plus
+  Filter
 } from 'lucide-react';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -26,6 +25,7 @@ interface ReportsPageProps {
 }
 
 export function ReportsPage({ warehouseTransactions }: ReportsPageProps) {
+  const [activeTab, setActiveTab] = useState<'overview' | 'warehouse' | 'trends'>('overview');
   const [dateFilter, setDateFilter] = useState({
     startDate: '',
     endDate: new Date().toISOString().split('T')[0]
@@ -63,6 +63,100 @@ export function ReportsPage({ warehouseTransactions }: ReportsPageProps) {
     };
   }, [filteredWarehouseTransactions]);
 
+  // Calculate inventory levels
+  const inventoryStats = useMemo(() => {
+    // Try to load categories from both possible localStorage keys
+    let categories: any[] = [];
+    try {
+      const categoryTypes = JSON.parse(localStorage.getItem('categoryTypes') || '[]');
+      const categoryItems = JSON.parse(localStorage.getItem('category_items') || '[]');
+      
+      // Combine categories from both sources
+      categories = [...categoryTypes, ...categoryItems.map((cat: any) => ({
+        id: cat.id,
+        maLoai: cat.maLoai || cat.tenChungLoai,
+        tenLoai: cat.tenLoai || cat.tenChungLoai,
+        donVi: cat.donVi || cat.donViTinh,
+        gia: cat.gia || parseFloat(cat.donGia) || 0,
+        minimumStock: cat.minimumStock || 0,
+        createdAt: cat.createdAt || new Date().toISOString()
+      }))];
+      
+      // Remove duplicates based on id
+      const uniqueCategories = categories.filter((cat, index, self) => 
+        index === self.findIndex(c => c.id === cat.id)
+      );
+      categories = uniqueCategories;
+    } catch (error) {
+      console.error('Error loading categories:', error);
+      categories = [];
+    }
+
+    const inventoryMap = new Map();
+
+    // Calculate current stock for each category
+    filteredWarehouseTransactions.forEach(transaction => {
+      if (transaction.items) {
+        transaction.items.forEach(item => {
+          const category = categories.find((c: any) => 
+            c.tenLoai === item.itemName || 
+            c.maLoai === item.itemName ||
+            c.tenChungLoai === item.itemName
+          );
+          if (category) {
+            const key = category.id;
+            if (!inventoryMap.has(key)) {
+              inventoryMap.set(key, {
+                category: category,
+                currentStock: 0,
+                totalValue: 0
+              });
+            }
+            const stock = inventoryMap.get(key);
+            if (transaction.type === 'import') {
+              stock.currentStock += item.quantity;
+              stock.totalValue += item.totalValue || 0;
+            } else if (transaction.type === 'export' || transaction.type === 'oil_export') {
+              stock.currentStock -= item.quantity;
+              stock.totalValue -= item.totalValue || 0;
+            }
+          }
+        });
+      } else {
+        // Handle old format transactions
+        const category = categories.find((c: any) => 
+          c.tenLoai === (transaction as any).itemName ||
+          c.tenChungLoai === (transaction as any).itemName
+        );
+        if (category) {
+          const key = category.id;
+          if (!inventoryMap.has(key)) {
+            inventoryMap.set(key, {
+              category: category,
+              currentStock: 0,
+              totalValue: 0
+            });
+          }
+          const stock = inventoryMap.get(key);
+          if (transaction.type === 'import') {
+            stock.currentStock += (transaction as any).quantity;
+            stock.totalValue += transaction.totalValue || 0;
+          } else if (transaction.type === 'export' || transaction.type === 'oil_export') {
+            stock.currentStock -= (transaction as any).quantity;
+            stock.totalValue -= transaction.totalValue || 0;
+          }
+        }
+      }
+    });
+
+    const result = Array.from(inventoryMap.values()).map(item => ({
+      ...item,
+      isLowStock: item.currentStock <= (item.category.minimumStock || 0)
+    }));
+    
+    return result;
+  }, [filteredWarehouseTransactions]);
+
   // Group data by date for trends
   const warehouseTrends = useMemo(() => {
     const grouped = filteredWarehouseTransactions.reduce((acc, transaction) => {
@@ -79,21 +173,46 @@ export function ReportsPage({ warehouseTransactions }: ReportsPageProps) {
   }, [filteredWarehouseTransactions]);
 
   const handleExportData = () => {
-    const data = {
-      warehouseTransactions: filteredWarehouseTransactions,
-      exportDate: new Date().toISOString(),
-      filters: { dateFilter, typeFilter }
-    };
+    if (filteredWarehouseTransactions.length === 0) {
+      toast.error('Không có dữ liệu để xuất');
+      return;
+    }
 
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bao-cao-${new Date().toISOString().split('T')[0]}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const exportData = filteredWarehouseTransactions.flatMap(t => {
+      if (t.items && t.items.length > 0) {
+        return t.items.map((item, index) => ({
+          'Ngày': t.transactionDate,
+          'Số Phiếu': t.referenceNumber,
+          'Loại': t.type === 'import' ? 'Nhập' : t.type === 'export' ? 'Xuất' : t.type === 'transfer' ? 'Chuyển' : 'Xuất dầu',
+          'Mặt Hàng': item.itemName,
+          'Số Lượng': item.quantity,
+          'Đơn Vị': item.unit,
+          'Thành Tiền': item.totalValue || 0,
+          'Người Thực Hiện': t.operator,
+          'Trạng Thái Ban Đầu': t.trangThaiBanDau || '',
+          'Ghi Chú': t.notes || ''
+        }));
+      } else {
+        return [{
+          'Ngày': t.transactionDate,
+          'Số Phiếu': t.referenceNumber,
+          'Loại': t.type === 'import' ? 'Nhập' : t.type === 'export' ? 'Xuất' : t.type === 'transfer' ? 'Chuyển' : 'Xuất dầu',
+          'Mặt Hàng': (t as any).itemName || '',
+          'Số Lượng': (t as any).quantity || 0,
+          'Đơn Vị': (t as any).unit || '',
+          'Thành Tiền': t.totalValue || 0,
+          'Người Thực Hiện': t.operator,
+          'Trạng Thái Ban Đầu': t.trangThaiBanDau || '',
+          'Ghi Chú': t.notes || ''
+        }];
+      }
+    });
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'BaoCao');
+    XLSX.writeFile(wb, `Bao_Cao_Tong_Hop_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Đã xuất báo cáo Excel thành công');
   };
 
   return (
@@ -168,7 +287,7 @@ export function ReportsPage({ warehouseTransactions }: ReportsPageProps) {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="overview" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Tổng quan</TabsTrigger>
           <TabsTrigger value="warehouse">Kho hàng</TabsTrigger>
@@ -253,29 +372,45 @@ export function ReportsPage({ warehouseTransactions }: ReportsPageProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {filteredWarehouseTransactions.slice(-10).reverse().map((transaction) => (
-                    <div key={transaction.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="font-medium">{transaction.itemName}</p>
-                        <p className="text-sm text-gray-600">
-                          {transaction.quantity} {transaction.unit}
-                        </p>
-                        <p className="text-xs text-gray-500">{transaction.transactionDate}</p>
+                <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                  {filteredWarehouseTransactions.slice(-20).reverse().map((transaction) => (
+                    <div key={transaction.id} className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Badge variant={
+                            transaction.type === 'import' ? 'default' : 
+                            transaction.type === 'export' ? 'destructive' : 
+                            transaction.type === 'transfer' ? 'secondary' : 'outline'
+                          }>
+                            {transaction.type === 'import' ? 'Nhập' : 
+                             transaction.type === 'export' ? 'Xuất' : 
+                             transaction.type === 'transfer' ? 'Chuyển' : 'Xuất dầu'}
+                          </Badge>
+                          <span className="text-xs text-gray-500 font-mono">{transaction.referenceNumber}</span>
+                        </div>
+                        <span className="text-xs text-gray-500">{transaction.transactionDate}</span>
                       </div>
-                      <div className="text-right">
-                        <Badge variant={
-                          transaction.type === 'import' ? 'default' : 
-                          transaction.type === 'export' ? 'destructive' : 
-                          transaction.type === 'transfer' ? 'secondary' : 'outline'
-                        }>
-                          {transaction.type === 'import' ? 'Nhập' : 
-                           transaction.type === 'export' ? 'Xuất' : 
-                           transaction.type === 'transfer' ? 'Chuyển' : 'Xuất dầu'}
-                        </Badge>
-                        <p className="text-sm text-gray-600 mt-1">
+                      
+                      <div className="space-y-1">
+                        {transaction.items && transaction.items.map((item, idx) => (
+                          <div key={item.id || idx} className="flex justify-between text-sm">
+                            <span className="text-gray-700 truncate max-w-[200px]">{item.itemName}</span>
+                            <span className="text-gray-500">{item.quantity} {item.unit}</span>
+                          </div>
+                        ))}
+                        {!transaction.items && (
+                          <div className="flex justify-between text-sm">
+                            <span className="text-gray-700">{(transaction as any).itemName}</span>
+                            <span className="text-gray-500">{(transaction as any).quantity} {(transaction as any).unit}</span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="mt-2 pt-2 border-t border-gray-200 flex justify-between items-center">
+                        <span className="text-xs text-gray-400">Người lập: {transaction.operator}</span>
+                        <span className="font-bold text-indigo-600">
                           {transaction.totalValue?.toLocaleString('vi-VN')} VND
-                        </p>
+                        </span>
                       </div>
                     </div>
                   ))}
@@ -287,6 +422,7 @@ export function ReportsPage({ warehouseTransactions }: ReportsPageProps) {
             </Card>
           </div>
         </TabsContent>
+
 
         {/* Trends */}
         <TabsContent value="trends" className="space-y-6">

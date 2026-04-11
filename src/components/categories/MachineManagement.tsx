@@ -6,119 +6,119 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Search, Plus, Edit2, Trash2, Package, Upload } from 'lucide-react';
-import { Warehouse } from '@/types/categories';
+import { Search, Plus, Edit2, Trash2, Zap, Upload } from 'lucide-react';
+import { Machine } from '@/types/categories';
 import * as XLSX from 'xlsx';
 
-export function WarehouseManagement() {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+export function MachineManagement() {
+  const [machines, setMachines] = useState<Machine[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    maKho: '',
-    tenKho: '',
+    maMay: '',
+    tenMay: '',
+    loaiMay: '',
     ghiChu: ''
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    loadWarehouses();
+    loadMachines();
   }, []);
 
-  const loadWarehouses = () => {
+  const loadMachines = () => {
     try {
-      const saved = localStorage.getItem('warehouses');
+      const saved = localStorage.getItem('machines');
       if (saved) {
-        setWarehouses(JSON.parse(saved));
+        setMachines(JSON.parse(saved));
       }
     } catch (error) {
-      console.error('Error loading warehouses:', error);
+      console.error('Error loading machines:', error);
     }
   };
 
-  const saveWarehouses = (newWarehouses: Warehouse[]) => {
+  const saveMachines = (newMachines: Machine[]) => {
     try {
-      localStorage.setItem('warehouses', JSON.stringify(newWarehouses));
-      setWarehouses(newWarehouses);
+      localStorage.setItem('machines', JSON.stringify(newMachines));
+      setMachines(newMachines);
     } catch (error) {
-      console.error('Error saving warehouses:', error);
+      console.error('Error saving machines:', error);
       toast.error('Lỗi khi lưu dữ liệu');
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.maKho.trim() || !formData.tenKho.trim()) {
-      toast.error('Vui lòng điền mã kho và tên kho');
+    
+    if (!formData.maMay.trim() || !formData.tenMay.trim()) {
+      toast.error('Vui lòng điền mã máy và tên máy');
       return;
     }
 
     // Check for duplicate code
-    const isDuplicateMa = warehouses.some(w =>
-      w.maKho === formData.maKho.trim() && w.id !== editingId
+    const isDuplicateMa = machines.some(m => 
+      m.maMay === formData.maMay.trim() && m.id !== editingId
     );
-
+    
     if (isDuplicateMa) {
-      toast.error('Mã kho này đã tồn tại');
+      toast.error('Mã máy này đã tồn tại');
       return;
     }
 
     if (editingId) {
-      const updatedWarehouses = warehouses.map(warehouse =>
-        warehouse.id === editingId
-          ? {
-              ...warehouse,
-              maKho: formData.maKho.trim(),
-              tenKho: formData.tenKho.trim(),
-              ghiChu: formData.ghiChu.trim()
-            }
-          : warehouse
+      const updatedMachines = machines.map(machine =>
+        machine.id === editingId
+          ? { ...machine, maMay: formData.maMay.trim(), tenMay: formData.tenMay.trim(), loaiMay: formData.loaiMay.trim(), ghiChu: formData.ghiChu.trim() }
+          : machine
       );
-      saveWarehouses(updatedWarehouses);
-      toast.success('Đã cập nhật kho thành công');
+      saveMachines(updatedMachines);
+      toast.success('Đã cập nhật máy móc thành công');
       setEditingId(null);
     } else {
-      const newWarehouse: Warehouse = {
+      const newMachine: Machine = {
         id: Date.now().toString(),
-        maKho: formData.maKho.trim(),
-        tenKho: formData.tenKho.trim(),
-        ghiChu: formData.ghiChu.trim(),
+        maMay: formData.maMay.trim(),
+        tenMay: formData.tenMay.trim(),
+        loaiMay: formData.loaiMay.trim() || undefined,
+        ghiChu: formData.ghiChu.trim() || undefined,
         createdAt: new Date().toISOString()
       };
-      saveWarehouses([...warehouses, newWarehouse]);
-      toast.success('Đã thêm kho mới thành công');
+      saveMachines([...machines, newMachine]);
+      toast.success('Đã thêm máy móc mới thành công');
     }
 
     setFormData({
-      maKho: '',
-      tenKho: '',
+      maMay: '',
+      tenMay: '',
+      loaiMay: '',
       ghiChu: ''
     });
   };
 
-  const handleEdit = (warehouse: Warehouse) => {
+  const handleEdit = (machine: Machine) => {
     setFormData({
-      maKho: warehouse.maKho,
-      tenKho: warehouse.tenKho,
-      ghiChu: warehouse.ghiChu || ''
+      maMay: machine.maMay,
+      tenMay: machine.tenMay,
+      loaiMay: machine.loaiMay || '',
+      ghiChu: machine.ghiChu || ''
     });
-    setEditingId(warehouse.id);
+    setEditingId(machine.id);
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa kho này?')) {
-      const updatedWarehouses = warehouses.filter(warehouse => warehouse.id !== id);
-      saveWarehouses(updatedWarehouses);
-      toast.success('Đã xóa kho thành công');
+    if (window.confirm('Bạn có chắc chắn muốn xóa máy móc này?')) {
+      const updatedMachines = machines.filter(machine => machine.id !== id);
+      saveMachines(updatedMachines);
+      toast.success('Đã xóa máy móc thành công');
     }
   };
 
   const handleCancel = () => {
     setEditingId(null);
     setFormData({
-      maKho: '',
-      tenKho: '',
+      maMay: '',
+      tenMay: '',
+      loaiMay: '',
       ghiChu: ''
     });
   };
@@ -138,20 +138,23 @@ export function WarehouseManagement() {
 
         let addedCount = 0;
         let skippedCount = 0;
-        const newWarehouses = [...warehouses];
+        const newMachines = [...machines];
 
         data.forEach(row => {
-          const maKho = (row.maKho || '').toString().trim();
-          const tenKho = (row.tenKho || '').toString().trim();
+          const maMay = (row.maMay || '').toString().trim();
+          const tenMay = (row.tenMay || '').toString().trim();
+          const loaiMay = (row.loaiMay || '').toString().trim();
           const ghiChu = (row.ghiChu || '').toString().trim();
 
-          if (!maKho || !tenKho) {
+          // Check for empty required fields
+          if (!maMay || !tenMay) {
             skippedCount++;
             return;
           }
 
-          const isDuplicate = newWarehouses.some(w =>
-            w.maKho === maKho || w.tenKho === tenKho
+          // Check for duplicates
+          const isDuplicate = newMachines.some(m => 
+            m.maMay === maMay || m.tenMay === tenMay
           );
 
           if (isDuplicate) {
@@ -159,17 +162,18 @@ export function WarehouseManagement() {
             return;
           }
 
-          newWarehouses.push({
+          newMachines.push({
             id: Date.now().toString() + Math.random(),
-            maKho,
-            tenKho,
+            maMay,
+            tenMay,
+            loaiMay: loaiMay || undefined,
             ghiChu: ghiChu || undefined,
             createdAt: new Date().toISOString()
           });
           addedCount++;
         });
 
-        saveWarehouses(newWarehouses);
+        saveMachines(newMachines);
         toast.success(`Đã import thành công ${addedCount} dòng. Bỏ qua ${skippedCount} dòng lỗi/trùng lặp.`);
       } catch (error) {
         console.error('Error importing Excel:', error);
@@ -182,55 +186,68 @@ export function WarehouseManagement() {
     }
   };
 
-  const filteredWarehouses = warehouses.filter(warehouse =>
-    warehouse.maKho.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    warehouse.tenKho.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (warehouse.ghiChu && warehouse.ghiChu.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredMachines = machines.filter(machine =>
+    machine.maMay.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    machine.tenMay.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (machine.loaiMay && machine.loaiMay.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (machine.ghiChu && machine.ghiChu.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Quản lý Kho</h2>
-          <p className="text-gray-600">Quản lý thông tin các kho hàng trong hệ thống</p>
+          <h2 className="text-2xl font-bold text-gray-900">Quản lý Máy Móc</h2>
+          <p className="text-gray-600">Quản lý danh sách các máy móc trong hệ thống</p>
         </div>
         <Badge variant="secondary" className="text-lg px-3 py-1">
-          <Package className="w-4 h-4 mr-1" />
-          {warehouses.length} kho
+          <Zap className="w-4 h-4 mr-1" />
+          {machines.length} máy
         </Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Form thêm/sửa máy */}
         <div className="lg:col-span-1">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Plus className="w-5 h-5" />
-                {editingId ? 'Chỉnh sửa kho' : 'Thêm kho mới'}
+                {editingId ? 'Chỉnh sửa máy móc' : 'Thêm máy móc mới'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="maKho">Mã kho *</Label>
+                  <Label htmlFor="maMay">Mã máy *</Label>
                   <Input
-                    id="maKho"
-                    value={formData.maKho}
-                    onChange={(e) => setFormData({ ...formData, maKho: e.target.value })}
-                    placeholder="VD: KHO001"
+                    id="maMay"
+                    value={formData.maMay}
+                    onChange={(e) => setFormData({ ...formData, maMay: e.target.value })}
+                    placeholder="VD: MAY001"
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="tenKho">Tên kho *</Label>
+                  <Label htmlFor="tenMay">Tên máy *</Label>
                   <Input
-                    id="tenKho"
-                    value={formData.tenKho}
-                    onChange={(e) => setFormData({ ...formData, tenKho: e.target.value })}
-                    placeholder="Nhập tên kho"
+                    id="tenMay"
+                    value={formData.tenMay}
+                    onChange={(e) => setFormData({ ...formData, tenMay: e.target.value })}
+                    placeholder="Nhập tên máy"
                     required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="loaiMay">Loại máy</Label>
+                  <Input
+                    id="loaiMay"
+                    value={formData.loaiMay}
+                    onChange={(e) => setFormData({ ...formData, loaiMay: e.target.value })}
+                    placeholder="Nhập loại máy (tùy chọn)"
                   />
                 </div>
 
@@ -247,7 +264,7 @@ export function WarehouseManagement() {
 
                 <div className="flex gap-2">
                   <Button type="submit" className="flex-1">
-                    {editingId ? 'Cập nhật' : 'Thêm kho'}
+                    {editingId ? 'Cập nhật' : 'Thêm máy'}
                   </Button>
                   {editingId && (
                     <Button type="button" variant="outline" onClick={handleCancel}>
@@ -257,6 +274,7 @@ export function WarehouseManagement() {
                 </div>
               </form>
 
+              {/* Import Excel */}
               <div className="border-t pt-4">
                 <Label className="text-sm font-semibold mb-2 block">Import từ Excel</Label>
                 <input
@@ -276,22 +294,23 @@ export function WarehouseManagement() {
                   Import Excel
                 </Button>
                 <p className="text-xs text-gray-500 mt-2">
-                  File cần có cột: maKho, tenKho (tùy chọn: ghiChu)
+                  File cần có cột: maMay, tenMay (tùy chọn: loaiMay, ghiChu)
                 </p>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Danh sách máy */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Danh sách kho</CardTitle>
+                <CardTitle>Danh sách máy móc</CardTitle>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
-                    placeholder="Tìm kiếm kho..."
+                    placeholder="Tìm kiếm máy..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 w-64"
@@ -300,33 +319,40 @@ export function WarehouseManagement() {
               </div>
             </CardHeader>
             <CardContent>
-              {filteredWarehouses.length === 0 ? (
+              {filteredMachines.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  {warehouses.length === 0 ? (
+                  {machines.length === 0 ? (
                     <>
-                      <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p>Chưa có kho nào</p>
-                      <p className="text-sm">Thêm kho đầu tiên để bắt đầu</p>
+                      <Zap className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>Chưa có máy móc nào</p>
+                      <p className="text-sm">Thêm máy đầu tiên để bắt đầu</p>
                     </>
                   ) : (
-                    <p>Không tìm thấy kho phù hợp</p>
+                    <p>Không tìm thấy máy phù hợp</p>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredWarehouses.map((warehouse) => (
+                  {filteredMachines.map((machine) => (
                     <div
-                      key={warehouse.id}
+                      key={machine.id}
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">{warehouse.maKho}</Badge>
-                          <h3 className="font-semibold text-gray-900">{warehouse.tenKho}</h3>
+                          <Badge variant="outline">{machine.maMay}</Badge>
+                          <h3 className="font-semibold text-gray-900">{machine.tenMay}</h3>
                         </div>
-                        {warehouse.ghiChu && (
+                        <div className="flex items-center gap-2 mt-1">
+                          {machine.loaiMay && (
+                            <Badge variant="secondary" className="text-xs">
+                              {machine.loaiMay}
+                            </Badge>
+                          )}
+                        </div>
+                        {machine.ghiChu && (
                           <p className="text-sm text-gray-500 mt-1">
-                            {warehouse.ghiChu}
+                            {machine.ghiChu}
                           </p>
                         )}
                       </div>
@@ -334,7 +360,7 @@ export function WarehouseManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleEdit(warehouse)}
+                          onClick={() => handleEdit(machine)}
                           className="text-blue-600 hover:text-blue-800"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -342,7 +368,7 @@ export function WarehouseManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(warehouse.id)}
+                          onClick={() => handleDelete(machine.id)}
                           className="text-red-600 hover:text-red-800"
                         >
                           <Trash2 className="w-4 h-4" />

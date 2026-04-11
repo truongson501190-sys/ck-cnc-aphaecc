@@ -6,119 +6,114 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Search, Plus, Edit2, Trash2, Package, Upload } from 'lucide-react';
-import { Warehouse } from '@/types/categories';
+import { Search, Plus, Edit2, Trash2, Briefcase, Upload } from 'lucide-react';
+import { Project } from '@/types/categories';
 import * as XLSX from 'xlsx';
 
-export function WarehouseManagement() {
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+export function ProjectManagement() {
+  const [projects, setProjects] = useState<Project[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
-    maKho: '',
-    tenKho: '',
+    maDuAn: '',
+    tenDuAn: '',
     ghiChu: ''
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    loadWarehouses();
+    loadProjects();
   }, []);
 
-  const loadWarehouses = () => {
+  const loadProjects = () => {
     try {
-      const saved = localStorage.getItem('warehouses');
+      const saved = localStorage.getItem('projects');
       if (saved) {
-        setWarehouses(JSON.parse(saved));
+        setProjects(JSON.parse(saved));
       }
     } catch (error) {
-      console.error('Error loading warehouses:', error);
+      console.error('Error loading projects:', error);
     }
   };
 
-  const saveWarehouses = (newWarehouses: Warehouse[]) => {
+  const saveProjects = (newProjects: Project[]) => {
     try {
-      localStorage.setItem('warehouses', JSON.stringify(newWarehouses));
-      setWarehouses(newWarehouses);
+      localStorage.setItem('projects', JSON.stringify(newProjects));
+      setProjects(newProjects);
     } catch (error) {
-      console.error('Error saving warehouses:', error);
+      console.error('Error saving projects:', error);
       toast.error('Lỗi khi lưu dữ liệu');
     }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.maKho.trim() || !formData.tenKho.trim()) {
-      toast.error('Vui lòng điền mã kho và tên kho');
+    
+    if (!formData.maDuAn.trim() || !formData.tenDuAn.trim()) {
+      toast.error('Vui lòng điền mã dự án và tên dự án');
       return;
     }
 
     // Check for duplicate code
-    const isDuplicateMa = warehouses.some(w =>
-      w.maKho === formData.maKho.trim() && w.id !== editingId
+    const isDuplicateMa = projects.some(p => 
+      p.maDuAn === formData.maDuAn.trim() && p.id !== editingId
     );
-
+    
     if (isDuplicateMa) {
-      toast.error('Mã kho này đã tồn tại');
+      toast.error('Mã dự án này đã tồn tại');
       return;
     }
 
     if (editingId) {
-      const updatedWarehouses = warehouses.map(warehouse =>
-        warehouse.id === editingId
-          ? {
-              ...warehouse,
-              maKho: formData.maKho.trim(),
-              tenKho: formData.tenKho.trim(),
-              ghiChu: formData.ghiChu.trim()
-            }
-          : warehouse
+      const updatedProjects = projects.map(project =>
+        project.id === editingId
+          ? { ...project, ...formData }
+          : project
       );
-      saveWarehouses(updatedWarehouses);
-      toast.success('Đã cập nhật kho thành công');
+      saveProjects(updatedProjects);
+      toast.success('Đã cập nhật dự án thành công');
       setEditingId(null);
     } else {
-      const newWarehouse: Warehouse = {
+      const newProject: Project = {
         id: Date.now().toString(),
-        maKho: formData.maKho.trim(),
-        tenKho: formData.tenKho.trim(),
+        maDuAn: formData.maDuAn.trim(),
+        tenDuAn: formData.tenDuAn.trim(),
         ghiChu: formData.ghiChu.trim(),
         createdAt: new Date().toISOString()
       };
-      saveWarehouses([...warehouses, newWarehouse]);
-      toast.success('Đã thêm kho mới thành công');
+      saveProjects([...projects, newProject]);
+      toast.success('Đã thêm dự án mới thành công');
     }
 
     setFormData({
-      maKho: '',
-      tenKho: '',
+      maDuAn: '',
+      tenDuAn: '',
       ghiChu: ''
     });
   };
 
-  const handleEdit = (warehouse: Warehouse) => {
+  const handleEdit = (project: Project) => {
     setFormData({
-      maKho: warehouse.maKho,
-      tenKho: warehouse.tenKho,
-      ghiChu: warehouse.ghiChu || ''
+      maDuAn: project.maDuAn,
+      tenDuAn: project.tenDuAn,
+      ghiChu: project.ghiChu || ''
     });
-    setEditingId(warehouse.id);
+    setEditingId(project.id);
   };
 
   const handleDelete = (id: string) => {
-    if (window.confirm('Bạn có chắc chắn muốn xóa kho này?')) {
-      const updatedWarehouses = warehouses.filter(warehouse => warehouse.id !== id);
-      saveWarehouses(updatedWarehouses);
-      toast.success('Đã xóa kho thành công');
+    if (window.confirm('Bạn có chắc chắn muốn xóa dự án này?')) {
+      const updatedProjects = projects.filter(project => project.id !== id);
+      saveProjects(updatedProjects);
+      toast.success('Đã xóa dự án thành công');
     }
   };
 
   const handleCancel = () => {
     setEditingId(null);
     setFormData({
-      maKho: '',
-      tenKho: '',
+      maDuAn: '',
+      tenDuAn: '',
       ghiChu: ''
     });
   };
@@ -138,20 +133,22 @@ export function WarehouseManagement() {
 
         let addedCount = 0;
         let skippedCount = 0;
-        const newWarehouses = [...warehouses];
+        const newProjects = [...projects];
 
         data.forEach(row => {
-          const maKho = (row.maKho || '').toString().trim();
-          const tenKho = (row.tenKho || '').toString().trim();
+          const maDuAn = (row.maDuAn || '').toString().trim();
+          const tenDuAn = (row.tenDuAn || '').toString().trim();
           const ghiChu = (row.ghiChu || '').toString().trim();
 
-          if (!maKho || !tenKho) {
+          // Check for empty required fields
+          if (!maDuAn || !tenDuAn) {
             skippedCount++;
             return;
           }
 
-          const isDuplicate = newWarehouses.some(w =>
-            w.maKho === maKho || w.tenKho === tenKho
+          // Check for duplicates
+          const isDuplicate = newProjects.some(p => 
+            p.maDuAn === maDuAn || p.tenDuAn === tenDuAn
           );
 
           if (isDuplicate) {
@@ -159,17 +156,17 @@ export function WarehouseManagement() {
             return;
           }
 
-          newWarehouses.push({
+          newProjects.push({
             id: Date.now().toString() + Math.random(),
-            maKho,
-            tenKho,
-            ghiChu: ghiChu || undefined,
+            maDuAn,
+            tenDuAn,
+            ghiChu,
             createdAt: new Date().toISOString()
           });
           addedCount++;
         });
 
-        saveWarehouses(newWarehouses);
+        saveProjects(newProjects);
         toast.success(`Đã import thành công ${addedCount} dòng. Bỏ qua ${skippedCount} dòng lỗi/trùng lặp.`);
       } catch (error) {
         console.error('Error importing Excel:', error);
@@ -182,54 +179,56 @@ export function WarehouseManagement() {
     }
   };
 
-  const filteredWarehouses = warehouses.filter(warehouse =>
-    warehouse.maKho.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    warehouse.tenKho.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (warehouse.ghiChu && warehouse.ghiChu.toLowerCase().includes(searchTerm.toLowerCase()))
+  const filteredProjects = projects.filter(project =>
+    project.maDuAn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    project.tenDuAn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (project.ghiChu && project.ghiChu.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Quản lý Kho</h2>
-          <p className="text-gray-600">Quản lý thông tin các kho hàng trong hệ thống</p>
+          <h2 className="text-2xl font-bold text-gray-900">Quản lý Dự Án</h2>
+          <p className="text-gray-600">Quản lý danh sách các dự án trong hệ thống</p>
         </div>
         <Badge variant="secondary" className="text-lg px-3 py-1">
-          <Package className="w-4 h-4 mr-1" />
-          {warehouses.length} kho
+          <Briefcase className="w-4 h-4 mr-1" />
+          {projects.length} dự án
         </Badge>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Form thêm/sửa dự án */}
         <div className="lg:col-span-1">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Plus className="w-5 h-5" />
-                {editingId ? 'Chỉnh sửa kho' : 'Thêm kho mới'}
+                {editingId ? 'Chỉnh sửa dự án' : 'Thêm dự án mới'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <Label htmlFor="maKho">Mã kho *</Label>
+                  <Label htmlFor="maDuAn">Mã dự án *</Label>
                   <Input
-                    id="maKho"
-                    value={formData.maKho}
-                    onChange={(e) => setFormData({ ...formData, maKho: e.target.value })}
-                    placeholder="VD: KHO001"
+                    id="maDuAn"
+                    value={formData.maDuAn}
+                    onChange={(e) => setFormData({ ...formData, maDuAn: e.target.value })}
+                    placeholder="VD: DA001"
                     required
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="tenKho">Tên kho *</Label>
+                  <Label htmlFor="tenDuAn">Tên dự án *</Label>
                   <Input
-                    id="tenKho"
-                    value={formData.tenKho}
-                    onChange={(e) => setFormData({ ...formData, tenKho: e.target.value })}
-                    placeholder="Nhập tên kho"
+                    id="tenDuAn"
+                    value={formData.tenDuAn}
+                    onChange={(e) => setFormData({ ...formData, tenDuAn: e.target.value })}
+                    placeholder="Nhập tên dự án"
                     required
                   />
                 </div>
@@ -247,7 +246,7 @@ export function WarehouseManagement() {
 
                 <div className="flex gap-2">
                   <Button type="submit" className="flex-1">
-                    {editingId ? 'Cập nhật' : 'Thêm kho'}
+                    {editingId ? 'Cập nhật' : 'Thêm dự án'}
                   </Button>
                   {editingId && (
                     <Button type="button" variant="outline" onClick={handleCancel}>
@@ -257,6 +256,7 @@ export function WarehouseManagement() {
                 </div>
               </form>
 
+              {/* Import Excel */}
               <div className="border-t pt-4">
                 <Label className="text-sm font-semibold mb-2 block">Import từ Excel</Label>
                 <input
@@ -276,22 +276,23 @@ export function WarehouseManagement() {
                   Import Excel
                 </Button>
                 <p className="text-xs text-gray-500 mt-2">
-                  File cần có cột: maKho, tenKho (tùy chọn: ghiChu)
+                  File cần có cột: maDuAn, tenDuAn (tùy chọn: ghiChu)
                 </p>
               </div>
             </CardContent>
           </Card>
         </div>
 
+        {/* Danh sách dự án */}
         <div className="lg:col-span-2">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
-                <CardTitle>Danh sách kho</CardTitle>
+                <CardTitle>Danh sách dự án</CardTitle>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                   <Input
-                    placeholder="Tìm kiếm kho..."
+                    placeholder="Tìm kiếm dự án..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-10 w-64"
@@ -300,33 +301,33 @@ export function WarehouseManagement() {
               </div>
             </CardHeader>
             <CardContent>
-              {filteredWarehouses.length === 0 ? (
+              {filteredProjects.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
-                  {warehouses.length === 0 ? (
+                  {projects.length === 0 ? (
                     <>
-                      <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                      <p>Chưa có kho nào</p>
-                      <p className="text-sm">Thêm kho đầu tiên để bắt đầu</p>
+                      <Briefcase className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                      <p>Chưa có dự án nào</p>
+                      <p className="text-sm">Thêm dự án đầu tiên để bắt đầu</p>
                     </>
                   ) : (
-                    <p>Không tìm thấy kho phù hợp</p>
+                    <p>Không tìm thấy dự án phù hợp</p>
                   )}
                 </div>
               ) : (
                 <div className="space-y-3">
-                  {filteredWarehouses.map((warehouse) => (
+                  {filteredProjects.map((project) => (
                     <div
-                      key={warehouse.id}
+                      key={project.id}
                       className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
                     >
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">{warehouse.maKho}</Badge>
-                          <h3 className="font-semibold text-gray-900">{warehouse.tenKho}</h3>
+                          <Badge variant="outline">{project.maDuAn}</Badge>
+                          <h3 className="font-semibold text-gray-900">{project.tenDuAn}</h3>
                         </div>
-                        {warehouse.ghiChu && (
+                        {project.ghiChu && (
                           <p className="text-sm text-gray-500 mt-1">
-                            {warehouse.ghiChu}
+                            {project.ghiChu}
                           </p>
                         )}
                       </div>
@@ -334,7 +335,7 @@ export function WarehouseManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleEdit(warehouse)}
+                          onClick={() => handleEdit(project)}
                           className="text-blue-600 hover:text-blue-800"
                         >
                           <Edit2 className="w-4 h-4" />
@@ -342,7 +343,7 @@ export function WarehouseManagement() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleDelete(warehouse.id)}
+                          onClick={() => handleDelete(project.id)}
                           className="text-red-600 hover:text-red-800"
                         >
                           <Trash2 className="w-4 h-4" />

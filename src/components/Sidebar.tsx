@@ -51,6 +51,7 @@ const SECTION_MODULE: Record<string, keyof UserPermissions> = {
   transfer: 'kho-tong',
   oil: 'kho-dau',
   reports: 'bao-cao-tong-hop',
+  inventory: 'bao-cao-tong-hop',
 };
 
 export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
@@ -136,6 +137,12 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
           label: 'Thống kê báo cáo',
           icon: BarChart3,
           available: canView('reports'),
+        },
+        {
+          id: 'inventory',
+          label: 'Tồn kho',
+          icon: BarChart3,
+          available: canView('inventory'),
         },
       ],
     },
@@ -283,7 +290,7 @@ export function Sidebar({ activeSection, onSectionChange }: SidebarProps) {
                           className={`w-full justify-start text-left p-1.5 h-auto text-xs ${
                             isActive ? 'bg-blue-200/50 text-blue-800 border-l-2 border-blue-500' : 'text-blue-600 hover:bg-blue-100/50'
                           }`}
-                          onClick={() => onSectionChange(item.id)}
+                          onClick={() => item.id === 'inventory' ? navigate('/ton-kho') : onSectionChange(item.id)}
                         >
                           <ItemIcon className="w-3 h-3 mr-1.5" />
                           <span>{item.label}</span>

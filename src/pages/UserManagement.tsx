@@ -963,10 +963,8 @@ function UserForm({
                   <SelectItem value="Tổ CNC">Tổ CNC</SelectItem>
                   <SelectItem value="Tổ Cơ khí">Tổ Cơ khí</SelectItem>
                   <SelectItem value="Kho">Kho</SelectItem>
-                  <SelectItem value="Bảo trì">Bảo trì</SelectItem>
-                  <SelectItem value="QC xưởng">QC xưởng</SelectItem>
-                  <SelectItem value="Quản lý">Quản lý</SelectItem>
                   <SelectItem value="Admin">Admin</SelectItem>
+                  <SelectItem value="Quản trị">Quản trị</SelectItem>
                   <SelectItem value="Khác">Khác</SelectItem>
                 </SelectContent>
               </Select>

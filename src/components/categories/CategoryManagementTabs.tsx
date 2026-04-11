@@ -2,9 +2,12 @@ import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
-import { Settings, Package, Warehouse } from 'lucide-react';
+import { Settings, Package, Warehouse, HardHat, Zap, Users } from 'lucide-react';
 import { CategoryTypeManagement } from './CategoryTypeManagement';
 import { WarehouseManagement } from './WarehouseManagement';
+import { ProjectManagement } from './ProjectManagement';
+import { MachineManagement } from './MachineManagement';
+import { OperatorManagement } from './OperatorManagement';
 
 export function CategoryManagementTabs() {
   const [activeTab, setActiveTab] = useState('categories');
@@ -23,6 +26,27 @@ export function CategoryManagementTabs() {
       icon: Warehouse,
       color: 'text-orange-600',
       component: WarehouseManagement
+    },
+    {
+      id: 'projects',
+      label: 'Dự Án',
+      icon: HardHat,
+      color: 'text-blue-600',
+      component: ProjectManagement
+    },
+    {
+      id: 'machines',
+      label: 'Máy Móc',
+      icon: Zap,
+      color: 'text-green-600',
+      component: MachineManagement
+    },
+    {
+      id: 'operators',
+      label: 'Người Vận Hành',
+      icon: Users,
+      color: 'text-red-600',
+      component: OperatorManagement
     }
   ];
 
@@ -48,17 +72,17 @@ export function CategoryManagementTabs() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsList className="flex w-full gap-2 mb-6 overflow-x-auto rounded-full bg-slate-100 p-1">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
                   <TabsTrigger
                     key={tab.id}
                     value={tab.id}
-                    className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                    className="inline-flex items-center gap-2 px-4 py-3 rounded-full transition-all duration-200 flex-shrink-0 whitespace-nowrap text-sm data-[state=active]:bg-blue-600 data-[state=active]:text-white data-[state=active]:shadow-sm bg-white text-slate-700 hover:bg-slate-200"
                   >
                     <Icon className={`w-4 h-4 ${tab.color}`} />
-                    <span className="hidden sm:inline">{tab.label}</span>
+                    <span>{tab.label}</span>
                   </TabsTrigger>
                 );
               })}
@@ -77,7 +101,7 @@ export function CategoryManagementTabs() {
       </Card>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         {tabs.map((tab) => {
           const Icon = tab.icon;
           return (

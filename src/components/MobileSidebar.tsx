@@ -34,20 +34,22 @@ const SECTION_MODULE: Record<string, keyof UserPermissions> = {
   export: 'kho-tong',
   transfer: 'kho-tong',
   oil: 'kho-dau',
+  production: 'kho-tong',
   reports: 'bao-cao-tong-hop',
+  inventory: 'bao-cao-tong-hop',
 };
 
 export function MobileSidebar({ activeSection, onSectionChange }: MobileSidebarProps) {
-  const { currentUser, logout } = useAuth();
+  const { user, logout } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const navigate = useNavigate();
 
   const canView = (sectionId: string | null): boolean => {
-    if (!currentUser) return false;
+    if (!user) return false;
     if (!sectionId) return true;
     const key = SECTION_MODULE[sectionId];
     if (!key) return true;
-    return !!currentUser.permissions?.[key]?.view;
+    return !!user.permissions?.[key]?.view;
   };
 
   // Đóng sidebar khi thay đổi section
@@ -85,13 +87,14 @@ export function MobileSidebar({ activeSection, onSectionChange }: MobileSidebarP
     { id: 'transfer', label: 'Chuyển kho', icon: ArrowRightLeft },
     { id: 'oil', label: 'Xuất dầu', icon: Droplets },
     { id: 'reports', label: 'Thống kê báo cáo', icon: BarChart3 },
+    { id: 'inventory', label: 'Tồn kho', icon: BarChart3 },
   ];
 
   const filteredItems = baseItems.filter((item) => canView(item.id || null));
 
   // Admin menu
   const adminItems =
-    currentUser?.role === 'admin'
+    user?.role === 'admin'
       ? [
           { id: 'categories', label: 'Quản lý danh mục', icon: FolderTree },
           { id: 'users', label: 'Quản lý người dùng', icon: Users },
@@ -138,7 +141,7 @@ export function MobileSidebar({ activeSection, onSectionChange }: MobileSidebarP
             </div>
 
             {/* Thông tin người dùng */}
-            {currentUser && (
+            {user && (
               <div className="bg-gray-50 rounded-md p-2 border border-gray-200">
                 <div className="flex items-center space-x-2">
                   <div className="w-6 h-6 bg-gray-300 rounded-full flex items-center justify-center">
@@ -147,13 +150,13 @@ export function MobileSidebar({ activeSection, onSectionChange }: MobileSidebarP
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-1 mb-1">
                       <span className="text-xs font-medium text-gray-900 truncate">
-                        {currentUser.fullName || (currentUser as any).name || 'Admin'}
+                        {user.fullName || (user as any).name || 'Admin'}
                       </span>
-                      <Badge variant={currentUser.role === 'admin' ? 'default' : 'secondary'} className="text-xs px-1 py-0 h-3">
-                        {currentUser.role === 'admin' ? 'A' : 'U'}
+                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'} className="text-xs px-1 py-0 h-3">
+                        {user.role === 'admin' ? 'A' : 'U'}
                       </Badge>
                     </div>
-                    <div className="text-xs text-gray-500">{currentUser.msnv || ''}</div>
+                    <div className="text-xs text-gray-500">{user.msnv || ''}</div>
                   </div>
                 </div>
               </div>
@@ -173,7 +176,7 @@ export function MobileSidebar({ activeSection, onSectionChange }: MobileSidebarP
                   className={`w-full justify-start text-left p-2 h-auto ${
                     isActive ? 'bg-blue-50 text-blue-700 border-l-2 border-blue-600' : 'text-gray-700 hover:bg-gray-100'
                   }`}
-                  onClick={() => onSectionChange(item.id || null)}
+                  onClick={() => item.id === 'inventory' ? navigate('/ton-kho') : onSectionChange(item.id || null)}
                 >
                   <ItemIcon className="w-3 h-3 mr-2" />
                   <span className="text-xs font-medium">{item.label}</span>

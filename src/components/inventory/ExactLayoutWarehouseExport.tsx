@@ -5,24 +5,33 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
-import { Category, Warehouse, User } from '@/types/categories';
+import { Category, Warehouse, User, Project } from '@/types/categories';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 interface ExactLayoutWarehouseExportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
 }
 
 export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExportProps) {
-  const { currentUser } = useAuth();
+  const { user } = useAuth();
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState({
+    tenChungLoai: '',
+    donVi: '',
+    gia: ''
+  });
   
   const [formData, setFormData] = useState({
     ngayXuat: new Date().toISOString().split('T')[0],
+    duAn: '',
     chungLoai: '',
     soLuong: '',
     donVi: '',
@@ -35,6 +44,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
 
   const [dataList, setDataList] = useState<any[]>([]);
   const [showFilter, setShowFilter] = useState(false);
+  const [extraItems, setExtraItems] = useState<Array<{ id: string; chungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }>>([]);
 
   useEffect(() => {
     loadData();
@@ -42,35 +52,184 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
 
   const loadData = () => {
     try {
-      // Load categories - ONLY from localStorage, NO default data
-      const savedCategories = localStorage.getItem('categoryTypes');
+      // Load categories from localStorage
+      const savedCategories = localStorage.getItem('category_items');
       if (savedCategories) {
         const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories) && parsedCategories.length > 0) {
-          setCategories(parsedCategories);
+        if (Array.isArray(parsedCategories)) {
+          setCategories(parsedCategories.map(cat => ({
+            id: cat.id,
+            tenChungLoai: cat.tenChungLoai,
+            donVi: cat.donViTinh,
+            gia: parseFloat(cat.donGia) || 0,
+            createdAt: new Date().toISOString()
+          })));
         }
       }
 
-      // Load warehouses - ONLY from localStorage, NO default data
-      const savedWarehouses = localStorage.getItem('warehouses');
+      // Load warehouses from localStorage
+      const savedWarehouses = localStorage.getItem('category_warehouses');
       if (savedWarehouses) {
         const parsedWarehouses = JSON.parse(savedWarehouses);
-        if (Array.isArray(parsedWarehouses) && parsedWarehouses.length > 0) {
-          setWarehouses(parsedWarehouses);
+        if (Array.isArray(parsedWarehouses)) {
+          setWarehouses(parsedWarehouses.map(w => ({
+            id: w.id,
+            tenKho: w.tenKho,
+            loaiKho: w.maKho, // Using maKho as loaiKho for display
+            diaChi: w.diaChi,
+            createdAt: new Date().toISOString()
+          })));
         }
       }
 
-      // Load users - ONLY from localStorage, NO default data
+      // Load users
       const savedUsers = localStorage.getItem('users');
       if (savedUsers) {
         const parsedUsers = JSON.parse(savedUsers);
-        if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
+        if (Array.isArray(parsedUsers)) {
           setUsers(parsedUsers);
+        }
+      }
+
+      // Load projects from localStorage
+      const savedProjects = localStorage.getItem('category_projects');
+      if (savedProjects) {
+        const parsedProjects = JSON.parse(savedProjects);
+        if (Array.isArray(parsedProjects)) {
+          setProjects(parsedProjects.map(p => ({
+            id: p.id,
+            tenKhachHang: p.tenDuAn,
+            maDuAn: p.maDuAn,
+            status: 'active' as const,
+            createdAt: new Date().toISOString()
+          })));
         }
       }
     } catch (error) {
       console.error('Error loading data:', error);
     }
+  };
+
+  const getCurrentStock = (categoryId: string) => {
+    try {
+      const transactions = JSON.parse(localStorage.getItem('warehouseTransactions') || '[]');
+      
+      // Load categories from both possible sources
+      let allCategories: any[] = [];
+      try {
+        const categoryTypes = JSON.parse(localStorage.getItem('categoryTypes') || '[]');
+        const categoryItems = JSON.parse(localStorage.getItem('category_items') || '[]');
+        
+        allCategories = [...categoryTypes, ...categoryItems.map((cat: any) => ({
+          id: cat.id,
+          maLoai: cat.maLoai || cat.tenChungLoai,
+          tenLoai: cat.tenLoai || cat.tenChungLoai,
+          tenChungLoai: cat.tenChungLoai || cat.tenLoai,
+          donVi: cat.donVi || cat.donViTinh,
+          minimumStock: cat.minimumStock || 0
+        }))];
+        
+        // Remove duplicates
+        allCategories = allCategories.filter((cat, index, self) => 
+          index === self.findIndex(c => c.id === cat.id)
+        );
+      } catch (error) {
+        console.error('Error loading categories for stock calculation:', error);
+      }
+      
+      let currentStock = 0;
+
+      transactions.forEach((transaction: any) => {
+        if (transaction.items) {
+          transaction.items.forEach((item: any) => {
+            const category = allCategories.find(c => 
+              c.tenLoai === item.itemName || 
+              c.maLoai === item.itemName ||
+              c.tenChungLoai === item.itemName
+            );
+            if (category && category.id === categoryId) {
+              if (transaction.type === 'import') {
+                currentStock += item.quantity;
+              } else if (transaction.type === 'export' || transaction.type === 'oil_export') {
+                currentStock -= item.quantity;
+              }
+            }
+          });
+        } else {
+          // Handle old format
+          const category = allCategories.find(c => 
+            c.tenLoai === transaction.itemName ||
+            c.tenChungLoai === transaction.itemName
+          );
+          if (category && category.id === categoryId) {
+            if (transaction.type === 'import') {
+              currentStock += transaction.quantity;
+            } else if (transaction.type === 'export' || transaction.type === 'oil_export') {
+              currentStock -= transaction.quantity;
+            }
+          }
+        }
+      });
+
+      return currentStock;
+    } catch (error) {
+      console.error('Error calculating stock:', error);
+      return 0;
+    }
+  };
+
+  const handleAddCategory = () => {
+    if (!newCategory.tenChungLoai || !newCategory.donVi) {
+      toast.error('Vui lòng nhập tên và đơn vị');
+      return;
+    }
+
+    const categoryToAdd: Category = {
+      id: Date.now().toString(),
+      tenChungLoai: newCategory.tenChungLoai,
+      donVi: newCategory.donVi,
+      gia: parseFloat(newCategory.gia) || 0,
+      createdAt: new Date().toISOString()
+    };
+
+    const updatedCategories = [...categories, categoryToAdd];
+    setCategories(updatedCategories);
+    localStorage.setItem('categoryTypes', JSON.stringify(updatedCategories));
+    
+    setFormData(prev => ({ ...prev, chungLoai: categoryToAdd.id, donVi: categoryToAdd.donVi, donGia: categoryToAdd.gia.toString() }));
+    setIsAddCategoryOpen(false);
+    setNewCategory({ tenChungLoai: '', donVi: '', gia: '' });
+    toast.success('Đã thêm chủng loại mới');
+  };
+
+  const addRow = () => {
+    setExtraItems([...extraItems, { id: Date.now().toString(), chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' }]);
+  };
+
+  const removeRow = (id: string) => {
+    setExtraItems(extraItems.filter((item) => item.id !== id));
+  };
+
+  const updateRow = (id: string, field: keyof { chungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }, value: string) => {
+    setExtraItems(extraItems.map((item) => {
+      if (item.id === id) {
+        const updated = { ...item, [field]: value };
+        if (field === 'chungLoai') {
+          const selectedCategory = categories.find(cat => cat.id === value);
+          if (selectedCategory) {
+            updated.donVi = selectedCategory.donVi;
+            updated.donGia = selectedCategory.gia.toString();
+          }
+        }
+        if (field === 'soLuong') {
+          const soLuong = parseFloat(value) || 0;
+          const donGia = parseFloat(updated.donGia) || 0;
+          updated.thanhTien = (soLuong * donGia).toString();
+        }
+        return updated;
+      }
+      return item;
+    }));
   };
 
   const handleInputChange = (field: string, value: string) => {
@@ -97,8 +256,8 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.chungLoai || !formData.soLuong || !formData.khoXuat) {
-      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+    if (!formData.chungLoai || !formData.soLuong || !formData.khoXuat || !formData.duAn) {
+      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
       return;
     }
 
@@ -120,12 +279,13 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
       price: parseFloat(formData.donGia) || 0,
       totalValue: parseFloat(formData.thanhTien) || 0,
       fromLocation: formData.khoXuat,
-      reason: 'Xuất kho',
+      reason: formData.duAn ? `Xuất kho cho dự án ${formData.duAn}` : 'Xuất kho',
       referenceNumber: `XK${Date.now()}`,
-      operator: currentUser?.name || formData.nguoiXuat,
+      operator: user?.name || formData.nguoiXuat,
       status: 'pending',
       transactionDate: formData.ngayXuat,
-      notes: formData.ghiChu
+      notes: formData.ghiChu,
+      projectId: formData.duAn
     };
     
     onSubmit(transaction);
@@ -205,189 +365,223 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
         </div>
       )}
 
-      {/* Layout 2 cột: Form bên trái, Bảng bên phải */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 p-6">
-        {/* Cột trái: Form Phiếu Xuất Kho */}
-        <div>
-          <div className="bg-gradient-to-r from-red-500 to-orange-500 text-white p-3 rounded-t-lg">
-            <h3 className="text-lg font-semibold">📤 Phiếu Xuất Kho</h3>
+      {/* Layout dầu: Header thông tin chính, bảng giữa, các field dưới bảng */}
+      <div className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Header Info: chỉ ngày, Dự án */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border">
+            <div>
+              <Label className="text-sm font-medium">Ngày xuất *</Label>
+              <Input
+                type="date"
+                value={formData.ngayXuat}
+                onChange={(e) => handleInputChange('ngayXuat', e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-sm font-medium">Dự án *</Label>
+              <Select value={formData.duAn} onValueChange={(value) => handleInputChange('duAn', value)}>
+                <SelectTrigger className="bg-white border-gray-200">
+                  <SelectValue placeholder="Chọn dự án..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {projects.map((p) => (
+                    <SelectItem key={p.id} value={p.maDuAn}>
+                      {p.maDuAn} - {p.tenKhachHang}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="bg-gray-50 p-4 rounded-b-lg space-y-4">
-            <div className="space-y-3">
-              <div>
-                <Label className="text-sm font-medium">Ngày xuất *</Label>
-                <Input
-                  type="date"
-                  value={formData.ngayXuat}
-                  onChange={(e) => handleInputChange('ngayXuat', e.target.value)}
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium">Chủng loại *</Label>
-                <Select value={formData.chungLoai} onValueChange={(value) => handleInputChange('chungLoai', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn chủng loại sản phẩm..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">Chưa có chủng loại nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                    ) : (
-                      categories.map((category) => (
-                        <SelectItem key={category.id} value={category.id}>
-                          {category.tenChungLoai}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Số lượng *</Label>
-                <Input
-                  type="number"
-                  value={formData.soLuong}
-                  onChange={(e) => handleInputChange('soLuong', e.target.value)}
-                  placeholder="Nhập số lượng"
-                  min="0"
-                  step="0.01"
-                  required
-                />
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium">Đơn vị *</Label>
-                <Input
-                  value={formData.donVi}
-                  onChange={(e) => handleInputChange('donVi', e.target.value)}
-                  placeholder="Tự động điền khi chọn chủng loại"
-                  readOnly
-                  className="bg-gray-100"
-                />
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Đơn giá (VND) *</Label>
-                <Input
-                  type="number"
-                  value={formData.donGia}
-                  onChange={(e) => handleInputChange('donGia', e.target.value)}
-                  placeholder="Tự động điền khi chọn chủng loại"
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium">Thành tiền (VND)</Label>
-                <Input
-                  value={formData.thanhTien}
-                  readOnly
-                  className="bg-gray-100"
-                  placeholder="0 VND"
-                />
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Kho xuất</Label>
-                <Select value={formData.khoXuat} onValueChange={(value) => handleInputChange('khoXuat', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn kho xuất" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {warehouses.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">Chưa có kho nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                    ) : (
-                      warehouses.map((warehouse) => (
-                        <SelectItem key={warehouse.id} value={warehouse.tenKho}>
-                          {warehouse.tenKho} ({warehouse.loaiKho})
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div>
-                <Label className="text-sm font-medium">Người xuất</Label>
-                <Select value={formData.nguoiXuat} onValueChange={(value) => handleInputChange('nguoiXuat', value)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Chọn người xuất..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.length === 0 ? (
-                      <div className="p-2 text-sm text-gray-500">Chưa có người dùng nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                    ) : (
-                      users.map((user) => (
-                        <SelectItem key={user.id} value={user.hoTen}>
-                          {user.hoTen} - {user.msnv}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div>
-                <Label className="text-sm font-medium">Ghi chú</Label>
-                <Textarea
-                  value={formData.ghiChu}
-                  onChange={(e) => handleInputChange('ghiChu', e.target.value)}
-                  placeholder="Ghi chú thêm (tùy chọn)"
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            <Button 
-              type="submit" 
-              className="w-full bg-red-500 hover:bg-red-600 text-white"
-            >
-              📤 Thêm Phiếu Xuất
-            </Button>
-          </form>
-        </div>
-
-        {/* Cột phải: Bảng hiển thị dữ liệu */}
-        <div>
-          <div className="bg-white border rounded-lg">
-            <div className="p-4 border-b">
-              <h3 className="text-lg font-semibold text-gray-800">Danh sách phiếu xuất</h3>
-            </div>
-            
-            <div className="p-4">
-              {dataList.length === 0 ? (
-                <div className="text-center text-gray-500 py-8">
-                  <p>Chưa có dữ liệu</p>
-                  <p className="text-sm mt-2">Nhập thông tin vào form bên trái để hiển thị dữ liệu</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {dataList.map((item, index) => (
-                    <div key={item.id} className="bg-gray-50 p-3 rounded border">
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        <div><strong>STT:</strong> {index + 1}</div>
-                        <div><strong>Ngày:</strong> {item.ngayXuat}</div>
-                        <div><strong>Chủng loại:</strong> {categories.find(cat => cat.id === item.chungLoai)?.tenChungLoai || item.chungLoai}</div>
-                        <div><strong>Số lượng:</strong> {item.soLuong} {item.donVi}</div>
-                        <div><strong>Đơn giá:</strong> {Number(item.donGia).toLocaleString('vi-VN')} VND</div>
-                        <div><strong>Thành tiền:</strong> {Number(item.thanhTien).toLocaleString('vi-VN')} VND</div>
-                        <div><strong>Kho xuất:</strong> {item.khoXuat}</div>
-                        <div><strong>Người xuất:</strong> {item.nguoiXuat}</div>
-                        {item.ghiChu && (
-                          <div className="col-span-2"><strong>Ghi chú:</strong> {item.ghiChu}</div>
-                        )}
+          {/* Items Section: bảng một dòng dùng formData */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Danh sách vật tư</h3>
+              <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+                <DialogTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" className="text-blue-600 border-blue-200">
+                    <Plus className="w-4 h-4 mr-1" /> Thêm chủng loại
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Thêm chủng loại sản phẩm mới</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Tên chủng loại *</Label>
+                      <Input 
+                        value={newCategory.tenChungLoai}
+                        onChange={(e) => setNewCategory(prev => ({ ...prev, tenChungLoai: e.target.value }))}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Đơn vị tính *</Label>
+                        <Input 
+                          value={newCategory.donVi}
+                          onChange={(e) => setNewCategory(p => ({ ...p, donVi: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Đơn giá tham khảo (VND)</Label>
+                        <Input 
+                          type="number"
+                          value={newCategory.gia}
+                          onChange={(e) => setNewCategory(prev => ({ ...prev, gia: e.target.value }))}
+                          placeholder="0"
+                        />
                       </div>
                     </div>
+                    <Button className="w-full" onClick={handleAddCategory}>💾 Lưu chủng loại</Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
+              <div>
+                <Button type="button" onClick={addRow} variant="default" size="sm" className="bg-red-500 hover:bg-red-600 ml-2">
+                  <Plus className="w-4 h-4 mr-1" /> Thêm dòng
+                </Button>
+              </div>
+            </div>
+
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100 border-b">
+                  <tr>
+                    <th className="p-2 text-left w-10">STT</th>
+                    <th className="p-2 text-left">Chủng loại *</th>
+                    <th className="p-2 text-left w-24">Số lượng *</th>
+                    <th className="p-2 text-left w-20">Đơn vị</th>
+                    <th className="p-2 text-left w-32">Đơn giá</th>
+                    <th className="p-2 text-left w-32">Thành tiền</th>
+                    <th className="p-2 text-center w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y bg-white">
+                  <tr className="hover:bg-gray-50 transition-colors">
+                    <td className="p-2 text-center text-gray-500">1</td>
+                    <td className="p-2">
+                      <Select value={formData.chungLoai} onValueChange={(value) => handleInputChange('chungLoai', value)}>
+                        <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
+                        <SelectContent>
+                          {categories.map((c) => {
+                            const currentStock = getCurrentStock(c.id);
+                            const isLowStock = currentStock <= (c.minimumStock || 0);
+                            return (
+                              <SelectItem key={c.id} value={c.id}>
+                                <div className="flex items-center justify-between w-full">
+                                  <span>{c.tenChungLoai}</span>
+                                  <div className="flex items-center gap-2 text-xs">
+                                    <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
+                                      Tồn: {currentStock}
+                                    </span>
+                                    {isLowStock && <span className="text-red-600 font-medium">⚠️ Sắp hết</span>}
+                                  </div>
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </td>
+                    <td className="p-2">
+                      <Input type="number" className="h-9 border-gray-200" value={formData.soLuong} onChange={(e) => handleInputChange('soLuong', e.target.value)} />
+                    </td>
+                    <td className="p-2">
+                      <Input className="h-9 bg-gray-50 border-gray-200" value={formData.donVi} readOnly />
+                    </td>
+                    <td className="p-2">
+                      <Input type="number" className="h-9 border-gray-200 bg-gray-50 text-gray-600" value={formData.donGia} readOnly />
+                    </td>
+                    <td className="p-2">
+                      <div className="font-semibold text-red-600">{Number(formData.thanhTien).toLocaleString('vi-VN')}</div>
+                    </td>
+                    <td className="p-2 text-center">
+                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => setFormData({ ...formData, chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' })}>X</Button>
+                    </td>
+                  </tr>
+                  {extraItems.map((row, idx) => (
+                    <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                      <td className="p-2 text-center text-gray-500">{idx + 2}</td>
+                      <td className="p-2">
+                        <Select value={row.chungLoai} onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}>
+                          <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
+                          <SelectContent>
+                            {categories.map((c) => {
+                              const currentStock = getCurrentStock(c.id);
+                              const isLowStock = currentStock <= (c.minimumStock || 0);
+                              return (
+                                <SelectItem key={c.id} value={c.id}>
+                                  <div className="flex items-center justify-between w-full">
+                                    <span>{c.tenChungLoai}</span>
+                                    <div className="flex items-center gap-2 text-xs">
+                                      <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
+                                        Tồn: {currentStock}
+                                      </span>
+                                      {isLowStock && <span className="text-red-600 font-medium">⚠️ Sắp hết</span>}
+                                    </div>
+                                  </div>
+                                </SelectItem>
+                              );
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </td>
+                      <td className="p-2">
+                        <Input type="number" className="h-9 border-gray-200" value={row.soLuong} onChange={(e) => updateRow(row.id, 'soLuong', e.target.value)} />
+                      </td>
+                      <td className="p-2">
+                        <Input className="h-9 bg-gray-50 border-gray-200" value={row.donVi} readOnly />
+                      </td>
+                      <td className="p-2">
+                        <Input type="number" className="h-9 border-gray-200 bg-gray-50 text-gray-600" value={row.donGia} readOnly />
+                      </td>
+                      <td className="p-2">
+                        <div className="font-semibold text-red-600">{Number(row.thanhTien).toLocaleString('vi-VN')}</div>
+                      </td>
+                      <td className="p-2 text-center">
+                        <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500 hover:text-red-700" onClick={() => removeRow(row.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </td>
+                    </tr>
                   ))}
-                </div>
-              )}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Các field dưới bảng */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
+              <div>
+                <Label className="text-sm font-medium">Kho xuất *</Label>
+                <Select value={formData.khoXuat} onValueChange={(value) => handleInputChange('khoXuat', value)}>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Chọn kho xuất" /></SelectTrigger>
+                  <SelectContent>
+                    {warehouses.map((w) => <SelectItem key={w.id} value={w.tenKho}>{w.tenKho}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Người xuất *</Label>
+                <Select value={formData.nguoiXuat} onValueChange={(value) => handleInputChange('nguoiXuat', value)}>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder="Chọn người xuất..." /></SelectTrigger>
+                  <SelectContent>
+                    {users.map((u) => <SelectItem key={u.id} value={u.hoTen}>{u.hoTen} - {u.msnv}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Ghi chú</Label>
+                <Textarea value={formData.ghiChu} onChange={(e) => handleInputChange('ghiChu', e.target.value)} placeholder="Ghi chú thêm (tùy chọn)" rows={2} className="bg-white" />
+              </div>
             </div>
           </div>
-        </div>
+
+          <Button type="submit" className="w-full bg-red-500 hover:bg-red-600 text-white">📤 Thêm Phiếu Xuất</Button>
+        </form>
       </div>
     </div>
   );
