@@ -18,6 +18,8 @@ if (!rootElement) {
 }
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js");
+    navigator.serviceWorker.register("/sw.js")
+      .then(() => console.log("SW OK"))
+      .catch((err) => console.log("SW lỗi", err));
   });
 }
