@@ -38,9 +38,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Restore session and sync data
   useEffect(() => {
-    const initializeApp = () => {
+    const initializeApp = async () => {
       try {
-        // Seed data if not present or wrong user
+        // ... existing seeding logic ...
         const existingRecords = localStorage.getItem('userRecords');
         const existingUsers = localStorage.getItem('users');
         let needsSeeding = !existingRecords || !existingUsers;
@@ -107,6 +107,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(JSON.parse(local));
         } else if (session) {
           setUser(JSON.parse(session));
+        }
+
+        // AUTO-SYNC on startup if user is logged in
+        if (local || session) {
+          try {
+            const { dataSync } = await import('@/lib/dataSync');
+            console.log('🔄 Triggering auto-sync on app startup...');
+            dataSync.fullSync().catch(err => console.error('Startup sync failed:', err));
+          } catch (err) {
+            console.log('Sync not available at startup');
+          }
         }
       } catch (error) {
         console.error('Error initializing app:', error);
