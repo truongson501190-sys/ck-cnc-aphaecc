@@ -51,7 +51,15 @@ export function WarehouseImport() {
         const parsedCategories = JSON.parse(savedCategories);
         // Only set if it's a valid array with actual data
         if (Array.isArray(parsedCategories) && parsedCategories.length > 0) {
-          setCategories(parsedCategories);
+          setCategories(parsedCategories.map((cat: any) => ({
+            id: cat.id,
+            maLoai: cat.maLoai || cat.tenChungLoai,
+            tenLoai: cat.tenLoai || cat.tenChungLoai,
+            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
+            donVi: cat.donVi || cat.donViTinh,
+            gia: cat.gia || parseFloat(cat.donGia) || 0,
+            createdAt: cat.createdAt || new Date().toISOString()
+          })));
         }
       }
       // If no data in localStorage, categories remains empty array []

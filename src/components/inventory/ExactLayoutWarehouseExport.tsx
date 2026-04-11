@@ -57,12 +57,14 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
       if (savedCategories) {
         const parsedCategories = JSON.parse(savedCategories);
         if (Array.isArray(parsedCategories)) {
-          setCategories(parsedCategories.map(cat => ({
+          setCategories(parsedCategories.map((cat: any) => ({
             id: cat.id,
-            tenChungLoai: cat.tenChungLoai,
-            donVi: cat.donViTinh,
-            gia: parseFloat(cat.donGia) || 0,
-            createdAt: new Date().toISOString()
+            maLoai: cat.maLoai || cat.tenChungLoai,
+            tenLoai: cat.tenLoai || cat.tenChungLoai,
+            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
+            donVi: cat.donVi || cat.donViTinh,
+            gia: cat.gia || parseFloat(cat.donGia) || 0,
+            createdAt: cat.createdAt || new Date().toISOString()
           })));
         }
       }

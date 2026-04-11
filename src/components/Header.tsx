@@ -48,7 +48,7 @@ const Header: React.FC = () => {
         </div>
 
         <div className="flex items-center space-x-4">
-          <SyncStatus />
+          <SyncStatus compact />
 
           {user && (
             <div className="relative">

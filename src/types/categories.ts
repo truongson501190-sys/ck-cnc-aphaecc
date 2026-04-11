@@ -4,6 +4,7 @@ export interface Category {
   maLoai: string;
   tenLoai: string;
   donVi: string;
+  tenChungLoai?: string; // alias for tenLoai
   gia?: number;
   minimumStock?: number;
   moTa?: string;

@@ -116,5 +116,5 @@ VALUES (
   'Quản trị viên',
   'admin',
   true,
-  'MTExOA=='  -- base64 encoded '1118'
+  'YWRtaW4xMjM='  -- base64 encoded 'admin123'
 ) ON CONFLICT (msnv) DO NOTHING;

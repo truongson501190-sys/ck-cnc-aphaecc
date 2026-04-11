@@ -51,7 +51,18 @@ export function WarehouseTransfer() {
       // Load categories
       const savedCategories = localStorage.getItem('categoryTypes');
       if (savedCategories) {
-        setCategories(JSON.parse(savedCategories));
+        const parsed = JSON.parse(savedCategories);
+        if (Array.isArray(parsed)) {
+          setCategories(parsed.map((cat: any) => ({
+            id: cat.id,
+            maLoai: cat.maLoai || cat.tenChungLoai,
+            tenLoai: cat.tenLoai || cat.tenChungLoai,
+            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
+            donVi: cat.donVi || cat.donViTinh,
+            gia: cat.gia || parseFloat(cat.donGia) || 0,
+            createdAt: cat.createdAt || new Date().toISOString()
+          })));
+        }
       }
 
       // Load warehouses

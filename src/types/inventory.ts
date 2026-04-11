@@ -17,19 +17,18 @@ export interface InventoryItem {
 export interface WarehouseTransaction {
   id: string;
   type: 'import' | 'export' | 'transfer' | 'oil_export';
-  itemId: string;
-  itemName: string;
-  quantity: number;
-  unit: string;
+  itemId?: string;
+  itemName?: string;
+  quantity?: number;
+  unit?: string;
   price?: number;
   totalValue?: number;
   fromLocation?: string;
   toLocation?: string;
-  // optional machine reference used by oil-export flows
   machineId?: string;
   projectId?: string;
   customerName?: string;
-  reason: string;
+  reason?: string;
   referenceNumber: string;
   operator: string;
   approver?: string;
@@ -37,6 +36,22 @@ export interface WarehouseTransaction {
   transactionDate: string;
   createdAt: string;
   notes?: string;
+  // Support for bulk items in complex layouts
+  items?: WarehouseTransactionItem[];
+  trangThaiBanDau?: string;
+}
+
+export interface WarehouseTransactionItem {
+  id: string;
+  itemId: string;
+  itemName: string;
+  quantity: number;
+  unit: string;
+  price?: number;
+  totalValue?: number;
+  tenChungLoai?: string;
+  donGia?: number;
+  ghiChu?: string;
 }
 
 export interface Category {

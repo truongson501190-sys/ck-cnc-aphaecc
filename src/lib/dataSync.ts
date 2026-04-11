@@ -47,6 +47,9 @@ export class DataSyncService {
         { key: 'users', table: 'users' },
         { key: 'userRecords', table: 'user_records' },
         { key: 'inventoryItems', table: 'inventory_items' },
+        { key: 'categoryTypes', table: 'category_types' },
+        { key: 'category_items', table: 'inventory_items' },
+        { key: 'category_warehouses', table: 'warehouse_locations' },
         { key: 'warehouseLocations', table: 'warehouse_locations' },
         { key: 'warehouseTransactions', table: 'warehouse_transactions' },
         { key: 'warehouseExports', table: 'warehouse_exports' },
@@ -80,6 +83,9 @@ export class DataSyncService {
         { key: 'users', table: 'users' },
         { key: 'userRecords', table: 'user_records' },
         { key: 'inventoryItems', table: 'inventory_items' },
+        { key: 'categoryTypes', table: 'category_types' },
+        { key: 'category_items', table: 'inventory_items' },
+        { key: 'category_warehouses', table: 'warehouse_locations' },
         { key: 'warehouseLocations', table: 'warehouse_locations' },
         { key: 'warehouseTransactions', table: 'warehouse_transactions' },
         { key: 'warehouseExports', table: 'warehouse_exports' },
@@ -122,7 +128,7 @@ export class DataSyncService {
       originalSetItem.call(localStorage, key, value);
 
       // Auto-sync important data changes
-      if (['users', 'userRecords', 'inventoryItems', 'warehouseTransactions'].includes(key)) {
+      if (['users', 'userRecords', 'inventoryItems', 'warehouseTransactions', 'categoryTypes', 'category_items', 'category_warehouses'].includes(key)) {
         if (this.isOnline) {
           setTimeout(() => this.syncToCloud(), 1000); // Debounce sync
         }

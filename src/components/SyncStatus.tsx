@@ -7,7 +7,11 @@ import { Cloud, CloudOff, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { dataSync } from '@/lib/dataSync';
 import { getSupabase } from '@/lib/supabase';
 
-export function SyncStatus() {
+interface SyncStatusProps {
+  compact?: boolean;
+}
+
+export function SyncStatus({ compact = false }: SyncStatusProps) {
   const [isConnected, setIsConnected] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<Date | null>(null);
@@ -41,6 +45,30 @@ export function SyncStatus() {
       setIsSyncing(false);
     }
   };
+
+  if (compact) {
+    return (
+      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 rounded-full border border-gray-100">
+        {isConnected ? (
+          <Wifi className="w-4 h-4 text-green-500" />
+        ) : (
+          <WifiOff className="w-4 h-4 text-red-500" />
+        )}
+        <span className="text-xs font-medium text-gray-600">
+          {isConnected ? (isSyncing ? 'Đang đồng bộ...' : 'Online') : 'Offline'}
+        </span>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="w-6 h-6 rounded-full"
+          onClick={handleSync}
+          disabled={!isConnected || isSyncing}
+        >
+          <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <Card className="w-full max-w-md">

@@ -63,11 +63,19 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
       if (savedCategories) {
         const parsed = JSON.parse(savedCategories);
         if (Array.isArray(parsed)) {
-          setCategories(parsed.filter(cat => 
-            cat.tenChungLoai.toLowerCase().includes('dầu') || 
-            cat.tenChungLoai.toLowerCase().includes('oil') ||
-            cat.tenChungLoai.toLowerCase().includes('mỡ')
-          ));
+          setCategories(parsed.filter((cat: any) => 
+            (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('dầu') || 
+            (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('oil') ||
+            (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('mỡ')
+          ).map((cat: any) => ({
+            id: cat.id,
+            maLoai: cat.maLoai || cat.tenChungLoai,
+            tenLoai: cat.tenLoai || cat.tenChungLoai,
+            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
+            donVi: cat.donVi || cat.donViTinh,
+            gia: cat.gia || parseFloat(cat.donGia) || 0,
+            createdAt: cat.createdAt || new Date().toISOString()
+          })));
         }
       }
       const savedMachines = localStorage.getItem('machines');

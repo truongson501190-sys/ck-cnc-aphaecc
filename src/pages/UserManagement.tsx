@@ -54,7 +54,7 @@ export function UserManagement() {
     fullName: '',
     department: 'Tổ CNC',
     position: '',
-    role: 'User',
+    role: 'user',
     status: 'active',
     permissions: DEFAULT_PERMISSIONS,
     password: '',
@@ -393,7 +393,7 @@ export function UserManagement() {
       fullName: '',
       department: 'Tổ CNC',
       position: '',
-      role: 'User',
+      role: 'user',
       status: 'active',
       permissions: DEFAULT_PERMISSIONS,
       password: '',
@@ -1083,7 +1083,7 @@ function UserForm({
       </Card>
 
       {/* Phân quyền chi tiết */}
-      {formData.role !== 'Admin' && (
+      {formData.role !== 'admin' && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

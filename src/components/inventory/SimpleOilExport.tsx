@@ -45,17 +45,18 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
         if (Array.isArray(parsedCategories)) {
           // Filter only oil-related categories
           setCategories(parsedCategories
-            .filter(cat => 
-              cat.tenChungLoai.toLowerCase().includes('dầu') || 
-              cat.tenChungLoai.toLowerCase().includes('oil') ||
-              cat.tenChungLoai.toLowerCase().includes('mỡ')
+            .filter((cat: any) => 
+              (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('dầu') || 
+              (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('oil')
             )
-            .map(cat => ({
+            .map((cat: any) => ({
               id: cat.id,
-              tenChungLoai: cat.tenChungLoai,
-              donVi: cat.donViTinh,
-              gia: parseFloat(cat.donGia) || 0,
-              createdAt: new Date().toISOString()
+              maLoai: cat.maLoai || cat.tenChungLoai,
+              tenLoai: cat.tenLoai || cat.tenChungLoai,
+              tenChungLoai: cat.tenChungLoai || cat.tenLoai,
+              donVi: cat.donVi || cat.donViTinh,
+              gia: cat.gia || parseFloat(cat.donGia) || 0,
+              createdAt: cat.createdAt || new Date().toISOString()
             })));
         }
       }

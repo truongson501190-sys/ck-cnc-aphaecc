@@ -48,6 +48,7 @@ export function TonKho() {
           id: cat.id,
           maLoai: cat.maLoai || cat.tenChungLoai,
           tenLoai: cat.tenLoai || cat.tenChungLoai,
+          tenChungLoai: cat.tenChungLoai || cat.tenLoai,
           donVi: cat.donVi || cat.donViTinh,
           gia: cat.gia || parseFloat(cat.donGia) || 0,
           minimumStock: cat.minimumStock || 0,
