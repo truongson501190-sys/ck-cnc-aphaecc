@@ -125,55 +125,59 @@ export function OperatorManagement() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
         let addedCount = 0;
+        let updatedCount = 0;
         let skippedCount = 0;
-        const newOperators = [...operators];
+        const currentOperators = [...operators];
 
-        data.forEach(row => {
-          const maNguoi = (row.maNguoi || '').toString().trim();
-          const tenNguoi = (row.tenNguoi || '').toString().trim();
-          const ghiChu = (row.ghiChu || '').toString().trim();
+        json.forEach(row => {
+          // Normalize keys to support Vietnamese and English
+          const maNguoi = (row.maNguoi || row['Mã người'] || row['Mã Người'] || row['Mã NV'] || row['Mã nhân viên'] || '').toString().trim();
+          const tenNguoi = (row.tenNguoi || row['Tên người'] || row['Tên Người'] || row['Họ tên'] || row['Họ và tên'] || '').toString().trim();
+          const ghiChu = (row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').toString().trim();
 
-          // Check for empty required fields
           if (!maNguoi || !tenNguoi) {
             skippedCount++;
             return;
           }
 
-          // Check for duplicates
-          const isDuplicate = newOperators.some(o => 
-            o.maNguoi === maNguoi || o.tenNguoi === tenNguoi
-          );
-
-          if (isDuplicate) {
-            skippedCount++;
-            return;
+          const existingIndex = currentOperators.findIndex(o => o.maNguoi === maNguoi);
+          
+          if (existingIndex >= 0) {
+            // Update existing
+            currentOperators[existingIndex] = {
+              ...currentOperators[existingIndex],
+              tenNguoi,
+              ghiChu: ghiChu || currentOperators[existingIndex].ghiChu
+            };
+            updatedCount++;
+          } else {
+            // Add new
+            currentOperators.push({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              maNguoi,
+              tenNguoi,
+              ghiChu: ghiChu || undefined,
+              createdAt: new Date().toISOString()
+            });
+            addedCount++;
           }
-
-          newOperators.push({
-            id: Date.now().toString() + Math.random(),
-            maNguoi,
-            tenNguoi,
-            ghiChu: ghiChu || undefined,
-            createdAt: new Date().toISOString()
-          });
-          addedCount++;
         });
 
-        saveOperators(newOperators);
-        toast.success(`Đã import thành công ${addedCount} dòng. Bỏ qua ${skippedCount} dòng lỗi/trùng lặp.`);
+        saveOperators(currentOperators);
+        toast.success(`Đã import thành công: Thêm mới ${addedCount}, cập nhật ${updatedCount}. Bỏ qua ${skippedCount} dòng lỗi.`);
       } catch (error) {
         console.error('Error importing Excel:', error);
-        toast.error('Lỗi khi đọc file Excel');
+        toast.error('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.');
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

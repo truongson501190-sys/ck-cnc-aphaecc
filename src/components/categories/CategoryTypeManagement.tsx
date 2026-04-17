@@ -135,61 +135,68 @@ export function CategoryTypeManagement() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
         let addedCount = 0;
+        let updatedCount = 0;
         let skippedCount = 0;
-        const newCategories = [...categories];
+        const currentCategories = [...categories];
 
-        data.forEach(row => {
-          const maLoai = (row.maLoai || '').toString().trim();
-          const tenLoai = (row.tenLoai || '').toString().trim();
-          const donVi = (row.donVi || '').toString().trim();
-          const gia = Number(row.gia || 0);
-          const minimumStock = Number(row.minimumStock || 0);
-          const ghiChu = (row.ghiChu || '').toString().trim();
+        json.forEach(row => {
+          // Normalize keys to support Vietnamese and English
+          const maLoai = (row.maLoai || row['Mã loại'] || row['Mã Loại'] || '').toString().trim();
+          const tenLoai = (row.tenLoai || row['Tên loại'] || row['Tên Loại'] || '').toString().trim();
+          const donVi = (row.donVi || row['Đơn vị'] || row['Đơn Vị'] || '').toString().trim();
+          const gia = Number(row.gia || row['Giá'] || row['Đơn giá'] || row['Đơn Giá'] || 0);
+          const minimumStock = Number(row.minimumStock || row['Tồn tối thiểu'] || row['Tồn Tối Thiểu'] || 0);
+          const ghiChu = (row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').toString().trim();
 
-          // Check for empty required fields
-          if (!maLoai || !tenLoai || !donVi) {
+          if (!maLoai || !tenLoai) {
             skippedCount++;
             return;
           }
 
-          // Check for duplicates
-          const isDuplicate = newCategories.some(c => 
-            c.maLoai === maLoai || c.tenLoai === tenLoai
-          );
-
-          if (isDuplicate) {
-            skippedCount++;
-            return;
+          const existingIndex = currentCategories.findIndex(c => c.maLoai === maLoai);
+          
+          if (existingIndex >= 0) {
+            // Update existing
+            currentCategories[existingIndex] = {
+              ...currentCategories[existingIndex],
+              tenLoai,
+              donVi: donVi || currentCategories[existingIndex].donVi,
+              gia: gia || currentCategories[existingIndex].gia,
+              minimumStock: minimumStock || currentCategories[existingIndex].minimumStock,
+              ghiChu: ghiChu || currentCategories[existingIndex].ghiChu
+            };
+            updatedCount++;
+          } else {
+            // Add new
+            currentCategories.push({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              maLoai,
+              tenLoai,
+              donVi: donVi || 'Cái',
+              gia,
+              minimumStock,
+              ghiChu: ghiChu || undefined,
+              createdAt: new Date().toISOString()
+            });
+            addedCount++;
           }
-
-          newCategories.push({
-            id: Date.now().toString() + Math.random(),
-            maLoai,
-            tenLoai,
-            donVi,
-            gia,
-            minimumStock,
-            ghiChu: ghiChu || undefined,
-            createdAt: new Date().toISOString()
-          });
-          addedCount++;
         });
 
-        saveCategories(newCategories);
-        toast.success(`Đã import thành công ${addedCount} dòng. Bỏ qua ${skippedCount} dòng lỗi/trùng lặp.`);
+        saveCategories(currentCategories);
+        toast.success(`Đã import thành công: Thêm mới ${addedCount}, cập nhật ${updatedCount}. Bỏ qua ${skippedCount} dòng lỗi.`);
       } catch (error) {
         console.error('Error importing Excel:', error);
-        toast.error('Lỗi khi đọc file Excel');
+        toast.error('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.');
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

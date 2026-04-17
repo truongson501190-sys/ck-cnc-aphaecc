@@ -130,53 +130,59 @@ export function WarehouseManagement() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
         let addedCount = 0;
+        let updatedCount = 0;
         let skippedCount = 0;
-        const newWarehouses = [...warehouses];
+        const currentWarehouses = [...warehouses];
 
-        data.forEach(row => {
-          const maKho = (row.maKho || '').toString().trim();
-          const tenKho = (row.tenKho || '').toString().trim();
-          const ghiChu = (row.ghiChu || '').toString().trim();
+        json.forEach(row => {
+          // Normalize keys to support Vietnamese and English
+          const maKho = (row.maKho || row['Mã kho'] || row['Mã Kho'] || '').toString().trim();
+          const tenKho = (row.tenKho || row['Tên kho'] || row['Tên Kho'] || '').toString().trim();
+          const ghiChu = (row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').toString().trim();
 
           if (!maKho || !tenKho) {
             skippedCount++;
             return;
           }
 
-          const isDuplicate = newWarehouses.some(w =>
-            w.maKho === maKho || w.tenKho === tenKho
-          );
-
-          if (isDuplicate) {
-            skippedCount++;
-            return;
+          const existingIndex = currentWarehouses.findIndex(w => w.maKho === maKho);
+          
+          if (existingIndex >= 0) {
+            // Update existing
+            currentWarehouses[existingIndex] = {
+              ...currentWarehouses[existingIndex],
+              tenKho,
+              ghiChu: ghiChu || currentWarehouses[existingIndex].ghiChu
+            };
+            updatedCount++;
+          } else {
+            // Add new
+            currentWarehouses.push({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              maKho,
+              tenKho,
+              ghiChu,
+              createdAt: new Date().toISOString()
+            });
+            addedCount++;
           }
-
-          newWarehouses.push({
-            id: Date.now().toString() + Math.random(),
-            maKho,
-            tenKho,
-            ghiChu: ghiChu || undefined,
-            createdAt: new Date().toISOString()
-          });
-          addedCount++;
         });
 
-        saveWarehouses(newWarehouses);
-        toast.success(`Đã import thành công ${addedCount} dòng. Bỏ qua ${skippedCount} dòng lỗi/trùng lặp.`);
+        saveWarehouses(currentWarehouses);
+        toast.success(`Đã import thành công: Thêm mới ${addedCount}, cập nhật ${updatedCount}. Bỏ qua ${skippedCount} dòng lỗi.`);
       } catch (error) {
         console.error('Error importing Excel:', error);
-        toast.error('Lỗi khi đọc file Excel');
+        toast.error('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.');
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

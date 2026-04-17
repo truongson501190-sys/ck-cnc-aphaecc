@@ -125,55 +125,59 @@ export function ProjectManagement() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
         let addedCount = 0;
+        let updatedCount = 0;
         let skippedCount = 0;
-        const newProjects = [...projects];
+        const currentProjects = [...projects];
 
-        data.forEach(row => {
-          const maDuAn = (row.maDuAn || '').toString().trim();
-          const tenDuAn = (row.tenDuAn || '').toString().trim();
-          const ghiChu = (row.ghiChu || '').toString().trim();
+        json.forEach(row => {
+          // Normalize keys to support Vietnamese and English
+          const maDuAn = (row.maDuAn || row['Mã dự án'] || row['Mã Dự Án'] || '').toString().trim();
+          const tenDuAn = (row.tenDuAn || row['Tên dự án'] || row['Tên Dự Án'] || '').toString().trim();
+          const ghiChu = (row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').toString().trim();
 
-          // Check for empty required fields
           if (!maDuAn || !tenDuAn) {
             skippedCount++;
             return;
           }
 
-          // Check for duplicates
-          const isDuplicate = newProjects.some(p => 
-            p.maDuAn === maDuAn || p.tenDuAn === tenDuAn
-          );
-
-          if (isDuplicate) {
-            skippedCount++;
-            return;
+          const existingIndex = currentProjects.findIndex(p => p.maDuAn === maDuAn);
+          
+          if (existingIndex >= 0) {
+            // Update existing
+            currentProjects[existingIndex] = {
+              ...currentProjects[existingIndex],
+              tenDuAn,
+              ghiChu: ghiChu || currentProjects[existingIndex].ghiChu
+            };
+            updatedCount++;
+          } else {
+            // Add new
+            currentProjects.push({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              maDuAn,
+              tenDuAn,
+              ghiChu,
+              createdAt: new Date().toISOString()
+            });
+            addedCount++;
           }
-
-          newProjects.push({
-            id: Date.now().toString() + Math.random(),
-            maDuAn,
-            tenDuAn,
-            ghiChu,
-            createdAt: new Date().toISOString()
-          });
-          addedCount++;
         });
 
-        saveProjects(newProjects);
-        toast.success(`Đã import thành công ${addedCount} dòng. Bỏ qua ${skippedCount} dòng lỗi/trùng lặp.`);
+        saveProjects(currentProjects);
+        toast.success(`Đã import thành công: Thêm mới ${addedCount}, cập nhật ${updatedCount}. Bỏ qua ${skippedCount} dòng lỗi.`);
       } catch (error) {
         console.error('Error importing Excel:', error);
-        toast.error('Lỗi khi đọc file Excel');
+        toast.error('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.');
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }

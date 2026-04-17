@@ -130,57 +130,62 @@ export function MachineManagement() {
     const reader = new FileReader();
     reader.onload = (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary' });
-        const wsname = wb.SheetNames[0];
-        const ws = wb.Sheets[wsname];
-        const data = XLSX.utils.sheet_to_json(ws) as any[];
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
         let addedCount = 0;
+        let updatedCount = 0;
         let skippedCount = 0;
-        const newMachines = [...machines];
+        const currentMachines = [...machines];
 
-        data.forEach(row => {
-          const maMay = (row.maMay || '').toString().trim();
-          const tenMay = (row.tenMay || '').toString().trim();
-          const loaiMay = (row.loaiMay || '').toString().trim();
-          const ghiChu = (row.ghiChu || '').toString().trim();
+        json.forEach(row => {
+          // Normalize keys to support Vietnamese and English
+          const maMay = (row.maMay || row['Mã máy'] || row['Mã Máy'] || '').toString().trim();
+          const tenMay = (row.tenMay || row['Tên máy'] || row['Tên Máy'] || '').toString().trim();
+          const loaiMay = (row.loaiMay || row['Loại máy'] || row['Loại Máy'] || '').toString().trim();
+          const ghiChu = (row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').toString().trim();
 
-          // Check for empty required fields
           if (!maMay || !tenMay) {
             skippedCount++;
             return;
           }
 
-          // Check for duplicates
-          const isDuplicate = newMachines.some(m => 
-            m.maMay === maMay || m.tenMay === tenMay
-          );
-
-          if (isDuplicate) {
-            skippedCount++;
-            return;
+          const existingIndex = currentMachines.findIndex(m => m.maMay === maMay);
+          
+          if (existingIndex >= 0) {
+            // Update existing
+            currentMachines[existingIndex] = {
+              ...currentMachines[existingIndex],
+              tenMay,
+              loaiMay: loaiMay || currentMachines[existingIndex].loaiMay,
+              ghiChu: ghiChu || currentMachines[existingIndex].ghiChu
+            };
+            updatedCount++;
+          } else {
+            // Add new
+            currentMachines.push({
+              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+              maMay,
+              tenMay,
+              loaiMay: loaiMay || undefined,
+              ghiChu: ghiChu || undefined,
+              createdAt: new Date().toISOString()
+            });
+            addedCount++;
           }
-
-          newMachines.push({
-            id: Date.now().toString() + Math.random(),
-            maMay,
-            tenMay,
-            loaiMay: loaiMay || undefined,
-            ghiChu: ghiChu || undefined,
-            createdAt: new Date().toISOString()
-          });
-          addedCount++;
         });
 
-        saveMachines(newMachines);
-        toast.success(`Đã import thành công ${addedCount} dòng. Bỏ qua ${skippedCount} dòng lỗi/trùng lặp.`);
+        saveMachines(currentMachines);
+        toast.success(`Đã import thành công: Thêm mới ${addedCount}, cập nhật ${updatedCount}. Bỏ qua ${skippedCount} dòng lỗi.`);
       } catch (error) {
         console.error('Error importing Excel:', error);
-        toast.error('Lỗi khi đọc file Excel');
+        toast.error('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.');
       }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
