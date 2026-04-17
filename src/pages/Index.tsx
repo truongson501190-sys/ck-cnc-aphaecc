@@ -235,7 +235,7 @@ export default function Index({ initialSection }: IndexProps) {
                       <CardTitle className="text-lg md:text-xl font-bold text-orange-600">Phiếu Xuất Dầu</CardTitle>
                     </CardHeader>
                     <CardContent className="text-center">
-                      <p className="text-gray-600 mb-3 md:mb-4 text-sm md:text-base">Quản lý xuất dầu mỡ cho máy CNC </p>
+                      <p className="text-gray-600 mb-3 md:mb-4 text-sm md:text-base">Tạo phiếu xuất dầu </p>
                       <Badge variant="outline" className="text-xs md:text-sm">
                         {warehouseTransactions.filter((t) => t.type === 'oil_export').length} lần xuất
                       </Badge>
@@ -324,7 +324,7 @@ export default function Index({ initialSection }: IndexProps) {
 
               {/* Footer */}
               <div className="text-center mt-8 md:mt-12 text-gray-500">
-                <p className="text-sm md:text-base">© 2026 Hệ Thống Quản Lý Xưởng CNC-CK</p>
+                <p className="text-sm md:text-base">© 2026 Hệ Thống Quản Lý Kho Xưởng CNC-CK</p>
                 <p className="text-xs md:text-sm mt-1">
                   <strong>Liên kết:</strong> Phiếu nhập kho • Phiếu xuất kho • Phiếu chuyển kho • Phiếu xuất dầu • Quản lý danh mục • Quản lý nhân sự
                 </p>

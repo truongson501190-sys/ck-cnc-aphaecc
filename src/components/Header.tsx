@@ -40,10 +40,10 @@ const Header: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            Hệ thống Quản lý Sản xuất
+            Hệ thống Quản lý Kho
           </h1>
           <p className="text-sm text-gray-600 mt-1">
-            Quản lý hiệu quả - Tối ưu sản xuất
+            Quản lý hiệu quả - Tối ưu 
           </p>
         </div>
 
