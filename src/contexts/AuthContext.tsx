@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import type { UserPermissions, User } from '@/types/user';
+import { getSupabase } from '@/lib/supabase';
 
 interface UserRecord {
   id: string;
@@ -40,29 +41,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        // ... existing seeding logic ...
-        const existingRecords = localStorage.getItem('userRecords');
-        const existingUsers = localStorage.getItem('users');
-        let needsSeeding = !existingRecords || !existingUsers;
+        // Restore session from localStorage or sessionStorage
+        const local = localStorage.getItem("sessionUser");
+        const session = sessionStorage.getItem("sessionUser");
 
-        if (existingRecords && existingUsers) {
-          try {
-            const records = JSON.parse(existingRecords);
-            const users = JSON.parse(existingUsers);
-            const userRecord = records.find((u: any) => u.msnv === '1118');
-            const user = users.find((u: any) => u.msnv === '1118');
-            if (!userRecord || !user || atob(userRecord.passwordHash) !== 'admin123' || user.role !== 'admin') {
-              needsSeeding = true;
-            }
-          } catch (error) {
-            console.error('Error parsing auth seed data:', error);
-            needsSeeding = true;
-          }
+        if (local) {
+          setUser(JSON.parse(local));
+        } else if (session) {
+          setUser(JSON.parse(session));
         }
 
-        if (needsSeeding) {
-          console.log('🌱 Seeding/updating data...');
-          const users = [
+        // Seed data if not present (Offline first approach)
+        const existingRecords = localStorage.getItem('userRecords');
+        const existingUsers = localStorage.getItem('users');
+        
+        if (!existingRecords || !existingUsers) {
+          console.log('🌱 Seeding initial auth data...');
+          const seedUsers = [
             {
               msnv: '1118',
               fullName: 'Nguyễn Trường Sơn',
@@ -81,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               updatedAt: new Date().toISOString()
             }
           ];
-          const userRecords = [
+          const seedRecords = [
             {
               id: '1',
               msnv: '1118',
@@ -94,29 +89,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               createdAt: new Date().toISOString()
             }
           ];
-          localStorage.setItem('users', JSON.stringify(users));
-          localStorage.setItem('userRecords', JSON.stringify(userRecords));
-          console.log('✅ Data seeded!');
-        }
-
-        // Restore session
-        const local = localStorage.getItem("sessionUser");
-        const session = sessionStorage.getItem("sessionUser");
-
-        if (local) {
-          setUser(JSON.parse(local));
-        } else if (session) {
-          setUser(JSON.parse(session));
+          localStorage.setItem('users', JSON.stringify(seedUsers));
+          localStorage.setItem('userRecords', JSON.stringify(seedRecords));
         }
 
         // AUTO-SYNC on startup if user is logged in
         if (local || session) {
           try {
             const { dataSync } = await import('@/lib/dataSync');
-            console.log('🔄 Triggering auto-sync on app startup...');
             dataSync.fullSync().catch(err => console.error('Startup sync failed:', err));
           } catch (err) {
-            console.log('Sync not available at startup');
+            console.log('Sync service not available at startup');
           }
         }
       } catch (error) {
@@ -127,109 +110,73 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
 
     initializeApp();
-  }, []); // Empty dependency array to run only once
+  }, []);
 
   // LOGIN
   const login = async (msnv: string, password: string, remember = false) => {
-    console.log("🔐 Login attempt:", { msnv, password: "***" });
+    console.log("🔐 Login attempt for:", msnv);
     
     try {
-      // Get userRecords from localStorage
-      let userRecordsJson = localStorage.getItem("userRecords");
-      let usersJson = localStorage.getItem("users");
+      // 1. Try local authentication first (Reliable offline)
+      const userRecordsJson = localStorage.getItem("userRecords");
+      const usersJson = localStorage.getItem("users");
       
-      // If not found, seed data first
-      if (!userRecordsJson || !usersJson) {
-        console.log("📋 Missing auth data, seeding now...");
-        const seedUsers = [
-          {
-            msnv: '1118',
-            fullName: 'Nguyễn Trường Sơn',
-            department: 'Admin',
-            position: 'Quản trị viên hệ thống',
-            role: 'admin',
-            status: 'active',
-            permissions: {
-              'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-              'kho-co-khi': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-              'kho-cnc': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-              'kho-dau': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-              'bao-cao-tong-hop': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-            },
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
+      if (userRecordsJson && usersJson) {
+        const userRecords: UserRecord[] = JSON.parse(userRecordsJson);
+        const userRecord = userRecords.find((u: UserRecord) => u.msnv === msnv && u.status);
+        
+        if (userRecord && atob(userRecord.passwordHash) === password) {
+          const users: User[] = JSON.parse(usersJson);
+          const fullUser = users.find((u: User) => u.msnv === msnv);
+          
+          if (fullUser) {
+            setUser(fullUser);
+            if (remember) {
+              localStorage.setItem("sessionUser", JSON.stringify(fullUser));
+            } else {
+              sessionStorage.setItem("sessionUser", JSON.stringify(fullUser));
+            }
+            
+            // Trigger background sync after successful login
+            import('@/lib/dataSync').then(({ dataSync }) => {
+              dataSync.fullSync().catch(console.error);
+            });
+            
+            return true;
           }
-        ];
-        const seedRecords = [
-          {
-            id: '1',
-            msnv: '1118',
-            fullName: 'Nguyễn Trường Sơn',
-            department: 'Admin',
-            position: 'Quản trị viên hệ thống',
-            role: 'admin',
-            status: true,
-            passwordHash: btoa('admin123'),
-            createdAt: new Date().toISOString()
+        }
+      }
+
+      // 2. Fallback to Supabase if online and local failed
+      const supabase = getSupabase();
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('user_records')
+          .select('*')
+          .eq('msnv', msnv)
+          .eq('status', true)
+          .single();
+
+        if (!error && data && atob(data.passwordHash) === password) {
+          const { data: userData } = await supabase
+            .from('users')
+            .select('*')
+            .eq('msnv', msnv)
+            .single();
+
+          if (userData) {
+            setUser(userData);
+            if (remember) {
+              localStorage.setItem("sessionUser", JSON.stringify(userData));
+            } else {
+              sessionStorage.setItem("sessionUser", JSON.stringify(userData));
+            }
+            return true;
           }
-        ];
-        localStorage.setItem('users', JSON.stringify(seedUsers));
-        localStorage.setItem('userRecords', JSON.stringify(seedRecords));
-        userRecordsJson = JSON.stringify(seedRecords);
-        usersJson = JSON.stringify(seedUsers);
-        console.log("✅ Auth data seeded");
+        }
       }
 
-      const userRecords: UserRecord[] = JSON.parse(userRecordsJson);
-      
-      // Find user by msnv
-      console.log("🔍 Looking for user:", msnv, "in records:", userRecords.map(u => u.msnv));
-      const userRecord = userRecords.find((u: UserRecord) => u.msnv === msnv && u.status);
-      
-      if (!userRecord) {
-        console.log("🚫 User not found or inactive:", msnv);
-        console.log("Available users:", userRecords.map(u => ({ msnv: u.msnv, status: u.status })));
-        return false;
-      }
-
-      // Verify password (stored as base64 for mock purposes)
-      const storedPassword = atob(userRecord.passwordHash);
-      console.log("🔑 Password check - stored:", storedPassword, "provided:", password);
-      if (password !== storedPassword) {
-        console.log("🚫 Wrong password");
-        return false;
-      }
-
-      // Get full user data from users list
-      const users: User[] = JSON.parse(usersJson);
-      console.log("👥 Available users:", users.map(u => u.msnv));
-      const fullUser = users.find((u: User) => u.msnv === msnv);
-
-      if (!fullUser) {
-        console.log("🚫 User details not found in users array");
-        return false;
-      }
-
-      console.log("✅ Login successful, setting user:", fullUser);
-      setUser(fullUser);
-
-      if (remember) {
-        localStorage.setItem("sessionUser", JSON.stringify(fullUser));
-        console.log("💾 Saved to localStorage with remember");
-      } else {
-        sessionStorage.setItem("sessionUser", JSON.stringify(fullUser));
-        console.log("💾 Saved to sessionStorage");
-      }
-
-      // Sync data after successful login
-      try {
-        const { dataSync } = await import('@/lib/dataSync');
-        dataSync.fullSync().catch(err => console.error('Sync after login failed:', err));
-      } catch (err) {
-        console.log('Sync not available, continuing without sync');
-      }
-
-      return true;
+      return false;
     } catch (err) {
       console.error("💥 Login error:", err);
       return false;
@@ -248,22 +195,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!user) return;
 
     try {
+      const supabase = getSupabase();
+      if (supabase) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('msnv', user.msnv)
+          .single();
+
+        if (!error && data) {
+          setUser(data);
+          localStorage.setItem("sessionUser", JSON.stringify(data));
+          return;
+        }
+      }
+      
+      // Local fallback
       const usersJson = localStorage.getItem("users");
-      if (!usersJson) return;
-
-      const users: User[] = JSON.parse(usersJson);
-      const updatedUser = users.find((u: User) => u.msnv === user.msnv);
-
-      if (updatedUser) {
-        setUser(updatedUser);
-        localStorage.setItem("sessionUser", JSON.stringify(updatedUser));
+      if (usersJson) {
+        const users: User[] = JSON.parse(usersJson);
+        const updatedUser = users.find((u: User) => u.msnv === user.msnv);
+        if (updatedUser) {
+          setUser(updatedUser);
+        }
       }
     } catch (err) {
-      console.error("Error refreshing user:", err);
+      console.error("Refresh error:", err);
     }
   };
 
-  // PERMISSION
   const isAdmin = () => user?.role === "admin";
 
   const value: AuthContextType = {
@@ -277,8 +237,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div>Đang tải hệ thống...</div>
+      <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+          <div className="text-slate-600 font-medium">Đang tải hệ thống...</div>
+        </div>
       </div>
     );
   }

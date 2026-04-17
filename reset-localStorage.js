@@ -39,7 +39,11 @@ const userRecords = [
   }
 ];
 
-localStorage.setItem('users', JSON.stringify(users));
+import { getSupabase } from '@/lib/supabase';
+
+const supabase = getSupabase();
+
+await supabase.from('users').insert([newUser]);
 localStorage.setItem('userRecords', JSON.stringify(userRecords));
 
 console.log('✅ Fresh data created!');

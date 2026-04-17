@@ -39,8 +39,11 @@ export const syncDataToSupabase = async (table: string, data: any[]) => {
 
     console.log(`✅ Synced ${data.length} records to ${table}`);
     return true;
-  } catch (error) {
-    console.error(`❌ Failed to sync ${table}:`, error);
+  } catch (error: any) {
+    // Only log if it's not a network error to avoid console spam
+    if (error?.message !== 'Failed to fetch' && !error?.message?.includes('net::ERR')) {
+      console.error(`❌ Failed to sync ${table}:`, error);
+    }
     return false;
   }
 };
@@ -54,8 +57,11 @@ export const loadDataFromSupabase = async (table: string) => {
 
     console.log(`✅ Loaded ${data?.length || 0} records from ${table}`);
     return data;
-  } catch (error) {
-    console.error(`❌ Failed to load ${table}:`, error);
+  } catch (error: any) {
+    // Only log if it's not a network error
+    if (error?.message !== 'Failed to fetch' && !error?.message?.includes('net::ERR')) {
+      console.error(`❌ Failed to load ${table}:`, error);
+    }
     return null;
   }
 };
