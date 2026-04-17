@@ -1,6 +1,6 @@
 {
-  "name": "Kho CNC",
-  "short_name": "KhoCNC",
+  "name": "Kho CK-CNC",
+  "short_name": "KhoCKCNC",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

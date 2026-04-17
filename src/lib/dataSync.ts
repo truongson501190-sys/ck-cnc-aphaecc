@@ -163,6 +163,5 @@ export class DataSyncService {
     };
   }
 }
-}
 
 export const dataSync = DataSyncService.getInstance();
