@@ -47,19 +47,28 @@ export class DataSyncService {
     }
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      let supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
       if (!supabaseUrl) return;
+
+      // Robust URL cleaning
+      supabaseUrl = supabaseUrl.trim().replace(/\s+/g, ''); // Remove all spaces
+      // Fix protocol missing colon (e.g., http// -> http://)
+      if (/^https?\/\//.test(supabaseUrl)) {
+        supabaseUrl = supabaseUrl.replace(/^https?/, (m) => m + ':');
+      }
+      // Ensure no double protocols or other common typos
+      supabaseUrl = supabaseUrl.replace(/^(https?:\/\/)+/i, '$1');
 
       // 3. Silent check using fetch with short timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      const response = await fetch(`${supabaseUrl}/rest/v1/`, { 
+      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
         method: 'GET',
         headers: { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '' },
         signal: controller.signal
       });
-      
+
       clearTimeout(timeoutId);
       this.isOnline = response.ok || response.status === 401;
       (this as any)._lastDnsError = null;

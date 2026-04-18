@@ -65,6 +65,8 @@ export function TonKho() {
     const inventoryMap = new Map<string, { category: any; currentStock: number; totalValue: number }>();
 
     warehouseTransactions.forEach((transaction) => {
+      // Chỉ tính approved transactions
+      if (transaction.status !== 'approved') return;
       if (transaction.items) {
         transaction.items.forEach((item) => {
           const category = categories.find(
@@ -84,6 +86,7 @@ export function TonKho() {
             stock.currentStock -= item.quantity;
             stock.totalValue -= item.totalValue || 0;
           }
+          // Transfer không affect tổng stock
         });
       } else {
         const category = categories.find(
@@ -103,6 +106,7 @@ export function TonKho() {
           stock.currentStock -= (transaction as any).quantity || 0;
           stock.totalValue -= transaction.totalValue || 0;
         }
+        // Transfer không affect tổng stock, chỉ di chuyển giữa kho
       }
     });
 

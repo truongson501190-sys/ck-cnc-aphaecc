@@ -1,8 +1,19 @@
 // Supabase configuration for data synchronization
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+let supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Fix malformed URLs (e.g., " http//localhost" or " http://localhost")
+if (supabaseUrl) {
+  supabaseUrl = supabaseUrl.trim().replace(/\s+/g, ''); // Remove all spaces
+  // Fix protocol missing colon (e.g., http// -> http://)
+  if (/^https?\/\//.test(supabaseUrl)) {
+    supabaseUrl = supabaseUrl.replace(/^https?/, (m) => m + ':');
+  }
+  // Ensure no double protocols or other common typos
+  supabaseUrl = supabaseUrl.replace(/^(https?:\/\/)+/i, '$1');
+}
 
 export const supabase = supabaseUrl && supabaseAnonKey
   ? createClient(supabaseUrl, supabaseAnonKey)

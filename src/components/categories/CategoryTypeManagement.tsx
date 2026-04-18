@@ -148,12 +148,18 @@ export function CategoryTypeManagement() {
 
         json.forEach(row => {
           // Normalize keys to support Vietnamese and English
-          const maLoai = (row.maLoai || row['Mã loại'] || row['Mã Loại'] || '').toString().trim();
-          const tenLoai = (row.tenLoai || row['Tên loại'] || row['Tên Loại'] || '').toString().trim();
-          const donVi = (row.donVi || row['Đơn vị'] || row['Đơn Vị'] || '').toString().trim();
-          const gia = Number(row.gia || row['Giá'] || row['Đơn giá'] || row['Đơn Giá'] || 0);
-          const minimumStock = Number(row.minimumStock || row['Tồn tối thiểu'] || row['Tồn Tối Thiểu'] || 0);
-          const ghiChu = (row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').toString().trim();
+          const maLoai = (row.maLoai ?? row['Mã loại'] ?? row['Mã Loại'] ?? '').toString().trim();
+          const tenLoai = (row.tenLoai ?? row['Tên loại'] ?? row['Tên Loại'] ?? '').toString().trim();
+          const donVi = (row.donVi ?? row['Đơn vị'] ?? row['Đơn Vị'] ?? '').toString().trim();
+          
+          const rawGia = row.gia ?? row['Giá'] ?? row['Đơn giá'] ?? row['Đơn Giá'];
+          const gia = rawGia !== undefined ? Number(rawGia) : undefined;
+          
+          // Improved mapping for minimumStock with more possible column names
+          const rawMinStock = row.minimumStock ?? row['Tồn tối thiểu'] ?? row['Tồn Tối Thiểu'] ?? row['Tồn kho tối thiểu'] ?? row['Tồn Kho Tối Thiểu'] ?? row['Min Stock'];
+          const minimumStock = rawMinStock !== undefined ? Number(rawMinStock) : undefined;
+          
+          const ghiChu = (row.ghiChu ?? row['Ghi chú'] ?? row['Ghi Chú'] ?? '').toString().trim();
 
           if (!maLoai || !tenLoai) {
             skippedCount++;
@@ -163,25 +169,25 @@ export function CategoryTypeManagement() {
           const existingIndex = currentCategories.findIndex(c => c.maLoai === maLoai);
           
           if (existingIndex >= 0) {
-            // Update existing
+            // Update existing - only update fields that are present in Excel
             currentCategories[existingIndex] = {
               ...currentCategories[existingIndex],
               tenLoai,
               donVi: donVi || currentCategories[existingIndex].donVi,
-              gia: gia || currentCategories[existingIndex].gia,
-              minimumStock: minimumStock || currentCategories[existingIndex].minimumStock,
+              gia: gia !== undefined ? gia : currentCategories[existingIndex].gia,
+              minimumStock: minimumStock !== undefined ? minimumStock : currentCategories[existingIndex].minimumStock,
               ghiChu: ghiChu || currentCategories[existingIndex].ghiChu
             };
             updatedCount++;
           } else {
-            // Add new
+            // Add new - use nullish coalescing to properly handle 0 values
             currentCategories.push({
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               maLoai,
               tenLoai,
               donVi: donVi || 'Cái',
-              gia,
-              minimumStock,
+              gia: gia ?? 0,
+              minimumStock: minimumStock ?? 0,
               ghiChu: ghiChu || undefined,
               createdAt: new Date().toISOString()
             });

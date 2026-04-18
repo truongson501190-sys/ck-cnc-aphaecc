@@ -100,11 +100,7 @@ const App: React.FC = () => {
                 />
                 <Route
                   path="/chuyen-kho"
-                  element={
-                    <ProtectedRoute requiredModule="kho-tong">
-                      <ChuyenKho />
-                    </ProtectedRoute>
-                  }
+                  element={<ChuyenKho />}
                 />
                 <Route
                   path="/xuat-dau"

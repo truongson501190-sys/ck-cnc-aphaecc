@@ -49,6 +49,13 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
     loadData();
   }, []);
 
+  // Add effect to reload data when component becomes visible
+  useEffect(() => {
+    const handleFocus = () => loadData();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, []);
+
   const loadData = () => {
     try {
       // Load categories from localStorage
@@ -56,15 +63,16 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
       if (savedCategories) {
         const parsedCategories = JSON.parse(savedCategories);
         if (Array.isArray(parsedCategories)) {
-          setCategories(parsedCategories.map((cat: any) => ({
+          const mappedCategories = parsedCategories.map((cat: any) => ({
             id: cat.id,
-            maLoai: cat.maLoai || cat.tenChungLoai,
+            maLoai: cat.maLoai || cat.maChungLoai || cat.id,
             tenLoai: cat.tenLoai || cat.tenChungLoai,
             tenChungLoai: cat.tenChungLoai || cat.tenLoai,
             donVi: cat.donVi || cat.donViTinh,
             gia: cat.gia || parseFloat(cat.donGia) || 0,
             createdAt: cat.createdAt || new Date().toISOString()
-          })));
+          }));
+          setCategories(mappedCategories);
         }
       }
 
@@ -104,6 +112,8 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
 
     const categoryToAdd: Category = {
       id: Date.now().toString(),
+      maLoai: Date.now().toString(),
+      tenLoai: newCategory.tenChungLoai,
       tenChungLoai: newCategory.tenChungLoai,
       donVi: newCategory.donVi,
       gia: parseFloat(newCategory.gia) || 0,
@@ -112,9 +122,15 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
 
     const updatedCategories = [...categories, categoryToAdd];
     setCategories(updatedCategories);
-    localStorage.setItem('categoryTypes', JSON.stringify(updatedCategories));
+    localStorage.setItem('category_items', JSON.stringify(updatedCategories.map(cat => ({
+      id: cat.id,
+      maChungLoai: cat.maLoai,
+      tenChungLoai: cat.tenLoai,
+      donViTinh: cat.donVi,
+      donGia: cat.gia.toString()
+    }))));
     
-    setFormData(prev => ({ ...prev, chungLoai: categoryToAdd.id, donVi: categoryToAdd.donVi, donGia: categoryToAdd.gia.toString() }));
+    setFormData(prev => ({ ...prev, chungLoai: categoryToAdd.maLoai, donVi: categoryToAdd.donVi, donGia: categoryToAdd.gia.toString() }));
     setIsAddCategoryOpen(false);
     setNewCategory({ tenChungLoai: '', donVi: '', gia: '' });
     toast.success('Đã thêm chủng loại mới');
@@ -133,7 +149,7 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
       if (item.id === id) {
         const updated = { ...item, [field]: value };
         if (field === 'chungLoai') {
-          const selectedCategory = categories.find(cat => cat.id === value);
+          const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
           if (selectedCategory) {
             updated.donVi = selectedCategory.donVi;
             updated.donGia = selectedCategory.gia.toString();
@@ -155,7 +171,7 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
     
     // Auto-fill related fields when category is selected
     if (field === 'chungLoai') {
-      const selectedCategory = categories.find(cat => cat.id === value);
+      const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
       if (selectedCategory) {
         newData.donVi = selectedCategory.donVi;
         newData.donGia = selectedCategory.gia.toString();
@@ -192,7 +208,7 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
 
     setDataList([...dataList, newItem]);
 
-    const selectedCategory = categories.find(cat => cat.id === formData.chungLoai);
+    const selectedCategory = categories.find(cat => cat.maLoai === formData.chungLoai || cat.maChungLoai === formData.chungLoai || cat.id === formData.chungLoai);
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
       type: 'transfer',
       itemId: Date.now().toString(),
@@ -256,8 +272,8 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                 <SelectContent>
                   <SelectItem value="all">Tất cả</SelectItem>
                   {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.tenChungLoai}
+                    <SelectItem key={category.id} value={category.maLoai}>
+                      {category.tenLoai || category.tenChungLoai}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -303,35 +319,40 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Danh sách vật tư</h3>
-              <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
-                <DialogTrigger asChild>
-                  <Button type="button" variant="outline" size="sm" className="text-blue-600 border-blue-200">
-                    <Plus className="w-4 h-4 mr-1" /> Thêm chủng loại
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Thêm chủng loại sản phẩm mới</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Tên chủng loại *</Label>
-                      <Input value={newCategory.tenChungLoai} onChange={(e) => setNewCategory(prev => ({ ...prev, tenChungLoai: e.target.value }))} />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+              <div className="flex gap-2">
+                <Button type="button" variant="outline" size="sm" onClick={loadData} className="text-green-600 border-green-200">
+                  🔄 Tải lại dữ liệu
+                </Button>
+                <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+                  <DialogTrigger asChild>
+                    <Button type="button" variant="outline" size="sm" className="text-blue-600 border-blue-200">
+                      <Plus className="w-4 h-4 mr-1" /> Thêm chủng loại
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Thêm chủng loại sản phẩm mới</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
                       <div className="space-y-2">
-                        <Label>Đơn vị tính *</Label>
-                        <Input value={newCategory.donVi} onChange={(e) => setNewCategory(p => ({ ...p, donVi: e.target.value }))} />
+                        <Label>Tên chủng loại *</Label>
+                        <Input value={newCategory.tenChungLoai} onChange={(e) => setNewCategory(prev => ({ ...prev, tenChungLoai: e.target.value }))} />
                       </div>
-                      <div className="space-y-2">
-                        <Label>Đơn giá tham khảo (VND)</Label>
-                        <Input type="number" value={newCategory.gia} onChange={(e) => setNewCategory(prev => ({ ...prev, gia: e.target.value }))} placeholder="0" />
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Đơn vị tính *</Label>
+                          <Input value={newCategory.donVi} onChange={(e) => setNewCategory(p => ({ ...p, donVi: e.target.value }))} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Đơn giá tham khảo (VND)</Label>
+                          <Input type="number" value={newCategory.gia} onChange={(e) => setNewCategory(prev => ({ ...prev, gia: e.target.value }))} placeholder="0" />
+                        </div>
                       </div>
+                      <Button className="w-full" onClick={handleAddCategory}>💾 Lưu chủng loại</Button>
                     </div>
-                    <Button className="w-full" onClick={handleAddCategory}>💾 Lưu chủng loại</Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              </div>
               <div>
                 <Button type="button" onClick={addRow} variant="default" size="sm" className="bg-indigo-500 hover:bg-indigo-600 ml-2">
                   <Plus className="w-4 h-4 mr-1" /> Thêm dòng
@@ -359,7 +380,11 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                       <Select value={formData.chungLoai} onValueChange={(value) => handleInputChange('chungLoai', value)}>
                         <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
                         <SelectContent>
-                          {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.tenChungLoai}</SelectItem>)}
+                          {categories.map((c) => (
+                            <SelectItem key={c.id} value={c.maLoai}>
+                              {c.tenLoai || c.tenChungLoai}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </td>
@@ -386,7 +411,11 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                         <Select value={row.chungLoai} onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}>
                           <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
                           <SelectContent>
-                            {categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.tenChungLoai}</SelectItem>)}
+                            {categories.map((c) => (
+                              <SelectItem key={c.id} value={c.maLoai}>
+                                {c.tenLoai || c.tenChungLoai}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </td>

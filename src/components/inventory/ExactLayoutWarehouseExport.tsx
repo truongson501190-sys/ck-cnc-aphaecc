@@ -58,12 +58,13 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
         const parsedCategories = JSON.parse(savedCategories);
         if (Array.isArray(parsedCategories)) {
           setCategories(parsedCategories.map((cat: any) => ({
-            id: cat.id,
-            maLoai: cat.maLoai || cat.tenChungLoai,
+            id: cat.id || cat.maChungLoai || cat.maLoai || cat.tenChungLoai || Date.now().toString(),
+            maLoai: cat.maLoai || cat.maChungLoai || cat.id || cat.tenChungLoai || cat.tenLoai,
             tenLoai: cat.tenLoai || cat.tenChungLoai,
             tenChungLoai: cat.tenChungLoai || cat.tenLoai,
             donVi: cat.donVi || cat.donViTinh,
             gia: cat.gia || parseFloat(cat.donGia) || 0,
+            minimumStock: cat.minimumStock || 0,
             createdAt: cat.createdAt || new Date().toISOString()
           })));
         }
@@ -217,7 +218,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
       if (item.id === id) {
         const updated = { ...item, [field]: value };
         if (field === 'chungLoai') {
-          const selectedCategory = categories.find(cat => cat.id === value);
+          const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
           if (selectedCategory) {
             updated.donVi = selectedCategory.donVi;
             updated.donGia = selectedCategory.gia.toString();
@@ -239,7 +240,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     
     // Auto-fill related fields when category is selected
     if (field === 'chungLoai') {
-      const selectedCategory = categories.find(cat => cat.id === value);
+      const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
       if (selectedCategory) {
         newData.donVi = selectedCategory.donVi;
         newData.donGia = selectedCategory.gia.toString();
@@ -473,9 +474,9 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                             const currentStock = getCurrentStock(c.id);
                             const isLowStock = currentStock <= (c.minimumStock || 0);
                             return (
-                              <SelectItem key={c.id} value={c.id}>
+                              <SelectItem key={c.id} value={c.maLoai || c.id}>
                                 <div className="flex items-center justify-between w-full">
-                                  <span>{c.tenChungLoai}</span>
+                                  <span>{c.tenLoai || c.tenChungLoai}</span>
                                   <div className="flex items-center gap-2 text-xs">
                                     <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
                                       Tồn: {currentStock}
@@ -516,9 +517,9 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                               const currentStock = getCurrentStock(c.id);
                               const isLowStock = currentStock <= (c.minimumStock || 0);
                               return (
-                                <SelectItem key={c.id} value={c.id}>
+                                <SelectItem key={c.id} value={c.maLoai || c.id}>
                                   <div className="flex items-center justify-between w-full">
-                                    <span>{c.tenChungLoai}</span>
+                                    <span>{c.tenLoai || c.tenChungLoai}</span>
                                     <div className="flex items-center gap-2 text-xs">
                                       <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
                                         Tồn: {currentStock}

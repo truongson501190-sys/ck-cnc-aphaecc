@@ -361,7 +361,7 @@ export function WarehouseImport() {
                             ) : (
                               categories.map((category) => (
                                 <SelectItem key={category.id} value={category.id}>
-                                  {category.tenChungLoai}
+                                  {category.tenLoai || category.tenChungLoai}
                                 </SelectItem>
                               ))
                             )}

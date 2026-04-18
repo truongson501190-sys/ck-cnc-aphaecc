@@ -542,8 +542,8 @@ export function WarehouseExport() {
                           <SelectContent>
                             {categories.map((category) => (
                               <SelectItem key={category.id} value={category.id}>
-                                {category.tenChungLoai}
-                              </SelectItem>
+                                  {category.tenLoai || category.tenChungLoai}
+                                </SelectItem>
                             ))}
                           </SelectContent>
                         </Select>

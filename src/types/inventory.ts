@@ -17,40 +17,39 @@ export interface InventoryItem {
 export interface WarehouseTransaction {
   id: string;
   type: 'import' | 'export' | 'transfer' | 'oil_export';
-  itemId?: string;
-  itemName?: string;
+  category_id: string; // Foreign key to categories
   quantity?: number;
   unit?: string;
   price?: number;
   totalValue?: number;
-  fromLocation?: string;
-  toLocation?: string;
-  machineId?: string;
-  projectId?: string;
-  customerName?: string;
+  warehouse_id?: string; // For import/export
+  from_warehouse_id?: string; // For transfer
+  to_warehouse_id?: string; // For transfer
+  project_id?: string; // For export
+  machine_id?: string; // For oil export
+  created_by?: string; // User foreign key
+  received_by?: string; // User foreign key when goods are received
+  approved_by?: string; // User foreign key for approval
   reason?: string;
   referenceNumber: string;
-  operator: string;
-  approver?: string;
   status: 'draft' | 'pending' | 'approved' | 'rejected' | 'completed';
   transactionDate: string;
   createdAt: string;
   notes?: string;
-  // Support for bulk items in complex layouts
+  approvedAt?: string;
+  // Support for bulk line items in complex layouts
   items?: WarehouseTransactionItem[];
   trangThaiBanDau?: string;
 }
 
 export interface WarehouseTransactionItem {
   id: string;
-  itemId: string;
-  itemName: string;
+  category_id: string; // Foreign key to categories
+  itemName?: string; // Optional denormalized display name
   quantity: number;
   unit: string;
   price?: number;
   totalValue?: number;
-  tenChungLoai?: string;
-  donGia?: number;
   ghiChu?: string;
 }
 

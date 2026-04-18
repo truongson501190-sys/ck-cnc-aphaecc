@@ -1,102 +1,117 @@
--- Supabase Database Schema for Kho-app
--- Run this SQL in your Supabase SQL Editor
+﻿-- Supabase Database Schema for Kho-app (Relational design)
+-- Master tables and relational constraints
 
--- Users table
+-- Categories master table
+CREATE TABLE IF NOT EXISTS categories (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  code TEXT UNIQUE,
+  unit TEXT,
+  price NUMERIC DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Warehouses master table
+CREATE TABLE IF NOT EXISTS warehouses (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  code TEXT UNIQUE,
+  type TEXT NOT NULL DEFAULT 'warehouse',
+  address TEXT,
+  note TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Projects master table
+CREATE TABLE IF NOT EXISTS projects (
+  id SERIAL PRIMARY KEY,
+  project_code TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  note TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Machines master table
+CREATE TABLE IF NOT EXISTS machines (
+  id SERIAL PRIMARY KEY,
+  name TEXT NOT NULL,
+  code TEXT UNIQUE,
+  note TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Users master table (Người nhập - xuất)
 CREATE TABLE IF NOT EXISTS users (
   id SERIAL PRIMARY KEY,
-  msnv TEXT UNIQUE NOT NULL,
-  fullName TEXT NOT NULL,
-  department TEXT,
-  position TEXT,
-  role TEXT NOT NULL DEFAULT 'user',
+  employee_code TEXT NOT NULL UNIQUE,
+  full_name TEXT NOT NULL,
+  role TEXT NOT NULL CHECK (role IN ('nhap','xuat','nhan','admin','manager','user')),
+  note TEXT,
   status TEXT NOT NULL DEFAULT 'active',
   permissions JSONB,
-  createdAt TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updatedAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- User records for authentication
-CREATE TABLE IF NOT EXISTS user_records (
-  id SERIAL PRIMARY KEY,
-  msnv TEXT UNIQUE NOT NULL,
-  fullName TEXT NOT NULL,
-  department TEXT,
-  position TEXT,
-  role TEXT NOT NULL DEFAULT 'user',
-  status BOOLEAN NOT NULL DEFAULT true,
-  passwordHash TEXT NOT NULL,
-  createdAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Inventory items
-CREATE TABLE IF NOT EXISTS inventory_items (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  code TEXT UNIQUE NOT NULL,
-  category TEXT NOT NULL,
-  unit TEXT NOT NULL,
-  currentStock DECIMAL NOT NULL DEFAULT 0,
-  minStock DECIMAL DEFAULT 0,
-  maxStock DECIMAL,
-  location TEXT,
-  price DECIMAL DEFAULT 0,
-  createdAt TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updatedAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Warehouse locations
-CREATE TABLE IF NOT EXISTS warehouse_locations (
-  id SERIAL PRIMARY KEY,
-  name TEXT NOT NULL,
-  code TEXT UNIQUE NOT NULL,
-  type TEXT NOT NULL DEFAULT 'warehouse',
-  isActive BOOLEAN NOT NULL DEFAULT true,
-  createdAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
--- Warehouse transactions (base table)
+-- Warehouse transaction table with foreign keys
 CREATE TABLE IF NOT EXISTS warehouse_transactions (
   id SERIAL PRIMARY KEY,
-  type TEXT NOT NULL, -- 'import', 'export', 'transfer'
-  itemId TEXT NOT NULL,
-  itemName TEXT NOT NULL,
-  quantity DECIMAL NOT NULL,
+  type TEXT NOT NULL,
+  category_id INTEGER NOT NULL REFERENCES categories(id),
+  quantity NUMERIC NOT NULL,
   unit TEXT NOT NULL,
-  price DECIMAL DEFAULT 0,
-  totalValue DECIMAL DEFAULT 0,
-  fromLocation TEXT,
-  toLocation TEXT,
+  price NUMERIC DEFAULT 0,
+  total_value NUMERIC DEFAULT 0,
+  warehouse_id INTEGER REFERENCES warehouses(id),
+  from_warehouse_id INTEGER REFERENCES warehouses(id),
+  to_warehouse_id INTEGER REFERENCES warehouses(id),
+  project_id INTEGER REFERENCES projects(id),
+  machine_id INTEGER REFERENCES machines(id),
+  created_by INTEGER REFERENCES users(id),
+  received_by INTEGER REFERENCES users(id),
+  approved_by INTEGER REFERENCES users(id),
   reason TEXT,
-  referenceNumber TEXT,
-  operator TEXT,
-  status TEXT NOT NULL DEFAULT 'pending',
-  transactionDate DATE NOT NULL,
+  reference_number TEXT,
+  status TEXT NOT NULL DEFAULT 'draft',
+  transaction_date DATE NOT NULL,
   notes TEXT,
-  createdAt TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  approved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Indexes for better performance
-CREATE INDEX IF NOT EXISTS idx_users_msnv ON users(msnv);
-CREATE INDEX IF NOT EXISTS idx_user_records_msnv ON user_records(msnv);
-CREATE INDEX IF NOT EXISTS idx_inventory_code ON inventory_items(code);
-CREATE INDEX IF NOT EXISTS idx_transactions_type ON warehouse_transactions(type);
-CREATE INDEX IF NOT EXISTS idx_transactions_date ON warehouse_transactions(transactionDate);
-CREATE INDEX IF NOT EXISTS idx_transactions_reference ON warehouse_transactions(referenceNumber);
+-- Indexes for foreign key lookups and filtering
+CREATE INDEX IF NOT EXISTS idx_warehouse_transactions_type ON warehouse_transactions(type);
+CREATE INDEX IF NOT EXISTS idx_warehouse_transactions_date ON warehouse_transactions(transaction_date);
+CREATE INDEX IF NOT EXISTS idx_warehouse_transactions_reference ON warehouse_transactions(reference_number);
+CREATE INDEX IF NOT EXISTS idx_warehouse_transactions_category ON warehouse_transactions(category_id);
+CREATE INDEX IF NOT EXISTS idx_warehouse_transactions_from_warehouse ON warehouse_transactions(from_warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_warehouse_transactions_to_warehouse ON warehouse_transactions(to_warehouse_id);
+CREATE INDEX IF NOT EXISTS idx_users_employee_code ON users(employee_code);
+CREATE INDEX IF NOT EXISTS idx_categories_name ON categories(name);
+CREATE INDEX IF NOT EXISTS idx_warehouses_name ON warehouses(name);
+CREATE INDEX IF NOT EXISTS idx_projects_code ON projects(project_code);
+CREATE INDEX IF NOT EXISTS idx_machines_name ON machines(name);
 
--- Row Level Security (RLS) - Enable if needed
--- ALTER TABLE users ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE user_records ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE inventory_items ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE warehouse_locations ENABLE ROW LEVEL SECURITY;
--- ALTER TABLE warehouse_transactions ENABLE ROW LEVEL SECURITY;
+-- Legacy tables for compatibility (if you still need them)
+-- Note: these tables are kept only for backward compatibility and migration support.
+CREATE TABLE IF NOT EXISTS user_records (
+  id SERIAL PRIMARY KEY,
+  employee_code TEXT UNIQUE NOT NULL,
+  password_hash TEXT NOT NULL,
+  status BOOLEAN NOT NULL DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
--- Insert default admin user (msnv: 1118, password: 1118)
-INSERT INTO users (msnv, fullName, department, position, role, status, permissions)
+-- Default admin seed for the new users table
+INSERT INTO users (employee_code, full_name, role, status, permissions)
 VALUES (
   '1118',
   'Quản trị viên hệ thống',
-  'Quản trị',
-  'Quản trị viên',
   'admin',
   'active',
   '{
@@ -106,15 +121,9 @@ VALUES (
     "kho-dau": {"view": true, "add": true, "edit": true, "delete": true, "approve": true, "export": true},
     "bao-cao-tong-hop": {"view": true, "add": true, "edit": true, "delete": true, "approve": true, "export": true}
   }'
-) ON CONFLICT (msnv) DO NOTHING;
+)
+ON CONFLICT (employee_code) DO NOTHING;
 
-INSERT INTO user_records (msnv, fullName, department, position, role, status, passwordHash)
-VALUES (
-  '1118',
-  'Quản trị viên hệ thống',
-  'Quản trị',
-  'Quản trị viên',
-  'admin',
-  true,
-  'YWRtaW4xMjM='  -- base64 encoded 'admin123'
-) ON CONFLICT (msnv) DO NOTHING;
+INSERT INTO user_records (employee_code, password_hash, status)
+VALUES ('1118', 'YWRtaW4xMjM=', true)
+ON CONFLICT (employee_code) DO NOTHING;

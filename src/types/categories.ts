@@ -1,10 +1,11 @@
 // Category Types (Chủng loại)
 export interface Category {
   id: string;
-  maLoai: string;
-  tenLoai: string;
+  name?: string;
+  maLoai?: string;
+  tenLoai?: string;
+  tenChungLoai: string;
   donVi: string;
-  tenChungLoai?: string; // alias for tenLoai
   gia?: number;
   minimumStock?: number;
   moTa?: string;
@@ -15,7 +16,8 @@ export interface Category {
 // Machine Types (Máy móc)
 export interface Machine {
   id: string;
-  maMay: string;
+  name?: string;
+  maMay?: string;
   tenMay: string;
   loaiMay?: string;
   giaGioSang?: number;
@@ -30,30 +32,33 @@ export interface Machine {
 // Warehouse Types (Kho)
 export interface Warehouse {
   id: string;
-  maKho: string;
+  name?: string;
+  maKho?: string;
   tenKho: string;
   loaiKho?: string;
   ghiChu?: string;
   createdAt: string;
 }
 
-// User Types
+// User Types (Người Nhập - Xuất)
 export interface User {
   id: string;
-  hoTen: string;
-  msnv: string;
-  chucVu: string;
-  phongBan: string;
+  employee_code: string; // Mã số nhân viên
+  full_name: string;
+  role: 'nhap' | 'xuat' | 'nhan' | 'admin' | 'manager' | 'user';
+  note?: string;
   // compatibility / legacy fields used across UI
+  hoTen?: string;
+  msnv?: string;
+  name?: string;
+  username?: string;
   chucDanh?: string;
   boPhan?: string;
   matKhau?: string;
-  vaiTro?: 'admin' | 'manager' | 'user';
+  vaiTro?: string;
   trangThai?: 'active' | 'inactive';
-  name?: string;
-  username?: string;
-  lastLogin?: string | Date;
   email?: string;
+  lastLogin?: string | Date;
   soDienThoai?: string;
   createdAt: string;
 }
@@ -61,7 +66,9 @@ export interface User {
 // Project Types (Dự Án)
 export interface Project {
   id: string;
-  maDuAn: string;
+  project_code?: string;
+  maDuAn?: string;
+  name?: string;
   tenDuAn: string;
   ghiChu?: string;
   createdAt: string;
