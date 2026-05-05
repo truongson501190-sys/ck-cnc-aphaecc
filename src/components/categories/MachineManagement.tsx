@@ -136,17 +136,39 @@ export function MachineManagement() {
         const worksheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
+        // Helper to find value by flexible header names
+        const getValueByHeaders = (row: any, possibleHeaders: string[]) => {
+          const rowKeys = Object.keys(row);
+          
+          // Helper to normalize string for comparison
+          const normalize = (str: string) => 
+            str.toLowerCase()
+               .normalize('NFD')
+               .replace(/[\u0300-\u036f]/g, '') // remove accents
+               .replace(/\s+/g, '') // remove spaces
+               .replace(/[^a-z0-9]/g, ''); // keep only alphanumeric
+
+          const normalizedHeaders = possibleHeaders.map(normalize);
+          
+          const foundKey = rowKeys.find(key => {
+            const normalizedKey = normalize(key);
+            return normalizedHeaders.some(nh => normalizedKey === nh || normalizedKey.includes(nh));
+          });
+          
+          return foundKey ? row[foundKey] : undefined;
+        };
+
         let addedCount = 0;
         let updatedCount = 0;
         let skippedCount = 0;
         const currentMachines = [...machines];
 
         json.forEach(row => {
-          // Normalize keys to support Vietnamese and English
-          const maMay = (row.maMay || row['Mã máy'] || row['Mã Máy'] || '').toString().trim();
-          const tenMay = (row.tenMay || row['Tên máy'] || row['Tên Máy'] || '').toString().trim();
-          const loaiMay = (row.loaiMay || row['Loại máy'] || row['Loại Máy'] || '').toString().trim();
-          const ghiChu = (row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').toString().trim();
+          // Robust column mapping
+          const maMay = (getValueByHeaders(row, ['maMay', 'Mã máy', 'Mã Máy', 'ma_may', 'Ma May', 'Mã thiết bị']) || '').toString().trim();
+          const tenMay = (getValueByHeaders(row, ['tenMay', 'Tên máy', 'Tên Máy', 'ten_may', 'Ten May', 'Tên thiết bị']) || '').toString().trim();
+          const loaiMay = (getValueByHeaders(row, ['loaiMay', 'Loại máy', 'Loại Máy', 'loai_may', 'Loai May']) || '').toString().trim();
+          const ghiChu = (getValueByHeaders(row, ['ghiChu', 'Ghi chú', 'Ghi Chú', 'ghi_chu', 'Ghi Chu', 'Note']) || '').toString().trim();
 
           if (!maMay || !tenMay) {
             skippedCount++;
@@ -159,7 +181,7 @@ export function MachineManagement() {
             // Update existing
             currentMachines[existingIndex] = {
               ...currentMachines[existingIndex],
-              tenMay,
+              tenMay: tenMay || currentMachines[existingIndex].tenMay,
               loaiMay: loaiMay || currentMachines[existingIndex].loaiMay,
               ghiChu: ghiChu || currentMachines[existingIndex].ghiChu
             };

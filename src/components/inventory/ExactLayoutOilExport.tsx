@@ -8,9 +8,11 @@ import { toast } from 'sonner';
 import { ChevronDown, ChevronUp, Plus, Trash2, Download } from 'lucide-react';
 import { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
-import { Category, Machine, User } from '@/types/categories';
+import { Category, Machine, User, Employee } from '@/types/categories';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Combobox } from '@/components/ui/combobox';
+import { getSavedCategories } from '@/lib/utils';
 
 interface ExactLayoutOilExportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
@@ -22,6 +24,7 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategory, setNewCategory] = useState({
     tenChungLoai: '',
@@ -59,25 +62,7 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
 
   const loadData = () => {
     try {
-      const savedCategories = localStorage.getItem('categoryTypes');
-      if (savedCategories) {
-        const parsed = JSON.parse(savedCategories);
-        if (Array.isArray(parsed)) {
-          setCategories(parsed.filter((cat: any) => 
-            (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('dầu') || 
-            (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('oil') ||
-            (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('mỡ')
-          ).map((cat: any) => ({
-            id: cat.id,
-            maLoai: cat.maLoai || cat.tenChungLoai,
-            tenLoai: cat.tenLoai || cat.tenChungLoai,
-            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
-            donVi: cat.donVi || cat.donViTinh,
-            gia: cat.gia || parseFloat(cat.donGia) || 0,
-            createdAt: cat.createdAt || new Date().toISOString()
-          })));
-        }
-      }
+      setCategories(getSavedCategories());
       const savedMachines = localStorage.getItem('machines');
       if (savedMachines) {
         const parsed = JSON.parse(savedMachines);
@@ -87,6 +72,12 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
       if (savedUsers) {
         const parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed)) setUsers(parsed);
+      }
+      // Load employees from category management
+      const savedEmployees = localStorage.getItem('employees');
+      if (savedEmployees) {
+        const parsed = JSON.parse(savedEmployees);
+        if (Array.isArray(parsed)) setEmployees(parsed);
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -141,13 +132,28 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
         if (field === 'itemId') {
-          const selectedCategory = categories.find(cat => cat.id === value);
+          const selectedCategory = categories.find(cat => cat.id === value || cat.maLoai === value);
           if (selectedCategory) {
-            updatedItem.itemName = selectedCategory.tenChungLoai;
+            updatedItem.itemName = selectedCategory.tenLoai || selectedCategory.tenChungLoai || selectedCategory.maLoai || selectedCategory.id;
             updatedItem.unit = selectedCategory.donVi;
             updatedItem.price = selectedCategory.gia;
             updatedItem.totalValue = updatedItem.quantity * updatedItem.price;
           }
+        }
+        if (field === 'itemName') {
+          // When itemName is changed (from combobox), try to find and auto-fill unit and price
+          const selectedCategory = categories.find(cat =>
+            cat.tenLoai === value ||
+            cat.tenChungLoai === value ||
+            cat.maLoai === value ||
+            cat.id === value
+          );
+          if (selectedCategory) {
+            updatedItem.unit = selectedCategory.donVi;
+            updatedItem.price = selectedCategory.gia;
+            updatedItem.totalValue = updatedItem.quantity * updatedItem.price;
+          }
+          updatedItem.itemId = value; // Set itemId to the manual name for consistency
         }
         if (field === 'quantity' || field === 'price') {
           updatedItem.totalValue = (updatedItem.quantity || 0) * (updatedItem.price || 0);
@@ -323,14 +329,20 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
                     <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-2 text-center text-gray-500">{index + 1}</td>
                       <td className="p-2">
-                        <Select value={item.itemId} onValueChange={(v) => handleItemChange(item.id, 'itemId', v)}>
-                          <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn loại dầu..." /></SelectTrigger>
-                          <SelectContent>{categories.map(c => <SelectItem key={c.id} value={c.id}>{c.tenChungLoai}</SelectItem>)}</SelectContent>
-                        </Select>
+                        <Combobox
+                          value={item.itemName}
+                          onValueChange={(v) => handleItemChange(item.id, 'itemName', v)}
+                          placeholder="Chọn hoặc nhập loại dầu..."
+                          options={categories.map(c => ({
+                            label: c.tenLoai || c.tenChungLoai || c.maLoai || c.id,
+                            value: c.tenLoai || c.tenChungLoai || c.maLoai || c.id
+                          }))}
+                          allowCustom={true}
+                        />
                       </td>
                       <td className="p-2"><Input type="number" className="h-9 border-gray-200" value={item.quantity || ''} onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value))} /></td>
                       <td className="p-2"><Input className="h-9 bg-gray-50 border-gray-200" value={item.unit} readOnly /></td>
-                      <td className="p-2"><Input type="number" className="h-9 border-gray-200" value={item.price || ''} onChange={(e) => handleItemChange(item.id, 'price', parseFloat(e.target.value))} /></td>
+                      <td className="p-2"><Input type="number" className="h-9 border-gray-200 bg-gray-50 text-gray-600" value={item.price || ''} readOnly /></td>
                       <td className="p-2"><div className="font-semibold text-orange-600">{item.totalValue.toLocaleString('vi-VN')}</div></td>
                       <td className="p-2 text-center">
                         <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => handleRemoveItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
@@ -348,16 +360,28 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
               <div>
                 <Label className="text-sm font-medium">Máy móc sử dụng *</Label>
-                <Select value={headerData.mayMoc} onValueChange={(v) => setHeaderData({...headerData, mayMoc: v})}>
-                  <SelectTrigger><SelectValue placeholder="Chọn máy" /></SelectTrigger>
-                  <SelectContent>{machines.map(m => <SelectItem key={m.id} value={m.id}>{m.tenMay}</SelectItem>)}</SelectContent>
-                </Select>
+                <Combobox
+                  value={headerData.mayMoc}
+                  onValueChange={(value) => setHeaderData({...headerData, mayMoc: value})}
+                  placeholder="Chọn hoặc nhập máy..."
+                  options={machines.map(m => ({
+                    label: m.tenMay || m.maMay || m.id,
+                    value: m.id
+                  }))}
+                  allowCustom={true}
+                />
               </div>
               <div>
-                <Label className="text-sm font-medium">Người vận hành</Label>
+                <Label className="text-sm font-medium">Người nhận</Label>
                 <Select value={headerData.nguoiVanHanh} onValueChange={(v) => setHeaderData({...headerData, nguoiVanHanh: v})}>
-                  <SelectTrigger><SelectValue placeholder="Chọn người" /></SelectTrigger>
-                  <SelectContent>{users.map(u => <SelectItem key={u.id} value={u.hoTen}>{u.hoTen}</SelectItem>)}</SelectContent>
+                  <SelectTrigger><SelectValue placeholder="Chọn người nhận" /></SelectTrigger>
+                  <SelectContent>
+                    {employees.map((emp) => (
+                      <SelectItem key={emp.id} value={emp.ten_nhan_vien}>
+                        {emp.ten_nhan_vien} - {emp.msnv}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
               <div>

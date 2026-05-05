@@ -4,16 +4,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { toast } from 'sonner';
 import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
 import { Category, Warehouse, User, Project } from '@/types/categories';
+import { Employee } from '@/types/categories';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 
 interface ExactLayoutWarehouseExportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
 }
+
+import { getSavedCategories } from '@/lib/utils';
 
 export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExportProps) {
   const { user } = useAuth();
@@ -21,6 +25,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
   const [categories, setCategories] = useState<Category[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategory, setNewCategory] = useState({
@@ -39,6 +44,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     thanhTien: '0',
     khoXuat: '',
     nguoiXuat: '',
+    nguoiNhan: '',
     ghiChu: ''
   });
 
@@ -52,35 +58,20 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
 
   const loadData = () => {
     try {
-      // Load categories from localStorage
-      const savedCategories = localStorage.getItem('category_items');
-      if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories)) {
-          setCategories(parsedCategories.map((cat: any) => ({
-            id: cat.id || cat.maChungLoai || cat.maLoai || cat.tenChungLoai || Date.now().toString(),
-            maLoai: cat.maLoai || cat.maChungLoai || cat.id || cat.tenChungLoai || cat.tenLoai,
-            tenLoai: cat.tenLoai || cat.tenChungLoai,
-            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
-            donVi: cat.donVi || cat.donViTinh,
-            gia: cat.gia || parseFloat(cat.donGia) || 0,
-            minimumStock: cat.minimumStock || 0,
-            createdAt: cat.createdAt || new Date().toISOString()
-          })));
-        }
-      }
+      setCategories(getSavedCategories());
 
       // Load warehouses from localStorage
-      const savedWarehouses = localStorage.getItem('category_warehouses');
+      const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
       if (savedWarehouses) {
         const parsedWarehouses = JSON.parse(savedWarehouses);
         if (Array.isArray(parsedWarehouses)) {
           setWarehouses(parsedWarehouses.map(w => ({
             id: w.id,
             tenKho: w.tenKho,
-            loaiKho: w.maKho, // Using maKho as loaiKho for display
+            maKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
+            loaiKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
             diaChi: w.diaChi,
-            createdAt: new Date().toISOString()
+            createdAt: w.createdAt || new Date().toISOString()
           })));
         }
       }
@@ -91,6 +82,15 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
         const parsedUsers = JSON.parse(savedUsers);
         if (Array.isArray(parsedUsers)) {
           setUsers(parsedUsers);
+        }
+      }
+
+      // Load employees
+      const savedEmployees = localStorage.getItem('employees');
+      if (savedEmployees) {
+        const parsedEmployees = JSON.parse(savedEmployees);
+        if (Array.isArray(parsedEmployees)) {
+          setEmployees(parsedEmployees);
         }
       }
 
@@ -213,12 +213,22 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     setExtraItems(extraItems.filter((item) => item.id !== id));
   };
 
+  const findCategoryByValue = (value: string) => {
+    return categories.find(cat =>
+      cat.id === value ||
+      cat.maLoai === value ||
+      cat.maChungLoai === value ||
+      cat.tenLoai === value ||
+      cat.tenChungLoai === value
+    );
+  };
+
   const updateRow = (id: string, field: keyof { chungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }, value: string) => {
     setExtraItems(extraItems.map((item) => {
       if (item.id === id) {
         const updated = { ...item, [field]: value };
         if (field === 'chungLoai') {
-          const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
+          const selectedCategory = findCategoryByValue(value);
           if (selectedCategory) {
             updated.donVi = selectedCategory.donVi;
             updated.donGia = selectedCategory.gia.toString();
@@ -240,7 +250,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     
     // Auto-fill related fields when category is selected
     if (field === 'chungLoai') {
-      const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
+      const selectedCategory = findCategoryByValue(value);
       if (selectedCategory) {
         newData.donVi = selectedCategory.donVi;
         newData.donGia = selectedCategory.gia.toString();
@@ -259,8 +269,15 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.chungLoai || !formData.soLuong || !formData.khoXuat || !formData.duAn) {
+    if (!formData.chungLoai || !formData.soLuong || !formData.khoXuat || !formData.duAn || !formData.nguoiNhan) {
       toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
+      return;
+    }
+
+    // Validate nguoiNhan is valid employee
+    const validEmployee = employees.find(e => e.msnv === formData.nguoiNhan);
+    if (!validEmployee) {
+      toast.error('Vui lòng chọn người nhận từ danh sách');
       return;
     }
 
@@ -272,7 +289,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
 
     setDataList([...dataList, newItem]);
 
-    const selectedCategory = categories.find(cat => cat.id === formData.chungLoai);
+    const selectedCategory = findCategoryByValue(formData.chungLoai);
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
       type: 'export',
       itemId: Date.now().toString(),
@@ -285,6 +302,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
       reason: formData.duAn ? `Xuất kho cho dự án ${formData.duAn}` : 'Xuất kho',
       referenceNumber: `XK${Date.now()}`,
       operator: user?.name || formData.nguoiXuat,
+      recipient: formData.nguoiNhan,
       status: 'pending',
       transactionDate: formData.ngayXuat,
       notes: formData.ghiChu,
@@ -467,28 +485,21 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                   <tr className="hover:bg-gray-50 transition-colors">
                     <td className="p-2 text-center text-gray-500">1</td>
                     <td className="p-2">
-                      <Select value={formData.chungLoai} onValueChange={(value) => handleInputChange('chungLoai', value)}>
-                        <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
-                        <SelectContent>
-                          {categories.map((c) => {
-                            const currentStock = getCurrentStock(c.id);
-                            const isLowStock = currentStock <= (c.minimumStock || 0);
-                            return (
-                              <SelectItem key={c.id} value={c.maLoai || c.id}>
-                                <div className="flex items-center justify-between w-full">
-                                  <span>{c.tenLoai || c.tenChungLoai}</span>
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                                      Tồn: {currentStock}
-                                    </span>
-                                    {isLowStock && <span className="text-red-600 font-medium">⚠️ Sắp hết</span>}
-                                  </div>
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        value={formData.chungLoai}
+                        onValueChange={(value) => handleInputChange('chungLoai', value)}
+                        placeholder="Tìm kiếm và chọn chủng loại..."
+                        options={categories.map((c) => {
+                          const currentStock = getCurrentStock(c.id);
+                          const stockLabel = `Tồn: ${currentStock.toLocaleString('vi-VN')}`;
+                          const lowStockLabel = currentStock <= (c.minimumStock || 0) ? ' - Sắp hết' : '';
+                          return {
+                            label: `${c.tenLoai || c.tenChungLoai || c.maLoai}${c.maLoai ? ` (${c.maLoai})` : ''} - ${stockLabel}${lowStockLabel}`,
+                            value: c.id
+                          };
+                        })}
+                        allowCustom={false}
+                      />
                     </td>
                     <td className="p-2">
                       <Input type="number" className="h-9 border-gray-200" value={formData.soLuong} onChange={(e) => handleInputChange('soLuong', e.target.value)} />
@@ -510,28 +521,21 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                     <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-2 text-center text-gray-500">{idx + 2}</td>
                       <td className="p-2">
-                        <Select value={row.chungLoai} onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}>
-                          <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
-                          <SelectContent>
-                            {categories.map((c) => {
-                              const currentStock = getCurrentStock(c.id);
-                              const isLowStock = currentStock <= (c.minimumStock || 0);
-                              return (
-                                <SelectItem key={c.id} value={c.maLoai || c.id}>
-                                  <div className="flex items-center justify-between w-full">
-                                    <span>{c.tenLoai || c.tenChungLoai}</span>
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                                        Tồn: {currentStock}
-                                      </span>
-                                      {isLowStock && <span className="text-red-600 font-medium">⚠️ Sắp hết</span>}
-                                    </div>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
+                        <Combobox
+                          value={row.chungLoai}
+                          onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}
+                          placeholder="Tìm kiếm và chọn chủng loại..."
+                          options={categories.map((c) => {
+                            const currentStock = getCurrentStock(c.id);
+                            const stockLabel = `Tồn: ${currentStock.toLocaleString('vi-VN')}`;
+                            const lowStockLabel = currentStock <= (c.minimumStock || 0) ? ' - Sắp hết' : '';
+                            return {
+                              label: `${c.tenLoai || c.tenChungLoai || c.maLoai}${c.maLoai ? ` (${c.maLoai})` : ''} - ${stockLabel}${lowStockLabel}`,
+                              value: c.id
+                            };
+                          })}
+                          allowCustom={false}
+                        />
                       </td>
                       <td className="p-2">
                         <Input type="number" className="h-9 border-gray-200" value={row.soLuong} onChange={(e) => updateRow(row.id, 'soLuong', e.target.value)} />
@@ -577,9 +581,21 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                 </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Ghi chú</Label>
-                <Textarea value={formData.ghiChu} onChange={(e) => handleInputChange('ghiChu', e.target.value)} placeholder="Ghi chú thêm (tùy chọn)" rows={2} className="bg-white" />
+                <Label className="text-sm font-medium">Người nhận *</Label>
+                <Combobox
+                  value={formData.nguoiNhan}
+                  onValueChange={(value) => handleInputChange('nguoiNhan', value)}
+                  placeholder="Tìm kiếm và chọn người nhận..."
+                  options={employees.map(e => ({ label: `${e.ten_nhan_vien} - ${e.msnv}`, value: e.msnv }))}
+                  allowCustom={false}
+                />
               </div>
+            </div>
+
+            {/* Ghi chú riêng biệt */}
+            <div className="mt-4">
+              <Label className="text-sm font-medium">Ghi chú</Label>
+              <Textarea value={formData.ghiChu} onChange={(e) => handleInputChange('ghiChu', e.target.value)} placeholder="Ghi chú thêm (tùy chọn)" rows={2} className="bg-white" />
             </div>
           </div>
 

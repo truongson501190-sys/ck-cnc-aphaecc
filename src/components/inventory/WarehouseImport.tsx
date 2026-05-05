@@ -8,9 +8,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { CalendarIcon, Package, Plus } from 'lucide-react';
+import { Combobox } from '@/components/ui/combobox';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, getSavedCategories } from '@/lib/utils';
 import { Category, Warehouse, User } from '@/types/categories';
 
 interface ImportItem {
@@ -45,45 +46,32 @@ export function WarehouseImport() {
 
   const loadData = () => {
     try {
-      // Load categories - ONLY from localStorage, NO default data whatsoever
-      const savedCategories = localStorage.getItem('categoryTypes');
-      if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        // Only set if it's a valid array with actual data
-        if (Array.isArray(parsedCategories) && parsedCategories.length > 0) {
-          setCategories(parsedCategories.map((cat: any) => ({
-            id: cat.id,
-            maLoai: cat.maLoai || cat.tenChungLoai,
-            tenLoai: cat.tenLoai || cat.tenChungLoai,
-            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
-            donVi: cat.donVi || cat.donViTinh,
-            gia: cat.gia || parseFloat(cat.donGia) || 0,
-            createdAt: cat.createdAt || new Date().toISOString()
+      // Load categories using the shared utility
+      setCategories(getSavedCategories());
+
+      // Load warehouses from multiple possible sources
+      const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
+      if (savedWarehouses) {
+        const parsed = JSON.parse(savedWarehouses);
+        if (Array.isArray(parsed)) {
+          setWarehouses(parsed.map((w: any) => ({
+            id: w.id || w.maKho || w.tenKho,
+            tenKho: w.tenKho,
+            maKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
+            loaiKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
+            diaChi: w.diaChi || '',
+            createdAt: w.createdAt || new Date().toISOString()
           })));
         }
       }
-      // If no data in localStorage, categories remains empty array []
 
-      // Load warehouses - ONLY from localStorage, NO default data
-      const savedWarehouses = localStorage.getItem('warehouses');
-      if (savedWarehouses) {
-        const parsedWarehouses = JSON.parse(savedWarehouses);
-        if (Array.isArray(parsedWarehouses) && parsedWarehouses.length > 0) {
-          setWarehouses(parsedWarehouses);
-        }
-      }
-
-      // Load users - ONLY from localStorage, NO default data
+      // Load users
       const savedUsers = localStorage.getItem('users');
       if (savedUsers) {
-        const parsedUsers = JSON.parse(savedUsers);
-        if (Array.isArray(parsedUsers) && parsedUsers.length > 0) {
-          setUsers(parsedUsers);
-        }
+        setUsers(JSON.parse(savedUsers));
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      // On error, ensure all arrays are empty
       setCategories([]);
       setWarehouses([]);
       setUsers([]);
@@ -119,13 +107,23 @@ export function WarehouseImport() {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
         
-        // If category is selected, auto-fill related fields
+        // If category is selected or typed, auto-fill related fields
         if (field === 'chungLoaiId') {
-          const selectedCategory = categories.find(cat => cat.id === value);
+          const selectedCategory = categories.find(cat => 
+            cat.id === value || 
+            cat.tenChungLoai === value || 
+            cat.tenLoai === value ||
+            cat.maLoai === value
+          );
           if (selectedCategory) {
-            updatedItem.tenChungLoai = selectedCategory.tenChungLoai;
+            updatedItem.tenChungLoai = selectedCategory.tenChungLoai || selectedCategory.tenLoai;
             updatedItem.donVi = selectedCategory.donVi;
             updatedItem.donGia = selectedCategory.gia;
+            updatedItem.chungLoaiId = selectedCategory.id; // Set to id for consistency
+          } else {
+            // Custom input
+            updatedItem.tenChungLoai = value;
+            updatedItem.chungLoaiId = value; // Keep as name for custom
           }
         }
         
@@ -256,9 +254,12 @@ export function WarehouseImport() {
                   {users.length === 0 ? (
                     <div className="p-2 text-sm text-gray-500">Chưa có người dùng nào. Vui lòng thêm trong Quản lý danh mục.</div>
                   ) : (
-                    users.map((user) => (
-                      <SelectItem key={user.id} value={user.hoTen}>
-                        {user.hoTen} - {user.msnv}
+                    users.filter((user) => {
+                      const normalizedRole = `${user.vaiTro || user.role || ''}`.toString().trim().toLowerCase().replace(/\s+/g, '');
+                      return ['nguoinhap', 'nhap'].includes(normalizedRole);
+                    }).map((user) => (
+                      <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
+                        {(user.hoTen || user.fullName || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
                       </SelectItem>
                     ))
                   )}
@@ -280,8 +281,8 @@ export function WarehouseImport() {
                     <div className="p-2 text-sm text-gray-500">Chưa có kho nào. Vui lòng thêm trong Quản lý danh mục.</div>
                   ) : (
                     warehouses.map((warehouse) => (
-                      <SelectItem key={warehouse.id} value={warehouse.tenKho}>
-                        {warehouse.tenKho} ({warehouse.loaiKho})
+                      <SelectItem key={warehouse.id} value={warehouse.loaiKho}>
+                        {warehouse.tenKho}
                       </SelectItem>
                     ))
                   )}
@@ -348,25 +349,16 @@ export function WarehouseImport() {
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                       <div>
                         <Label>Chủng Loại *</Label>
-                        <Select
-                          value={item.chungLoaiId}
+                        <Combobox
+                          value={item.tenChungLoai}
                           onValueChange={(value) => updateItem(item.id, 'chungLoaiId', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Chọn chủng loại" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.length === 0 ? (
-                              <div className="p-2 text-sm text-gray-500">Chưa có chủng loại nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                            ) : (
-                              categories.map((category) => (
-                                <SelectItem key={category.id} value={category.id}>
-                                  {category.tenLoai || category.tenChungLoai}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
+                          placeholder="Chọn hoặc nhập chủng loại"
+                          options={categories.map((category) => ({
+                            label: category.tenLoai || category.tenChungLoai || category.maLoai,
+                            value: category.tenLoai || category.tenChungLoai || category.maLoai
+                          }))}
+                          allowCustom={true}
+                        />
                       </div>
                       
                       <div>

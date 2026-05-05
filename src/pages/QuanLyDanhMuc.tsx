@@ -19,37 +19,54 @@ export const QuanLyDanhMuc: React.FC = () => {
     warehouses: CategoryItem[];
     projects: CategoryItem[];
     machines: CategoryItem[];
-    operators: CategoryItem[];
+    employees: CategoryItem[];
   }>({
     items: [],
     warehouses: [],
     projects: [],
     machines: [],
-    operators: []
+    employees: []
   });
 
   const [activeTab, setActiveTab] = useState('items');
   const [newItem, setNewItem] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    // Load data from localStorage
-    const savedItems = JSON.parse(localStorage.getItem('category_items') || '[]');
-    const savedWarehouses = JSON.parse(localStorage.getItem('category_warehouses') || '[]');
-    const savedProjects = JSON.parse(localStorage.getItem('category_projects') || '[]');
-    const savedMachines = JSON.parse(localStorage.getItem('category_machines') || '[]');
-    const savedOperators = JSON.parse(localStorage.getItem('category_operators') || '[]');
+    // Load data from localStorage using the correct keys
+    const keyMap: Record<string, string> = {
+      items: 'category_items',
+      warehouses: 'category_warehouses',
+      projects: 'projects',
+      machines: 'machines',
+      employees: 'employees'
+    };
+
+    const savedItems = JSON.parse(localStorage.getItem(keyMap.items) || '[]');
+    const savedWarehouses = JSON.parse(localStorage.getItem(keyMap.warehouses) || '[]');
+    const savedProjects = JSON.parse(localStorage.getItem(keyMap.projects) || '[]');
+    const savedMachines = JSON.parse(localStorage.getItem(keyMap.machines) || '[]');
+    const savedemployees = JSON.parse(localStorage.getItem(keyMap.employees) || '[]');
 
     setCategories({
       items: savedItems,
       warehouses: savedWarehouses,
       projects: savedProjects,
       machines: savedMachines,
-      operators: savedOperators
+      employees: savedemployees
     });
   }, []);
 
   const saveToStorage = (type: string, data: CategoryItem[]) => {
-    localStorage.setItem(`category_${type}`, JSON.stringify(data));
+    // Map category types to the correct localStorage keys used by individual components
+    const keyMap: Record<string, string> = {
+      items: 'category_items',
+      warehouses: 'category_warehouses',
+      projects: 'projects',
+      machines: 'machines',
+      employees: 'employees'
+    };
+    const key = keyMap[type] || `category_${type}`;
+    localStorage.setItem(key, JSON.stringify(data));
     setCategories(prev => ({ ...prev, [type]: data }));
   };
 
@@ -74,68 +91,93 @@ export const QuanLyDanhMuc: React.FC = () => {
 
     const reader = new FileReader();
     reader.onload = (evt) => {
-      const bstr = evt.target?.result;
-      const wb = XLSX.read(bstr, { type: 'binary' });
-      const wsname = wb.SheetNames[0];
-      const ws = wb.Sheets[wsname];
-      const data = XLSX.utils.sheet_to_json(ws) as any[];
+      try {
+        const data = evt.target?.result;
+        const wb = XLSX.read(data, { type: 'array' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+        const sheetData = XLSX.utils.sheet_to_json(ws) as any[];
 
-      const currentItems = [...categories[type]];
-      let addedCount = 0;
-      let skippedCount = 0;
+        const currentItems = [...categories[type]];
+        let addedCount = 0;
+        let updatedCount = 0;
+        let skippedCount = 0;
 
-      data.forEach(row => {
-        let mappedRow: Record<string, string> = {};
-        let duplicate = false;
+        sheetData.forEach(row => {
+          // Create case-insensitive row mapping
+          const lowerRow = Object.fromEntries(
+            Object.entries(row).map(([k, v]) => [k.toLowerCase().trim(), String(v || '').trim()])
+          );
 
-        if (type === 'items') {
-          mappedRow = {
-            maChungLoai: row.maChungLoai || '',
-            tenChungLoai: row.tenChungLoai || '',
-            donViTinh: row.donViTinh || '',
-            donGia: String(row.donGia || '0')
-          };
-          duplicate = currentItems.some(i => i.maChungLoai === mappedRow.maChungLoai);
-        } else if (type === 'warehouses') {
-          mappedRow = {
-            maKho: row.maKho || '',
-            tenKho: row.tenKho || '',
-            diaChi: row.diaChi || ''
-          };
-          duplicate = currentItems.some(i => i.maKho === mappedRow.maKho);
-        } else if (type === 'projects') {
-          mappedRow = {
-            maDuAn: row.maDuAn || '',
-            tenDuAn: row.tenDuAn || ''
-          };
-          duplicate = currentItems.some(i => i.maDuAn === mappedRow.maDuAn);
-        } else if (type === 'machines') {
-          mappedRow = {
-            maMayMoc: row.maMayMoc || '',
-            tenMayMoc: row.tenMayMoc || ''
-          };
-          duplicate = currentItems.some(i => i.maMayMoc === mappedRow.maMayMoc);
-        } else if (type === 'operators') {
-          mappedRow = {
-            maNguoiVanHanh: row.maNguoiVanHanh || '',
-            tenNguoiVanHanh: row.tenNguoiVanHanh || ''
-          };
-          duplicate = currentItems.some(i => i.maNguoiVanHanh === mappedRow.maNguoiVanHanh);
-        }
+          let mappedRow: Record<string, string> = {};
+          let duplicateIndex = -1;
 
-        if (!duplicate && Object.values(mappedRow).some(v => v !== '')) {
-          currentItems.push({ id: Math.random().toString(36).substr(2, 9), ...mappedRow });
-          addedCount++;
-        } else {
-          skippedCount++;
-        }
-      });
+          if (type === 'items') {
+            mappedRow = {
+              maChungLoai: lowerRow['machungloai'] || lowerRow['mã chủng loại'] || '',
+              tenChungLoai: lowerRow['tenchungloai'] || lowerRow['tên chủng loại'] || '',
+              donViTinh: lowerRow['donvitinh'] || lowerRow['đơn vị tính'] || '',
+              donGia: lowerRow['dongia'] || lowerRow['đơn giá'] || '0'
+            };
+            duplicateIndex = currentItems.findIndex(i => i.maChungLoai === mappedRow.maChungLoai && mappedRow.maChungLoai !== '');
+          } else if (type === 'warehouses') {
+            mappedRow = {
+              maKho: lowerRow['makho'] || lowerRow['mã kho'] || '',
+              tenKho: lowerRow['tenkho'] || lowerRow['tên kho'] || '',
+              diaChi: lowerRow['diachi'] || lowerRow['địa chỉ'] || ''
+            };
+            duplicateIndex = currentItems.findIndex(i => i.maKho === mappedRow.maKho && mappedRow.maKho !== '');
+          } else if (type === 'projects') {
+            mappedRow = {
+              maDuAn: lowerRow['maduan'] || lowerRow['mã dự án'] || lowerRow['mã dự án'] || lowerRow['ma du an'] || lowerRow['project code'] || lowerRow['mã'] || lowerRow['mã dự án *'] || '',
+              tenDuAn: lowerRow['tenduan'] || lowerRow['tên dự án'] || lowerRow['tên dự án'] || lowerRow['ten du an'] || lowerRow['project name'] || lowerRow['tên'] || lowerRow['tên dự án *'] || '',
+              moTa: lowerRow['mota'] || lowerRow['mô tả'] || lowerRow['mo ta'] || lowerRow['description'] || '',
+              trangThai: lowerRow['trangthai'] || lowerRow['trạng thái'] || lowerRow['trang thai'] || lowerRow['status'] || '',
+              donGia: lowerRow['dongia'] || lowerRow['đơn giá'] || lowerRow['don gia'] || lowerRow['price'] || '0'
+            };
+            duplicateIndex = currentItems.findIndex(i => i.maDuAn === mappedRow.maDuAn && mappedRow.maDuAn !== '');
+          } else if (type === 'machines') {
+            mappedRow = {
+              maMay: lowerRow['mamay'] || lowerRow['mã máy'] || lowerRow['mã máy'] || lowerRow['ma may'] || lowerRow['machine code'] || lowerRow['mã'] || lowerRow['mã máy *'] || '',
+              tenMay: lowerRow['tenmay'] || lowerRow['tên máy'] || lowerRow['tên máy'] || lowerRow['ten may'] || lowerRow['machine name'] || lowerRow['tên'] || lowerRow['tên máy *'] || '',
+              moTa: lowerRow['mota'] || lowerRow['mô tả'] || lowerRow['mo ta'] || lowerRow['description'] || '',
+              trangThai: lowerRow['trangthai'] || lowerRow['trạng thái'] || lowerRow['trang thai'] || lowerRow['status'] || '',
+              donGia: lowerRow['dongia'] || lowerRow['đơn giá'] || lowerRow['don gia'] || lowerRow['price'] || '0'
+            };
+            duplicateIndex = currentItems.findIndex(i => i.maMay === mappedRow.maMay && mappedRow.maMay !== '');
+          } else if (type === 'employees') {
+            mappedRow = {
+              maNguoi: lowerRow['manguoi'] || lowerRow['mã người'] || lowerRow['mã người'] || lowerRow['ma nguoi'] || lowerRow['mã nv'] || lowerRow['employee code'] || lowerRow['mã'] || lowerRow['mã người *'] || '',
+              tenNguoi: lowerRow['tennguoi'] || lowerRow['tên người'] || lowerRow['tên người'] || lowerRow['ho ten'] || lowerRow['ten nguoi'] || lowerRow['full name'] || lowerRow['tên'] || lowerRow['tên người *'] || '',
+              moTa: lowerRow['mota'] || lowerRow['mô tả'] || lowerRow['mo ta'] || lowerRow['description'] || '',
+              trangThai: lowerRow['trangthai'] || lowerRow['trạng thái'] || lowerRow['trang thai'] || lowerRow['status'] || '',
+              donGia: lowerRow['dongia'] || lowerRow['đơn giá'] || lowerRow['don gia'] || lowerRow['price'] || '0'
+            };
+            duplicateIndex = currentItems.findIndex(i => i.maNguoi === mappedRow.maNguoi && mappedRow.maNguoi !== '');
+          }
 
-      saveToStorage(type, currentItems);
-      toast.success(`Đã import thành công ${addedCount} dòng. Bỏ qua ${skippedCount} dòng trùng lặp.`);
-      e.target.value = '';
+          if (duplicateIndex !== -1) {
+            // Update existing item
+            currentItems[duplicateIndex] = { ...currentItems[duplicateIndex], ...mappedRow };
+            updatedCount++;
+          } else if (Object.values(mappedRow).some(v => v !== '')) {
+            // Add new item
+            currentItems.push({ id: Math.random().toString(36).substr(2, 9), ...mappedRow });
+            addedCount++;
+          } else {
+            skippedCount++;
+          }
+        });
+
+        saveToStorage(type, currentItems);
+        toast.success(`Đã import thành công: Thêm mới ${addedCount}, cập nhật ${updatedCount}. Bỏ qua ${skippedCount} dòng lỗi.`);
+        e.target.value = '';
+      } catch (error) {
+        console.error('Error importing Excel:', error);
+        toast.error('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.');
+      }
     };
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
   return (
@@ -187,9 +229,9 @@ export const QuanLyDanhMuc: React.FC = () => {
             <span className="sm:hidden">MM</span>
           </button>
           <button
-            onClick={() => setActiveTab('operators')}
+            onClick={() => setActiveTab('employees')}
             className={`inline-flex items-center gap-2 px-4 py-3 rounded-full hover:bg-blue-50 hover:text-blue-700 transition-all duration-200 flex-shrink-0 whitespace-nowrap text-sm ${
-              activeTab === 'operators' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-700'
+              activeTab === 'employees' ? 'bg-blue-600 text-white shadow-md' : 'bg-white text-gray-700'
             }`}
           >
             <User className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -353,7 +395,7 @@ export const QuanLyDanhMuc: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4 mb-6 items-end bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-5 gap-4 mb-6 items-end bg-gray-50 p-4 rounded-lg">
                 <div className="space-y-2">
                   <Label>Mã dự án</Label>
                   <Input value={newItem.maDuAn || ''} onChange={e => setNewItem({ ...newItem, maDuAn: e.target.value })} />
@@ -362,16 +404,31 @@ export const QuanLyDanhMuc: React.FC = () => {
                   <Label>Tên dự án</Label>
                   <Input value={newItem.tenDuAn || ''} onChange={e => setNewItem({ ...newItem, tenDuAn: e.target.value })} />
                 </div>
-                <Button onClick={() => handleAddItem('projects')} className="bg-amber-600 hover:bg-amber-700">
-                  <Plus className="w-4 h-4 mr-2" /> Thêm mới
-                </Button>
+                <div className="space-y-2">
+                  <Label>Mô tả</Label>
+                  <Input value={newItem.moTa || ''} onChange={e => setNewItem({ ...newItem, moTa: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Trạng thái</Label>
+                  <Input value={newItem.trangThai || ''} onChange={e => setNewItem({ ...newItem, trangThai: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Đơn giá</Label>
+                  <Input value={newItem.donGia || ''} onChange={e => setNewItem({ ...newItem, donGia: e.target.value })} />
+                </div>
               </div>
+              <Button onClick={() => handleAddItem('projects')} className="bg-amber-600 hover:bg-amber-700 mb-6">
+                <Plus className="w-4 h-4 mr-2" /> Thêm mới
+              </Button>
 
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Mã dự án</TableHead>
                     <TableHead>Tên dự án</TableHead>
+                    <TableHead>Mô tả</TableHead>
+                    <TableHead>Trạng thái</TableHead>
+                    <TableHead>Đơn giá</TableHead>
                     <TableHead className="w-[100px]">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -380,6 +437,9 @@ export const QuanLyDanhMuc: React.FC = () => {
                     <TableRow key={item.id}>
                       <TableCell className="font-medium">{item.maDuAn}</TableCell>
                       <TableCell>{item.tenDuAn}</TableCell>
+                      <TableCell>{item.moTa || ''}</TableCell>
+                      <TableCell>{item.trangThai || ''}</TableCell>
+                      <TableCell>{item.donGia || ''}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteItem('projects', item.id)}>
                           <Trash2 className="w-4 h-4 text-red-500" />
@@ -412,33 +472,51 @@ export const QuanLyDanhMuc: React.FC = () => {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4 mb-6 items-end bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-5 gap-4 mb-6 items-end bg-gray-50 p-4 rounded-lg">
                 <div className="space-y-2">
                   <Label>Mã máy móc</Label>
-                  <Input value={newItem.maMayMoc || ''} onChange={e => setNewItem({ ...newItem, maMayMoc: e.target.value })} />
+                  <Input value={newItem.maMay || ''} onChange={e => setNewItem({ ...newItem, maMay: e.target.value })} />
                 </div>
                 <div className="space-y-2">
                   <Label>Tên máy móc</Label>
-                  <Input value={newItem.tenMayMoc || ''} onChange={e => setNewItem({ ...newItem, tenMayMoc: e.target.value })} />
+                  <Input value={newItem.tenMay || ''} onChange={e => setNewItem({ ...newItem, tenMay: e.target.value })} />
                 </div>
-                <Button onClick={() => handleAddItem('machines')} className="bg-amber-600 hover:bg-amber-700">
-                  <Plus className="w-4 h-4 mr-2" /> Thêm mới
-                </Button>
+                <div className="space-y-2">
+                  <Label>Mô tả</Label>
+                  <Input value={newItem.moTa || ''} onChange={e => setNewItem({ ...newItem, moTa: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Trạng thái</Label>
+                  <Input value={newItem.trangThai || ''} onChange={e => setNewItem({ ...newItem, trangThai: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Đơn giá</Label>
+                  <Input value={newItem.donGia || ''} onChange={e => setNewItem({ ...newItem, donGia: e.target.value })} />
+                </div>
               </div>
+              <Button onClick={() => handleAddItem('machines')} className="bg-amber-600 hover:bg-amber-700 mb-6">
+                <Plus className="w-4 h-4 mr-2" /> Thêm mới
+              </Button>
 
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Mã máy móc</TableHead>
                     <TableHead>Tên máy móc</TableHead>
+                    <TableHead>Mô tả</TableHead>
+                    <TableHead>Trạng thái</TableHead>
+                    <TableHead>Đơn giá</TableHead>
                     <TableHead className="w-[100px]">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {categories.machines.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.maMayMoc}</TableCell>
-                      <TableCell>{item.tenMayMoc}</TableCell>
+                      <TableCell className="font-medium">{item.maMay}</TableCell>
+                      <TableCell>{item.tenMay}</TableCell>
+                      <TableCell>{item.moTa || ''}</TableCell>
+                      <TableCell>{item.trangThai || ''}</TableCell>
+                      <TableCell>{item.donGia || ''}</TableCell>
                       <TableCell>
                         <Button variant="ghost" size="icon" onClick={() => handleDeleteItem('machines', item.id)}>
                           <Trash2 className="w-4 h-4 text-red-500" />
@@ -452,54 +530,72 @@ export const QuanLyDanhMuc: React.FC = () => {
           </Card>
         )}
 
-        {/* Tab: Người Vận Hành */}
-        {activeTab === 'operators' && (
+        {/* Tab: Người sử dụng */}
+        {activeTab === 'employees' && (
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle>Danh Mục Người Vận Hành</CardTitle>
+              <CardTitle>Danh Mục Người Dùng</CardTitle>
               <div className="flex items-center gap-2">
                 <Input
                   type="file"
                   accept=".xlsx, .xls"
                   className="hidden"
-                  id="import-operators"
-                  onChange={(e) => handleImportExcel(e, 'operators')}
+                  id="import-employees"
+                  onChange={(e) => handleImportExcel(e, 'employees')}
                 />
-                <Button variant="outline" onClick={() => document.getElementById('import-operators')?.click()}>
+                <Button variant="outline" onClick={() => document.getElementById('import-employees')?.click()}>
                   <FileUp className="w-4 h-4 mr-2" /> Import Excel
                 </Button>
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-3 gap-4 mb-6 items-end bg-gray-50 p-4 rounded-lg">
+              <div className="grid grid-cols-5 gap-4 mb-6 items-end bg-gray-50 p-4 rounded-lg">
                 <div className="space-y-2">
-                  <Label>Mã người vận hành</Label>
-                  <Input value={newItem.maNguoiVanHanh || ''} onChange={e => setNewItem({ ...newItem, maNguoiVanHanh: e.target.value })} />
+                  <Label>Mã Số Nhân Viên </Label>
+                  <Input value={newItem.maNguoi || ''} onChange={e => setNewItem({ ...newItem, maNguoi: e.target.value })} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Tên người vận hành</Label>
-                  <Input value={newItem.tenNguoiVanHanh || ''} onChange={e => setNewItem({ ...newItem, tenNguoiVanHanh: e.target.value })} />
+                  <Label>Tên Nhân viên</Label>
+                  <Input value={newItem.tenNguoi || ''} onChange={e => setNewItem({ ...newItem, tenNguoi: e.target.value })} />
                 </div>
-                <Button onClick={() => handleAddItem('operators')} className="bg-amber-600 hover:bg-amber-700">
-                  <Plus className="w-4 h-4 mr-2" /> Thêm mới
-                </Button>
+                <div className="space-y-2">
+                  <Label>Mô tả</Label>
+                  <Input value={newItem.moTa || ''} onChange={e => setNewItem({ ...newItem, moTa: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Trạng thái</Label>
+                  <Input value={newItem.trangThai || ''} onChange={e => setNewItem({ ...newItem, trangThai: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Đơn giá</Label>
+                  <Input value={newItem.donGia || ''} onChange={e => setNewItem({ ...newItem, donGia: e.target.value })} />
+                </div>
               </div>
+              <Button onClick={() => handleAddItem('employees')} className="bg-amber-600 hover:bg-amber-700 mb-6">
+                <Plus className="w-4 h-4 mr-2" /> Thêm mới
+              </Button>
 
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Mã người vận hành</TableHead>
-                    <TableHead>Tên người vận hành</TableHead>
+                    <TableHead>Mã số nhân viên</TableHead>
+                    <TableHead>Tên Nhân viên</TableHead>
+                    <TableHead>Mô tả</TableHead>
+                    <TableHead>Trạng thái</TableHead>
+                    <TableHead>Đơn giá</TableHead>
                     <TableHead className="w-[100px]">Thao tác</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {categories.operators.map((item) => (
+                  {categories.employees.map((item) => (
                     <TableRow key={item.id}>
-                      <TableCell className="font-medium">{item.maNguoiVanHanh}</TableCell>
-                      <TableCell>{item.tenNguoiVanHanh}</TableCell>
+                      <TableCell className="font-medium">{item.maNguoi}</TableCell>
+                      <TableCell>{item.tenNguoi}</TableCell>
+                      <TableCell>{item.moTa || ''}</TableCell>
+                      <TableCell>{item.trangThai || ''}</TableCell>
+                      <TableCell>{item.donGia || ''}</TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" onClick={() => handleDeleteItem('operators', item.id)}>
+                        <Button variant="ghost" size="icon" onClick={() => handleDeleteItem('employees', item.id)}>
                           <Trash2 className="w-4 h-4 text-red-500" />
                         </Button>
                       </TableCell>

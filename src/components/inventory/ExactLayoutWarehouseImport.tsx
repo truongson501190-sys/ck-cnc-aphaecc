@@ -9,7 +9,9 @@ import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
 import { Category, Warehouse, User, Project, Machine } from '@/types/categories';
+import { getSavedCategories } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Combobox } from '@/components/ui/combobox';
 
 interface ExactLayoutWarehouseImportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
@@ -57,35 +59,19 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
 
   const loadData = () => {
     try {
-      // Load categories from localStorage
-      const savedCategories = localStorage.getItem('category_items');
-      if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories)) {
-          setCategories(parsedCategories.map((cat: any) => ({
-            id: cat.id || cat.maChungLoai || cat.maLoai || cat.tenChungLoai || Date.now().toString(),
-            maLoai: cat.maLoai || cat.maChungLoai || cat.id || cat.tenChungLoai || cat.tenLoai,
-            tenLoai: cat.tenLoai || cat.tenChungLoai,
-            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
-            donVi: cat.donVi || cat.donViTinh,
-            gia: cat.gia || parseFloat(cat.donGia) || 0,
-            minimumStock: cat.minimumStock || 0,
-            createdAt: cat.createdAt || new Date().toISOString()
-          })));
-        }
-      }
+      setCategories(getSavedCategories());
 
-      // Load warehouses from localStorage
-      const savedWarehouses = localStorage.getItem('category_warehouses');
+      // Load warehouses from localStorage, support both current and legacy keys
+      const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
       if (savedWarehouses) {
         const parsedWarehouses = JSON.parse(savedWarehouses);
         if (Array.isArray(parsedWarehouses)) {
           setWarehouses(parsedWarehouses.map(w => ({
-            id: w.id,
+            id: w.id || `${w.maKho || w.tenKho}-${Math.random().toString(36).slice(2, 8)}`,
             tenKho: w.tenKho,
-            loaiKho: w.maKho,
+            loaiKho: w.maKho || w.loaiKho || w.tenKho,
             diaChi: w.diaChi,
-            createdAt: new Date().toISOString()
+            createdAt: w.createdAt || new Date().toISOString()
           })));
         }
       }
@@ -216,7 +202,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
       if (item.id === id) {
         const updated = { ...item, [field]: value };
         if (field === 'chungLoai') {
-          const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
+          const selectedCategory = findCategoryByValue(value);
           if (selectedCategory) {
             updated.donVi = selectedCategory.donVi;
             updated.donGia = selectedCategory.gia.toString();
@@ -233,12 +219,22 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
     }));
   };
 
+  const findCategoryByValue = (value: string) => {
+    return categories.find(cat =>
+      cat.maLoai === value ||
+      cat.maChungLoai === value ||
+      cat.id === value ||
+      cat.tenLoai === value ||
+      cat.tenChungLoai === value
+    );
+  };
+
   const handleInputChange = (field: string, value: string) => {
     const newData = { ...formData, [field]: value };
     
-    // Auto-fill related fields when category is selected
+    // Auto-fill related fields when category is selected by id/code or name
     if (field === 'chungLoai') {
-      const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
+      const selectedCategory = findCategoryByValue(value);
       if (selectedCategory) {
         newData.donVi = selectedCategory.donVi;
         newData.donGia = selectedCategory.gia.toString();
@@ -262,6 +258,12 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
       return;
     }
 
+    // Validate nguoiNhap if provided
+    if (formData.nguoiNhap && !users.find(u => u.msnv === formData.nguoiNhap && ['user', 'admin', 'manager'].includes(u.role))) {
+      toast.error('Vui lòng chọn người nhập từ danh sách');
+      return;
+    }
+
     const newItem = {
       id: Date.now(),
       ...formData,
@@ -270,7 +272,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
 
     setDataList([...dataList, newItem]);
 
-    const selectedCategory = categories.find(cat => cat.id === formData.chungLoai);
+    const selectedCategory = findCategoryByValue(formData.chungLoai);
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
       type: 'import',
       itemId: Date.now().toString(),
@@ -369,7 +371,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                 <SelectContent>
                   <SelectItem value="all">Tất cả</SelectItem>
                   {users.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
+                    <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
                       {user.hoTen}
                     </SelectItem>
                   ))}
@@ -432,9 +434,6 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Danh sách vật tư</h3>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={loadData} className="text-green-600 border-green-200">
-                  🔄 Tải lại dữ liệu
-                </Button>
                 <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
                   <DialogTrigger asChild>
                     <Button type="button" variant="outline" size="sm" className="text-blue-600 border-blue-200">
@@ -487,28 +486,16 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                   <tr className="hover:bg-gray-50 transition-colors">
                     <td className="p-2 text-center text-gray-500">1</td>
                     <td className="p-2">
-                      <Select value={formData.chungLoai} onValueChange={(value) => handleInputChange('chungLoai', value)}>
-                        <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
-                        <SelectContent>
-                          {categories.map((c) => {
-                            const currentStock = getCurrentStock(c.id);
-                            const isLowStock = currentStock <= (c.minimumStock || 0);
-                            return (
-                              <SelectItem key={c.id} value={c.maLoai || c.id}>
-                                <div className="flex items-center justify-between w-full">
-                                  <span>{c.tenLoai || c.tenChungLoai}</span>
-                                  <div className="flex items-center gap-2 text-xs">
-                                    <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                                      Tồn: {currentStock}
-                                    </span>
-                                    {isLowStock && <span className="text-red-600 font-medium">⚠️ Sắp hết</span>}
-                                  </div>
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        value={formData.chungLoai}
+                        onValueChange={(value) => handleInputChange('chungLoai', value)}
+                        placeholder="Nhập hoặc chọn chủng loại"
+                        options={categories.map((c) => ({
+                          label: c.tenLoai || c.tenChungLoai || c.maLoai,
+                          value: c.tenLoai || c.tenChungLoai || c.maLoai
+                        }))}
+                        allowCustom={true}
+                      />
                     </td>
                     <td className="p-2">
                       <Input type="number" className="h-9 border-gray-200" value={formData.soLuong} onChange={(e) => handleInputChange('soLuong', e.target.value)} />
@@ -530,28 +517,16 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                     <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-2 text-center text-gray-500">{idx + 2}</td>
                       <td className="p-2">
-                        <Select value={row.chungLoai} onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}>
-                          <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
-                          <SelectContent>
-                            {categories.map((c) => {
-                              const currentStock = getCurrentStock(c.id);
-                              const isLowStock = currentStock <= (c.minimumStock || 0);
-                              return (
-                                <SelectItem key={c.id} value={c.maLoai || c.id}>
-                                  <div className="flex items-center justify-between w-full">
-                                    <span>{c.tenLoai || c.tenChungLoai}</span>
-                                    <div className="flex items-center gap-2 text-xs">
-                                      <span className={isLowStock ? 'text-red-600 font-medium' : 'text-gray-600'}>
-                                        Tồn: {currentStock}
-                                      </span>
-                                      {isLowStock && <span className="text-red-600 font-medium">⚠️ Sắp hết</span>}
-                                    </div>
-                                  </div>
-                                </SelectItem>
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
+                        <Combobox
+                          value={row.chungLoai}
+                          onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}
+                          placeholder="Nhập hoặc chọn chủng loại"
+                          options={categories.map((c) => ({
+                            label: c.tenLoai || c.tenChungLoai || c.maLoai,
+                            value: c.tenLoai || c.tenChungLoai || c.maLoai
+                          }))}
+                          allowCustom={true}
+                        />
                       </td>
                       <td className="p-2">
                         <Input type="number" className="h-9 border-gray-200" value={row.soLuong} onChange={(e) => updateRow(row.id, 'soLuong', e.target.value)} />
@@ -583,18 +558,19 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                 <Select value={formData.khoNhap} onValueChange={(value) => handleInputChange('khoNhap', value)}>
                   <SelectTrigger><SelectValue placeholder="Chọn kho nhập" /></SelectTrigger>
                   <SelectContent>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.tenKho}>{w.tenKho} ({w.loaiKho})</SelectItem>)}
+                    {warehouses.map((w) => <SelectItem key={w.id} value={w.loaiKho}>{w.tenKho}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
               <div>
                 <Label className="text-sm font-medium">Người nhập</Label>
-                <Select value={formData.nguoiNhap} onValueChange={(value) => handleInputChange('nguoiNhap', value)}>
-                  <SelectTrigger><SelectValue placeholder="Chọn người nhập..." /></SelectTrigger>
-                  <SelectContent>
-                    {users.map((u) => <SelectItem key={u.id} value={u.hoTen}>{u.hoTen} - {u.msnv}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  value={formData.nguoiNhap}
+                  onValueChange={(value) => handleInputChange('nguoiNhap', value)}
+                  placeholder="Tìm kiếm và chọn người nhập..."
+                  options={users.filter(u => ['user', 'admin', 'manager'].includes(u.role)).map(u => ({ label: `${u.fullName} - ${u.msnv}`, value: u.msnv }))}
+                  allowCustom={false}
+                />
               </div>
               <div>
                 <Label className="text-sm font-medium">Ghi chú</Label>

@@ -74,11 +74,11 @@ export interface Project {
   createdAt: string;
 }
 
-// Operator Types (Người vận hành)
-export interface Operator {
+// Employee Types (Nhân viên)
+export interface Employee {
   id: string;
-  maNguoi: string;
-  tenNguoi: string;
+  msnv: string;
+  ten_nhan_vien: string;
   ghiChu?: string;
   createdAt: string;
 }

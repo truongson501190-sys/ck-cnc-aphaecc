@@ -4,10 +4,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Combobox } from '@/components/ui/combobox';
 import { toast } from 'sonner';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
 import { Category, Machine, User, Project } from '@/types/categories';
+import { Employee } from '@/types/categories';
+import { getSavedCategories } from '@/lib/utils';
 
 interface SimpleOilExportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
@@ -19,6 +22,7 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   
   const [formData, setFormData] = useState({
     ngayXuat: new Date().toISOString().split('T')[0],
@@ -38,28 +42,7 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
 
   const loadData = () => {
     try {
-      // Load categories from localStorage
-      const savedCategories = localStorage.getItem('category_items');
-      if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories)) {
-          // Filter only oil-related categories
-          setCategories(parsedCategories
-            .filter((cat: any) => 
-              (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('dầu') || 
-              (cat.tenLoai || cat.tenChungLoai || '').toLowerCase().includes('oil')
-            )
-            .map((cat: any) => ({
-              id: cat.id,
-              maLoai: cat.maLoai || cat.tenChungLoai,
-              tenLoai: cat.tenLoai || cat.tenChungLoai,
-              tenChungLoai: cat.tenChungLoai || cat.tenLoai,
-              donVi: cat.donVi || cat.donViTinh,
-              gia: cat.gia || parseFloat(cat.donGia) || 0,
-              createdAt: cat.createdAt || new Date().toISOString()
-            })));
-        }
-      }
+      setCategories(getSavedCategories());
 
       // Load machines from localStorage
       const savedMachines = localStorage.getItem('category_machines');
@@ -83,6 +66,15 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
           setUsers(parsedUsers);
         }
       }
+
+      // Load employees
+      const savedEmployees = localStorage.getItem('employees');
+      if (savedEmployees) {
+        const parsedEmployees = JSON.parse(savedEmployees);
+        if (Array.isArray(parsedEmployees)) {
+          setEmployees(parsedEmployees);
+        }
+      }
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -93,7 +85,7 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
     
     // Auto-fill related fields when category is selected
     if (field === 'loaiDau') {
-      const selectedCategory = categories.find(cat => cat.id === value);
+      const selectedCategory = categories.find(cat => cat.id === value || cat.maLoai === value);
       if (selectedCategory) {
         newData.donVi = selectedCategory.donVi;
         newData.donGia = selectedCategory.gia.toString();
@@ -118,13 +110,19 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
       return;
     }
 
+    // Validate nguoiVanHanh if provided
+    if (formData.nguoiVanHanh && !employees.find(e => e.ten_nhan_vien === formData.nguoiVanHanh)) {
+      toast.error('Vui lòng chọn người nhận từ danh sách');
+      return;
+    }
+
     const selectedCategory = categories.find(cat => cat.id === formData.loaiDau);
     const selectedMachine = machines.find(machine => machine.id === formData.mayMoc);
     
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
       type: 'oil_export',
       itemId: Date.now().toString(),
-      itemName: selectedCategory?.tenChungLoai || formData.loaiDau,
+      itemName: selectedCategory?.tenLoai || selectedCategory?.tenChungLoai || formData.loaiDau,
       quantity: parseFloat(formData.soLuong),
       unit: formData.donVi,
       price: parseFloat(formData.donGia) || 0,
@@ -183,8 +181,8 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
                     <div className="p-2 text-sm text-gray-500">Chưa có loại dầu nào. Vui lòng thêm trong Quản lý danh mục.</div>
                   ) : (
                     categories.map((category) => (
-                      <SelectItem key={category.id} value={category.id}>
-                        {category.tenChungLoai}
+                      <SelectItem key={category.id} value={category.maLoai || category.id}>
+                        {category.tenLoai || category.tenChungLoai || category.maLoai || category.id}
                       </SelectItem>
                     ))
                   )}
@@ -265,23 +263,14 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
             </div>
             
             <div>
-              <Label className="text-sm font-medium">Người vận hành</Label>
-              <Select value={formData.nguoiVanHanh} onValueChange={(value) => handleInputChange('nguoiVanHanh', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn người vận hành..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.length === 0 ? (
-                    <div className="p-2 text-sm text-gray-500">Chưa có người dùng nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                  ) : (
-                    users.map((user) => (
-                      <SelectItem key={user.id} value={user.hoTen}>
-                        {user.hoTen} - {user.msnv}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Label className="text-sm font-medium">Người nhận</Label>
+              <Combobox
+                value={formData.nguoiVanHanh}
+                onValueChange={(value) => handleInputChange('nguoiVanHanh', value)}
+                placeholder="Tìm kiếm và chọn người nhận..."
+                options={employees.map(e => ({ label: `${e.ten_nhan_vien} - ${e.msnv}`, value: e.ten_nhan_vien }))}
+                allowCustom={false}
+              />
             </div>
           </div>
 

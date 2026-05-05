@@ -1,6 +1,134 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { DEFAULT_PERMISSIONS } from '@/types/user';
 import type { UserPermissions, User } from '@/types/user';
 import { getSupabase } from '@/lib/supabase';
+
+const REQUIRED_PERSONNEL_USERS = [
+  {
+    id: '2001',
+    msnv: '2001',
+    hoTen: 'Trần Văn A',
+    fullName: 'Trần Văn A',
+    department: 'Kho',
+    position: 'Nhân viên nhập kho',
+    role: 'user',
+    vaiTro: 'NguoiNhap',
+    status: 'active',
+    permissions: DEFAULT_PERMISSIONS,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: '2002',
+    msnv: '2002',
+    hoTen: 'Lê Thị B',
+    fullName: 'Lê Thị B',
+    department: 'Kho',
+    position: 'Nhân viên xuất kho',
+    role: 'user',
+    vaiTro: 'NguoiXuat',
+    status: 'active',
+    permissions: DEFAULT_PERMISSIONS,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  },
+  {
+    id: '2003',
+    msnv: '2003',
+    hoTen: 'Phạm Văn C',
+    fullName: 'Phạm Văn C',
+    department: 'Sản xuất',
+    position: 'Người nhận vật tư',
+    role: 'user',
+    vaiTro: 'NguoiNhan',
+    status: 'active',
+    permissions: DEFAULT_PERMISSIONS,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  }
+];
+
+const REQUIRED_PERSONNEL_RECORDS = [
+  {
+    id: '2',
+    msnv: '2001',
+    fullName: 'Trần Văn A',
+    department: 'Kho',
+    position: 'Nhân viên nhập kho',
+    role: 'user',
+    status: true,
+    passwordHash: btoa('123456'),
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '3',
+    msnv: '2002',
+    fullName: 'Lê Thị B',
+    department: 'Kho',
+    position: 'Nhân viên xuất kho',
+    role: 'user',
+    status: true,
+    passwordHash: btoa('123456'),
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '4',
+    msnv: '2003',
+    fullName: 'Phạm Văn C',
+    department: 'Sản xuất',
+    position: 'Người nhận vật tư',
+    role: 'user',
+    status: true,
+    passwordHash: btoa('123456'),
+    createdAt: new Date().toISOString()
+  }
+];
+
+const normalizeStoredUser = (user: any) => {
+  const normalizedMsnv = user.msnv || user.employee_code || user.id || '';
+  const normalizedRole = ['admin', 'manager', 'user'].includes(user.role) ? user.role : 'user';
+
+  return {
+    ...user,
+    id: user.id || normalizedMsnv || `${user.fullName || user.hoTen || 'user'}-${Math.random().toString(36).slice(2, 8)}`,
+    msnv: normalizedMsnv,
+    fullName: user.fullName || user.hoTen || user.name || user.username || normalizedMsnv,
+    hoTen: user.hoTen || user.fullName || user.name || user.username || normalizedMsnv,
+    position: user.position || user.chucDanh || '',
+    role: normalizedRole as any,
+    status: user.status || 'active',
+    permissions: user.permissions || DEFAULT_PERMISSIONS,
+    createdAt: user.createdAt || new Date().toISOString(),
+    updatedAt: user.updatedAt || new Date().toISOString()
+  };
+};
+
+const ensureRequiredPersonnelUsers = (users: any[]) => {
+  const normalizedUsers = users.map(normalizeStoredUser);
+  const existingMsnv = new Set(normalizedUsers.map((user) => user.msnv));
+  const mergedUsers = [...normalizedUsers];
+
+  for (const requiredUser of REQUIRED_PERSONNEL_USERS) {
+    if (!existingMsnv.has(requiredUser.msnv)) {
+      mergedUsers.push(requiredUser);
+    }
+  }
+
+  return mergedUsers;
+};
+
+const ensureRequiredPersonnelRecords = (records: any[]) => {
+  const existingMsnv = new Set(records.map((record) => record.msnv));
+  const mergedRecords = [...records];
+
+  for (const requiredRecord of REQUIRED_PERSONNEL_RECORDS) {
+    if (!existingMsnv.has(requiredRecord.msnv)) {
+      mergedRecords.push(requiredRecord);
+    }
+  }
+
+  return mergedRecords;
+};
 
 interface UserRecord {
   id: string;
@@ -54,11 +182,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Seed data if not present (Offline first approach)
         const existingRecords = localStorage.getItem('userRecords');
         const existingUsers = localStorage.getItem('users');
-        
-        if (!existingRecords || !existingUsers) {
+        let resolvedUsers: any[] = [];
+        let resolvedRecords: any[] = [];
+
+        if (!existingUsers) {
           console.log('🌱 Seeding initial auth data...');
-          const seedUsers = [
+          resolvedUsers = ensureRequiredPersonnelUsers([
             {
+              id: '1118',
               msnv: '1118',
               fullName: 'Nguyễn Trường Sơn',
               department: 'Admin',
@@ -75,8 +206,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             }
-          ];
-          const seedRecords = [
+          ]);
+        } else {
+          try {
+            const parsedUsers = JSON.parse(existingUsers);
+            if (Array.isArray(parsedUsers)) {
+              resolvedUsers = ensureRequiredPersonnelUsers(parsedUsers.map(normalizeStoredUser));
+            } else {
+              resolvedUsers = ensureRequiredPersonnelUsers([]);
+            }
+          } catch {
+            resolvedUsers = ensureRequiredPersonnelUsers([]);
+          }
+        }
+
+        if (!existingRecords) {
+          resolvedRecords = ensureRequiredPersonnelRecords([
             {
               id: '1',
               msnv: '1118',
@@ -88,10 +233,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               passwordHash: btoa('admin123'),
               createdAt: new Date().toISOString()
             }
-          ];
-          localStorage.setItem('users', JSON.stringify(seedUsers));
-          localStorage.setItem('userRecords', JSON.stringify(seedRecords));
+          ]);
+        } else {
+          try {
+            const parsedRecords = JSON.parse(existingRecords);
+            if (Array.isArray(parsedRecords)) {
+              resolvedRecords = ensureRequiredPersonnelRecords(parsedRecords);
+            } else {
+              resolvedRecords = ensureRequiredPersonnelRecords([]);
+            }
+          } catch {
+            resolvedRecords = ensureRequiredPersonnelRecords([]);
+          }
         }
+
+        localStorage.setItem('users', JSON.stringify(resolvedUsers));
+        localStorage.setItem('userRecords', JSON.stringify(resolvedRecords));
 
         // AUTO-SYNC on startup if user is logged in
         if (local || session) {

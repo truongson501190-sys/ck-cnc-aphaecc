@@ -11,7 +11,7 @@ import { CalendarIcon, Fuel, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
-import { Category, Warehouse, User, Machine } from '@/types/categories';
+import { Category, Warehouse, User, Machine, Employee } from '@/types/categories';
 
 interface OilExportItem {
   id: string;
@@ -30,6 +30,7 @@ export function OilExport() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
   const [items, setItems] = useState<OilExportItem[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [formData, setFormData] = useState({
@@ -72,6 +73,12 @@ export function OilExport() {
       const savedMachines = localStorage.getItem('machines');
       if (savedMachines) {
         setMachines(JSON.parse(savedMachines));
+      }
+
+      // Load employees
+      const savedEmployees = localStorage.getItem('employees');
+      if (savedEmployees) {
+        setEmployees(JSON.parse(savedEmployees));
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -243,9 +250,12 @@ export function OilExport() {
                   <SelectValue placeholder="Chọn người xuất" />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.hoTen}>
-                      {user.hoTen} - {user.msnv}
+                  {users.filter((user) => {
+                    const normalizedRole = `${user.vaiTro || user.role || ''}`.toString().trim().toLowerCase().replace(/\s+/g, '');
+                    return ['nguoixuat', 'xuat'].includes(normalizedRole);
+                  }).map((user) => (
+                    <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
+                      {(user.hoTen || user.fullName || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -263,8 +273,8 @@ export function OilExport() {
                 </SelectTrigger>
                 <SelectContent>
                   {warehouses.map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={warehouse.tenKho}>
-                      {warehouse.tenKho} ({warehouse.loaiKho})
+                    <SelectItem key={warehouse.id} value={warehouse.loaiKho}>
+                      {warehouse.tenKho}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -281,9 +291,9 @@ export function OilExport() {
                   <SelectValue placeholder="Chọn người nhận" />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.hoTen}>
-                      {user.hoTen} - {user.msnv}
+                  {employees.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.ten_nhan_vien}>
+                      {employee.ten_nhan_vien} - {employee.msnv}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -7,7 +7,7 @@ import { CategoryTypeManagement } from './CategoryTypeManagement';
 import { WarehouseManagement } from './WarehouseManagement';
 import { ProjectManagement } from './ProjectManagement';
 import { MachineManagement } from './MachineManagement';
-import { OperatorManagement } from './OperatorManagement';
+import { EmployeeManagement } from './EmployeeManagement';
 
 export function CategoryManagementTabs() {
   const [activeTab, setActiveTab] = useState('categories');
@@ -42,11 +42,11 @@ export function CategoryManagementTabs() {
       component: MachineManagement
     },
     {
-      id: 'operators',
-      label: 'Người Vận Hành',
+      id: 'employees',
+      label: 'Nhân Viên',
       icon: Users,
       color: 'text-red-600',
-      component: OperatorManagement
+      component: EmployeeManagement
     }
   ];
 

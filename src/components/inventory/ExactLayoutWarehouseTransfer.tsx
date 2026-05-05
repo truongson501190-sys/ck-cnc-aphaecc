@@ -9,7 +9,9 @@ import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
 import { Category, Warehouse, User, Project, Machine } from '@/types/categories';
+import { getSavedCategories } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Combobox } from '@/components/ui/combobox';
 
 interface ExactLayoutWarehouseTransferProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
@@ -58,35 +60,19 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
 
   const loadData = () => {
     try {
-      // Load categories from localStorage
-      const savedCategories = localStorage.getItem('category_items');
-      if (savedCategories) {
-        const parsedCategories = JSON.parse(savedCategories);
-        if (Array.isArray(parsedCategories)) {
-          const mappedCategories = parsedCategories.map((cat: any) => ({
-            id: cat.id,
-            maLoai: cat.maLoai || cat.maChungLoai || cat.id,
-            tenLoai: cat.tenLoai || cat.tenChungLoai,
-            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
-            donVi: cat.donVi || cat.donViTinh,
-            gia: cat.gia || parseFloat(cat.donGia) || 0,
-            createdAt: cat.createdAt || new Date().toISOString()
-          }));
-          setCategories(mappedCategories);
-        }
-      }
+      setCategories(getSavedCategories());
 
-      // Load warehouses from localStorage
-      const savedWarehouses = localStorage.getItem('category_warehouses');
+      // Load warehouses from localStorage, support both current and legacy keys
+      const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
       if (savedWarehouses) {
         const parsedWarehouses = JSON.parse(savedWarehouses);
         if (Array.isArray(parsedWarehouses)) {
           setWarehouses(parsedWarehouses.map(w => ({
-            id: w.id,
+            id: w.id || `${w.maKho || w.tenKho}-${Math.random().toString(36).slice(2, 8)}`,
             tenKho: w.tenKho,
-            loaiKho: w.maKho,
+            loaiKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
             diaChi: w.diaChi,
-            createdAt: new Date().toISOString()
+            createdAt: w.createdAt || new Date().toISOString()
           })));
         }
       }
@@ -166,12 +152,22 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
     }));
   };
 
+  const findCategoryByValue = (value: string) => {
+    return categories.find(cat =>
+      cat.maLoai === value ||
+      cat.maChungLoai === value ||
+      cat.id === value ||
+      cat.tenLoai === value ||
+      cat.tenChungLoai === value
+    );
+  };
+
   const handleInputChange = (field: string, value: string) => {
     const newData = { ...formData, [field]: value };
     
-    // Auto-fill related fields when category is selected
+    // Auto-fill related fields when category is selected by id/code or by name
     if (field === 'chungLoai') {
-      const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
+      const selectedCategory = findCategoryByValue(value);
       if (selectedCategory) {
         newData.donVi = selectedCategory.donVi;
         newData.donGia = selectedCategory.gia.toString();
@@ -208,7 +204,7 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
 
     setDataList([...dataList, newItem]);
 
-    const selectedCategory = categories.find(cat => cat.maLoai === formData.chungLoai || cat.maChungLoai === formData.chungLoai || cat.id === formData.chungLoai);
+    const selectedCategory = findCategoryByValue(formData.chungLoai);
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
       type: 'transfer',
       itemId: Date.now().toString(),
@@ -320,9 +316,6 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Danh sách vật tư</h3>
               <div className="flex gap-2">
-                <Button type="button" variant="outline" size="sm" onClick={loadData} className="text-green-600 border-green-200">
-                  🔄 Tải lại dữ liệu
-                </Button>
                 <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
                   <DialogTrigger asChild>
                     <Button type="button" variant="outline" size="sm" className="text-blue-600 border-blue-200">
@@ -377,16 +370,16 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                   <tr className="hover:bg-gray-50 transition-colors">
                     <td className="p-2 text-center text-gray-500">1</td>
                     <td className="p-2">
-                      <Select value={formData.chungLoai} onValueChange={(value) => handleInputChange('chungLoai', value)}>
-                        <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
-                        <SelectContent>
-                          {categories.map((c) => (
-                            <SelectItem key={c.id} value={c.maLoai}>
-                              {c.tenLoai || c.tenChungLoai}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <Combobox
+                        value={formData.chungLoai}
+                        onValueChange={(value) => handleInputChange('chungLoai', value)}
+                        placeholder="Nhập hoặc chọn chủng loại"
+                        options={categories.map((c) => ({
+                          label: c.tenLoai || c.tenChungLoai || c.maLoai,
+                          value: c.tenLoai || c.tenChungLoai || c.maLoai
+                        }))}
+                        allowCustom={true}
+                      />
                     </td>
                     <td className="p-2">
                       <Input type="number" className="h-9 border-gray-200" value={formData.soLuong} onChange={(e) => handleInputChange('soLuong', e.target.value)} />
@@ -408,16 +401,16 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                     <tr key={row.id} className="hover:bg-gray-50 transition-colors">
                       <td className="p-2 text-center text-gray-500">{idx + 2}</td>
                       <td className="p-2">
-                        <Select value={row.chungLoai} onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}>
-                          <SelectTrigger className="h-9 border-gray-200"><SelectValue placeholder="Chọn chủng loại..." /></SelectTrigger>
-                          <SelectContent>
-                            {categories.map((c) => (
-                              <SelectItem key={c.id} value={c.maLoai}>
-                                {c.tenLoai || c.tenChungLoai}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Combobox
+                          value={row.chungLoai}
+                          onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}
+                          placeholder="Nhập hoặc chọn chủng loại"
+                          options={categories.map((c) => ({
+                            label: c.tenLoai || c.tenChungLoai || c.maLoai,
+                            value: c.tenLoai || c.tenChungLoai || c.maLoai
+                          }))}
+                          allowCustom={true}
+                        />
                       </td>
                       <td className="p-2">
                         <Input type="number" className="h-9 border-gray-200" value={row.soLuong} onChange={(e) => updateRow(row.id, 'soLuong', e.target.value)} />
@@ -449,7 +442,7 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                 <Select value={formData.khoXuat} onValueChange={(value) => handleInputChange('khoXuat', value)}>
                   <SelectTrigger><SelectValue placeholder="Kho đi" /></SelectTrigger>
                   <SelectContent>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.tenKho}>{w.tenKho}</SelectItem>)}
+                    {warehouses.map((w) => <SelectItem key={w.id} value={w.loaiKho}>{w.tenKho}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -458,7 +451,7 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                 <Select value={formData.khoNhap} onValueChange={(value) => handleInputChange('khoNhap', value)}>
                   <SelectTrigger><SelectValue placeholder="Kho đến" /></SelectTrigger>
                   <SelectContent>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.tenKho}>{w.tenKho}</SelectItem>)}
+                    {warehouses.map((w) => <SelectItem key={w.id} value={w.loaiKho}>{w.tenKho}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -467,7 +460,10 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                 <Select value={formData.nguoiChuyen} onValueChange={(value) => handleInputChange('nguoiChuyen', value)}>
                   <SelectTrigger><SelectValue placeholder="Chọn người thực hiện..." /></SelectTrigger>
                   <SelectContent>
-                    {users.map((u) => <SelectItem key={u.id} value={u.hoTen}>{u.hoTen} - {u.msnv}</SelectItem>)}
+                    {users.filter((u) => {
+                      const normalizedRole = `${u.vaiTro || u.role || ''}`.toString().trim().toLowerCase().replace(/\s+/g, '');
+                      return ['nguoinhap', 'nhap', 'nguoixuat', 'xuat'].includes(normalizedRole);
+                    }).map((u) => <SelectItem key={u.msnv || u.employee_code || u.id} value={u.msnv || u.employee_code || u.id}>{(u.hoTen || u.fullName || u.name || u.username || u.msnv || u.employee_code || u.id)} - {u.msnv || u.employee_code || u.id}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>

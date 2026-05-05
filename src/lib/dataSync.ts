@@ -52,10 +52,17 @@ export class DataSyncService {
 
       // Robust URL cleaning
       supabaseUrl = supabaseUrl.trim().replace(/\s+/g, ''); // Remove all spaces
-      // Fix protocol missing colon (e.g., http// -> http://)
-      if (/^https?\/\//.test(supabaseUrl)) {
-        supabaseUrl = supabaseUrl.replace(/^https?/, (m) => m + ':');
+
+      // Fix missing protocol colon (e.g., http// -> http://)
+      if (/^https?:\/\//i.test(supabaseUrl)) {
+        // Already correct
+      } else if (/^https?\/\//i.test(supabaseUrl)) {
+        supabaseUrl = supabaseUrl.replace(/^(https?)/i, '$1:');
+      } else if (!/^https?:\/\//i.test(supabaseUrl) && !supabaseUrl.startsWith('//')) {
+        // No protocol at all, assume http:// for localhost
+        supabaseUrl = 'http://' + supabaseUrl;
       }
+
       // Ensure no double protocols or other common typos
       supabaseUrl = supabaseUrl.replace(/^(https?:\/\/)+/i, '$1');
 

@@ -11,8 +11,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon, PackageOpen, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { vi } from 'date-fns/locale';
-import { cn } from '@/lib/utils';
+import { cn, getSavedCategories } from '@/lib/utils';
 import { Category, Warehouse, User } from '@/types/categories';
+import { Combobox } from '@/components/ui/combobox';
 
 interface ExportItem {
   id: string;
@@ -48,27 +49,23 @@ export function WarehouseExport() {
 
   const loadData = () => {
     try {
-      // Load categories
-      const savedCategories = localStorage.getItem('categoryTypes');
-      if (savedCategories) {
-        const parsed = JSON.parse(savedCategories);
+      // Load categories using the shared utility
+      setCategories(getSavedCategories());
+
+      // Load warehouses from multiple possible sources
+      const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
+      if (savedWarehouses) {
+        const parsed = JSON.parse(savedWarehouses);
         if (Array.isArray(parsed)) {
-          setCategories(parsed.map((cat: any) => ({
-            id: cat.id,
-            maLoai: cat.maLoai || cat.tenChungLoai,
-            tenLoai: cat.tenLoai || cat.tenChungLoai,
-            tenChungLoai: cat.tenChungLoai || cat.tenLoai,
-            donVi: cat.donVi || cat.donViTinh,
-            gia: cat.gia || parseFloat(cat.donGia) || 0,
-            createdAt: cat.createdAt || new Date().toISOString()
+          setWarehouses(parsed.map((w: any) => ({
+            id: w.id || w.maKho || w.tenKho,
+            tenKho: w.tenKho,
+            maKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
+            loaiKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
+            diaChi: w.diaChi || '',
+            createdAt: w.createdAt || new Date().toISOString()
           })));
         }
-      }
-
-      // Load warehouses
-      const savedWarehouses = localStorage.getItem('warehouses');
-      if (savedWarehouses) {
-        setWarehouses(JSON.parse(savedWarehouses));
       }
 
       // Load users
@@ -116,13 +113,23 @@ export function WarehouseExport() {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
         
-        // If category is selected, auto-fill related fields
+        // If category is selected or typed, auto-fill related fields
         if (field === 'chungLoaiId') {
-          const selectedCategory = categories.find(cat => cat.id === value);
+          const selectedCategory = categories.find(cat => 
+            cat.id === value || 
+            cat.tenChungLoai === value || 
+            cat.tenLoai === value ||
+            cat.maLoai === value
+          );
           if (selectedCategory) {
-            updatedItem.tenChungLoai = selectedCategory.tenChungLoai;
+            updatedItem.tenChungLoai = selectedCategory.tenChungLoai || selectedCategory.tenLoai;
             updatedItem.donVi = selectedCategory.donVi;
             updatedItem.donGia = selectedCategory.gia;
+            updatedItem.chungLoaiId = selectedCategory.id; // Set to id for consistency
+          } else {
+            // Custom input
+            updatedItem.tenChungLoai = value;
+            updatedItem.chungLoaiId = value; // Keep as name for custom
           }
         }
         
@@ -417,9 +424,12 @@ export function WarehouseExport() {
                   <SelectValue placeholder="Chọn người xuất" />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.hoTen}>
-                      {user.hoTen} - {user.msnv}
+                  {users.filter((user) => {
+                    const normalizedRole = `${user.vaiTro || user.role || ''}`.toString().trim().toLowerCase().replace(/\s+/g, '');
+                    return ['nguoixuat', 'xuat'].includes(normalizedRole);
+                  }).map((user) => (
+                    <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
+                      {(user.hoTen || user.fullName || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -437,8 +447,8 @@ export function WarehouseExport() {
                 </SelectTrigger>
                 <SelectContent>
                   {warehouses.map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={warehouse.tenKho}>
-                      {warehouse.tenKho} ({warehouse.loaiKho})
+                    <SelectItem key={warehouse.id} value={warehouse.loaiKho}>
+                      {warehouse.tenKho}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -455,9 +465,12 @@ export function WarehouseExport() {
                   <SelectValue placeholder="Chọn người nhận" />
                 </SelectTrigger>
                 <SelectContent>
-                  {users.map((user) => (
-                    <SelectItem key={user.id} value={user.hoTen}>
-                      {user.hoTen} - {user.msnv}
+                  {users.filter((user) => {
+                    const normalizedRole = `${user.vaiTro || user.role || ''}`.toString().trim().toLowerCase().replace(/\s+/g, '');
+                    return ['nguoinhan', 'nhan'].includes(normalizedRole);
+                  }).map((user) => (
+                    <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
+                      {(user.hoTen || user.fullName || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -532,21 +545,16 @@ export function WarehouseExport() {
                     <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
                       <div>
                         <Label>Chủng Loại *</Label>
-                        <Select
-                          value={item.chungLoaiId}
+                        <Combobox
+                          value={item.tenChungLoai}
                           onValueChange={(value) => updateItem(item.id, 'chungLoaiId', value)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder="Chọn chủng loại" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categories.map((category) => (
-                              <SelectItem key={category.id} value={category.id}>
-                                  {category.tenLoai || category.tenChungLoai}
-                                </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                          placeholder="Chọn hoặc nhập chủng loại"
+                          options={categories.map((category) => ({
+                            label: category.tenLoai || category.tenChungLoai || category.maLoai,
+                            value: category.tenLoai || category.tenChungLoai || category.maLoai
+                          }))}
+                          allowCustom={true}
+                        />
                       </div>
                       
                       <div>

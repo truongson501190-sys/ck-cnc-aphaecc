@@ -131,16 +131,38 @@ export function ProjectManagement() {
         const worksheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
+        // Helper to find value by flexible header names
+        const getValueByHeaders = (row: any, possibleHeaders: string[]) => {
+          const rowKeys = Object.keys(row);
+          
+          // Helper to normalize string for comparison
+          const normalize = (str: string) => 
+            str.toLowerCase()
+               .normalize('NFD')
+               .replace(/[\u0300-\u036f]/g, '') // remove accents
+               .replace(/\s+/g, '') // remove spaces
+               .replace(/[^a-z0-9]/g, ''); // keep only alphanumeric
+
+          const normalizedHeaders = possibleHeaders.map(normalize);
+          
+          const foundKey = rowKeys.find(key => {
+            const normalizedKey = normalize(key);
+            return normalizedHeaders.some(nh => normalizedKey === nh || normalizedKey.includes(nh));
+          });
+          
+          return foundKey ? row[foundKey] : undefined;
+        };
+
         let addedCount = 0;
         let updatedCount = 0;
         let skippedCount = 0;
         const currentProjects = [...projects];
 
         json.forEach(row => {
-          // Normalize keys to support Vietnamese and English
-          const maDuAn = (row.maDuAn || row['Mã dự án'] || row['Mã Dự Án'] || '').toString().trim();
-          const tenDuAn = (row.tenDuAn || row['Tên dự án'] || row['Tên Dự Án'] || '').toString().trim();
-          const ghiChu = (row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').toString().trim();
+          // Robust column mapping
+          const maDuAn = (getValueByHeaders(row, ['maDuAn', 'Mã dự án', 'Mã Dự Án', 'ma_du_an', 'Ma Du An', 'Mã DA']) || '').toString().trim();
+          const tenDuAn = (getValueByHeaders(row, ['tenDuAn', 'Tên dự án', 'Tên Dự Án', 'ten_du_an', 'Ten Du An', 'Tên DA']) || '').toString().trim();
+          const ghiChu = (getValueByHeaders(row, ['ghiChu', 'Ghi chú', 'Ghi Chú', 'ghi_chu', 'Ghi Chu', 'Note']) || '').toString().trim();
 
           if (!maDuAn || !tenDuAn) {
             skippedCount++;
@@ -153,7 +175,7 @@ export function ProjectManagement() {
             // Update existing
             currentProjects[existingIndex] = {
               ...currentProjects[existingIndex],
-              tenDuAn,
+              tenDuAn: tenDuAn || currentProjects[existingIndex].tenDuAn,
               ghiChu: ghiChu || currentProjects[existingIndex].ghiChu
             };
             updatedCount++;
@@ -163,7 +185,7 @@ export function ProjectManagement() {
               id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
               maDuAn,
               tenDuAn,
-              ghiChu,
+              ghiChu: ghiChu || undefined,
               createdAt: new Date().toISOString()
             });
             addedCount++;
