@@ -1,4 +1,4 @@
-import { getSupabase, syncDataToSupabase, loadDataFromSupabase } from '@/lib/supabase';
+import { getSupabase, syncDataToSupabase, loadDataFromSupabase } from '@/supabase';
 
 // Data synchronization service
 export class DataSyncService {

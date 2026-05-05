@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Cloud, CloudOff, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { dataSync } from '@/lib/dataSync';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase } from '@/supabase';
 
 interface SyncStatusProps {
   compact?: boolean;

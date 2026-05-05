@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { DEFAULT_PERMISSIONS } from '@/types/user';
 import type { UserPermissions, User } from '@/types/user';
-import { getSupabase } from '@/lib/supabase';
+import { getSupabase } from '@/supabase';
 
 const REQUIRED_PERSONNEL_USERS = [
   {
