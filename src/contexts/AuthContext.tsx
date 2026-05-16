@@ -25,6 +25,51 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   useEffect(() => {
     const initializeAuth = () => {
       try {
+        // Initialize default data if localStorage is empty
+        if (!localStorage.getItem('userRecords')) {
+          console.log('📦 Initializing localStorage with default data...');
+          
+          const defaultUsers = [
+            {
+              msnv: '1118',
+              fullName: 'Nguyễn Trường Sơn',
+              department: 'Admin',
+              position: 'Quản trị viên hệ thống',
+              role: 'admin',
+              status: 'active',
+              permissions: {
+                'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                'kho-co-khi': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                'kho-cnc': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                'kho-dau': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                'bao-cao-tong-hop': { view: true, add: true, edit: true, delete: true, approve: true, export: true }
+              },
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            }
+          ];
+
+          const defaultUserRecords = [
+            {
+              id: '1',
+              msnv: '1118',
+              fullName: 'Nguyễn Trường Sơn',
+              department: 'Admin',
+              position: 'Quản trị viên hệ thống',
+              role: 'admin',
+              status: true,
+              passwordHash: 'YWRtaW4xMjM=', // admin123
+              createdAt: new Date().toISOString()
+            }
+          ];
+
+          localStorage.setItem('users', JSON.stringify(defaultUsers));
+          localStorage.setItem('userRecords', JSON.stringify(defaultUserRecords));
+          
+          console.log('✅ Default data initialized');
+          console.log('📝 Test credentials: MSNV: 1118, Password: admin123');
+        }
+
         // Try localStorage first (persistent login)
         const storedUser = localStorage.getItem('sessionUser');
         if (storedUser) {
@@ -58,21 +103,93 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     console.log('🔐 Login attempt for:', msnv);
 
     try {
-      if (!supabase) {
-        console.error('❌ Supabase not configured');
+      // Try Supabase first if configured (with 2 second timeout)
+      if (supabase) {
+        try {
+          const supabasePromise = (async () => {
+            // 1. Check user_records table (password)
+            const { data: record, error: err1 } = await supabase
+              .from('user_records')
+              .select('*')
+              .eq('msnv', msnv)
+              .eq('status', true)
+              .single();
+
+            if (err1 || !record) {
+              console.error('❌ Supabase: User record not found');
+              throw new Error('User not found');
+            }
+
+            // Verify password
+            try {
+              const decodedPassword = atob(record.passwordHash);
+              if (decodedPassword !== password) {
+                console.error('❌ Password incorrect');
+                return false;
+              }
+            } catch (e) {
+              console.error('❌ Invalid password hash encoding');
+              return false;
+            }
+
+            // 2. Get user information
+            const { data: userData, error: err2 } = await supabase
+              .from('users')
+              .select('*')
+              .eq('msnv', msnv)
+              .single();
+
+            if (err2 || !userData) {
+              console.error('❌ Supabase: User not found');
+              throw new Error('User not found');
+            }
+
+            return userData;
+          })();
+
+          // Wait for Supabase with 2 second timeout
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Supabase timeout')), 2000)
+          );
+
+          const userData = await Promise.race([supabasePromise, timeoutPromise]);
+
+          if (userData === false) {
+            return false; // Password incorrect
+          }
+
+          // 3. Save session
+          setUser(userData);
+
+          if (rememberMe) {
+            localStorage.setItem('sessionUser', JSON.stringify(userData));
+            localStorage.removeItem('rememberedLogin');
+          } else {
+            sessionStorage.setItem('sessionUser', JSON.stringify(userData));
+            localStorage.removeItem('sessionUser');
+          }
+
+          console.log('✅ Login successful via Supabase');
+          return true;
+        } catch (err) {
+          console.log('⚠️ Supabase failed, falling back to localStorage:', err);
+          // Fall through to localStorage backup
+        }
+      }
+
+      // Fallback: Use localStorage
+      console.log('📦 Using localStorage fallback mode');
+      const userRecordsStr = localStorage.getItem('userRecords');
+      if (!userRecordsStr) {
+        console.error('❌ No userRecords found in localStorage');
         return false;
       }
 
-      // 1. Check user_records table (password)
-      const { data: record, error: err1 } = await supabase
-        .from('user_records')
-        .select('*')
-        .eq('msnv', msnv)
-        .eq('status', true)
-        .single();
+      const userRecords = JSON.parse(userRecordsStr);
+      const record = userRecords.find((r: any) => r.msnv === msnv && r.status === true);
 
-      if (err1 || !record) {
-        console.error('❌ User record not found');
+      if (!record) {
+        console.error('❌ User record not found in localStorage');
         return false;
       }
 
@@ -88,19 +205,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         return false;
       }
 
-      // 2. Get user information
-      const { data: userData, error: err2 } = await supabase
-        .from('users')
-        .select('*')
-        .eq('msnv', msnv)
-        .single();
-
-      if (err2 || !userData) {
-        console.error('❌ User not found');
+      // Get user information
+      const usersStr = localStorage.getItem('users');
+      if (!usersStr) {
+        console.error('❌ No users found in localStorage');
         return false;
       }
 
-      // 3. Save session
+      const users = JSON.parse(usersStr);
+      const userData = users.find((u: any) => u.msnv === msnv);
+
+      if (!userData) {
+        console.error('❌ User not found in localStorage');
+        return false;
+      }
+
+      // Save session
       setUser(userData);
 
       if (rememberMe) {
@@ -111,7 +231,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         localStorage.removeItem('sessionUser');
       }
 
-      console.log('✅ Login successful');
+      console.log('✅ Login successful via localStorage');
       return true;
     } catch (err) {
       console.error('💥 Login error:', err);

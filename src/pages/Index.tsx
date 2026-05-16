@@ -291,7 +291,7 @@ export default function Index({ initialSection }: IndexProps) {
                 )}
 
                 {/* Admin Only Cards */}
-                {isAdmin && isAdmin() && (
+                {isAdmin && (
                   <>
                     <Card className="hover:shadow-lg transition-shadow cursor-pointer group mobile-touch-target" onClick={() => handleSectionChange('categories')}>
                       <CardHeader className="text-center pb-3 md:pb-4">
@@ -337,8 +337,8 @@ export default function Index({ initialSection }: IndexProps) {
           {activeSection === 'export' && canViewSection('export') && <ExactLayoutWarehouseExport onSubmit={handleWarehouseTransaction} />}
           {activeSection === 'oil' && canViewSection('oil') && <ExactLayoutOilExport onSubmit={handleWarehouseTransaction} />}
           {activeSection === 'transfer' && canViewSection('transfer') && <ExactLayoutWarehouseTransfer onSubmit={handleWarehouseTransaction} />}
-          {activeSection === 'categories' && isAdmin && isAdmin() && <CategoryManagement />}
-          {activeSection === 'users' && isAdmin && isAdmin() && <UserManagement />}
+          {activeSection === 'categories' && isAdmin && <CategoryManagement />}
+          {activeSection === 'users' && isAdmin && <UserManagement />}
           {activeSection === 'reports' && canViewSection('reports') && (
             <ReportsPage warehouseTransactions={warehouseTransactions} />
           )}

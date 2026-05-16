@@ -12,12 +12,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { Category, Warehouse, User, Project } from '@/types/categories';
 import { Employee } from '@/types/categories';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { getSavedCategories } from '@/lib/utils';
 
 interface ExactLayoutWarehouseExportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
 }
-
-import { getSavedCategories } from '@/lib/utils';
 
 export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExportProps) {
   const { user } = useAuth();

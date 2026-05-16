@@ -60,7 +60,7 @@ const Header: React.FC = () => {
                 {getRoleIcon(user.role)}
                 <div className="text-left">
                   <div className="text-sm font-medium text-gray-900">
-                    {user.name}
+                    {user.name || user.fullName}
                   </div>
                   <div className="text-xs text-gray-500">
                     {getRoleLabel(user.role)}
@@ -78,8 +78,10 @@ const Header: React.FC = () => {
                       {getRoleIcon(user.role)}
                     </div>
                     <div>
-                      <div className="font-medium text-gray-900">{user.name}</div>
-                      <div className="text-sm text-gray-500">@{user.username}</div>
+                      <div className="font-medium text-gray-900">{user.name || user.fullName}</div>
+                      {(user.username || user.msnv) && (
+                        <div className="text-sm text-gray-500">@{user.username || user.msnv}</div>
+                      )}
                       {user.email && (
                         <div className="text-xs text-gray-400">{user.email}</div>
                       )}
