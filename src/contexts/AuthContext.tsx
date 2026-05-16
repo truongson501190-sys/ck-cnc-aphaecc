@@ -21,13 +21,15 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
 
   // Initialize auth state from storage on mount
   useEffect(() => {
     const initializeAuth = () => {
       try {
-        // Initialize default data if localStorage is empty
+        // ... existing seeding logic ...
         if (!localStorage.getItem('userRecords')) {
+          // (giữ nguyên logic khởi tạo dữ liệu mặc định bên dưới)
           console.log('📦 Initializing localStorage with default data...');
           
           const defaultUsers = [
@@ -79,6 +81,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
           // Trigger sync on startup if logged in
           dataSync.fullSync().catch(err => console.error('Startup sync failed:', err));
+          setLoading(false);
           return;
         }
 
@@ -91,6 +94,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           
           // Trigger sync on startup if logged in
           dataSync.fullSync().catch(err => console.error('Startup sync failed:', err));
+          setLoading(false);
           return;
         }
 
@@ -99,6 +103,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         console.error('❌ Error loading stored user:', error);
         localStorage.removeItem('sessionUser');
         sessionStorage.removeItem('sessionUser');
+      } finally {
+        setLoading(false);
       }
     };
 
@@ -224,6 +230,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+      </div>
+    );
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
