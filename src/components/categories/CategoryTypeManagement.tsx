@@ -10,9 +10,10 @@ import { Plus, Edit, Trash2, Package, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { Category } from '@/types/categories';
 import * as XLSX from 'xlsx';
+import { db } from '@/lib/db'
 
 export function CategoryTypeManagement() {
-  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryTypes, setCategoryTypes] = useState<Category[]>([]);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formData, setFormData] = useState({
     maLoai: '',
@@ -24,23 +25,19 @@ export function CategoryTypeManagement() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    loadCategories();
-  }, []);
-
-  const loadCategories = () => {
-    try {
-      const saved = localStorage.getItem('categoryTypes');
-      if (saved) {
-        setCategories(JSON.parse(saved));
-      }
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
-  };
+  useEffect(() => { 
+    const loadData = async () => { 
+      const data = 
+        await db.get('categoryTypes') 
+  
+      setCategoryTypes(data) 
+    } 
+  
+    loadData() 
+  }, [])
 
   const saveCategories = (updatedCategories: Category[]) => {
-    setCategories(updatedCategories);
+    setCategoryTypes(updatedCategories);
     localStorage.setItem('categoryTypes', JSON.stringify(updatedCategories));
   };
 
@@ -53,7 +50,7 @@ export function CategoryTypeManagement() {
     }
 
     // Check for duplicate code
-    const isDuplicateMa = categories.some(c => 
+    const isDuplicateMa = categoryTypes.some(c => 
       c.maLoai === formData.maLoai.trim() && c.id !== editingCategory?.id
     );
     
@@ -63,7 +60,7 @@ export function CategoryTypeManagement() {
     }
 
     if (editingCategory) {
-      const updatedCategories = categories.map(category =>
+      const updatedCategories = categoryTypes.map(category =>
         category.id === editingCategory.id
           ? { 
               ...category, 
@@ -89,7 +86,7 @@ export function CategoryTypeManagement() {
         ghiChu: formData.ghiChu.trim() || undefined,
         createdAt: new Date().toISOString()
       };
-      saveCategories([...categories, newCategory]);
+      saveCategories([...categoryTypes, newCategory]);
       toast.success('Đã thêm chủng loại mới thành công');
     }
 
@@ -122,7 +119,7 @@ export function CategoryTypeManagement() {
 
   const handleDelete = (id: string) => {
     if (confirm('Bạn có chắc chắn muốn xóa chủng loại này?')) {
-      const updatedCategories = categories.filter(category => category.id !== id);
+      const updatedCategories = categoryTypes.filter(category => category.id !== id);
       saveCategories(updatedCategories);
       toast.success('Đã xóa chủng loại thành công');
     }
@@ -144,7 +141,7 @@ export function CategoryTypeManagement() {
         let addedCount = 0;
         let updatedCount = 0;
         let skippedCount = 0;
-        const currentCategories = [...categories];
+        const currentCategories = [...categoryTypes];
 
         json.forEach(row => {
           // Normalize keys to support Vietnamese and English
@@ -223,7 +220,7 @@ export function CategoryTypeManagement() {
           <p className="text-gray-600 mt-1">Quản lý chủng loại sản phẩm, đơn vị và giá</p>
         </div>
         <Badge variant="secondary" className="text-lg px-3 py-1">
-          {categories.length} chủng loại
+          {categoryTypes.length} chủng loại
         </Badge>
       </div>
 
@@ -352,14 +349,14 @@ export function CategoryTypeManagement() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {categories.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                          Chưa có chủng loại nào. Thêm chủng loại đầu tiên để bắt đầu.
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      categories.map((category) => (
+                {categoryTypes.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                      Chưa có chủng loại nào. Nhấn "Thêm Chủng Loại Mới" để bắt đầu.
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  categoryTypes.map((category) => (
                         <TableRow key={category.id}>
                           <TableCell className="font-medium">{category.maLoai}</TableCell>
                           <TableCell className="font-medium">{category.tenLoai}</TableCell>
