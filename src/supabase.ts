@@ -34,22 +34,29 @@ export const syncDataToSupabase = async (table: string, data: any[]) => {
   if (!supabase) return false;
 
   try {
-    const { error: deleteError } = await supabase
+    console.log(`🔄 Syncing ${data.length} records to ${table}...`);
+    
+    // Use upsert instead of delete + insert for better multi-device sync
+    // This preserves existing records on the cloud that aren't in local storage
+    // and updates existing ones that are in both.
+    const { error } = await supabase
       .from(table)
-      .delete()
-      .gt('id', -1);
-
-    if (deleteError && deleteError.message.includes('column "id" does not exist')) {
-      await supabase.from(table).delete().neq('msnv', '');
+      .upsert(data, { 
+        onConflict: table === 'user_records' ? 'msnv' : 'id',
+        ignoreDuplicates: false 
+      });
+    
+    if (error) {
+      // Fallback if upsert with specific onConflict fails
+      console.warn(`⚠️ Specific upsert failed for ${table}, trying generic:`, error.message);
+      const { error: error2 } = await supabase.from(table).upsert(data);
+      if (error2) throw error2;
     }
-
-    const { error } = await supabase.from(table).insert(data);
-    if (error) throw error;
 
     console.log(`✅ Synced ${data.length} records to ${table}`);
     return true;
   } catch (error: any) {
-    console.error(`❌ Sync error ${table}:`, error);
+    console.error(`❌ Sync error ${table}:`, error.message || error);
     return false;
   }
 };

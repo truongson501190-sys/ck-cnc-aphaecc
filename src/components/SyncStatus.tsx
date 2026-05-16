@@ -18,12 +18,11 @@ export function SyncStatus({ compact = false }: SyncStatusProps) {
 
   useEffect(() => {
     const checkConnection = () => {
-      const client = getSupabase();
-      setIsConnected(!!client);
+      setIsConnected(dataSync.isConnected);
     };
 
     checkConnection();
-    const interval = setInterval(checkConnection, 10000); // Check every 10 seconds
+    const interval = setInterval(checkConnection, 5000); // Check every 5 seconds
 
     return () => clearInterval(interval);
   }, []);

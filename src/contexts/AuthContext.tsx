@@ -1,6 +1,7 @@
 import React, { createContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { supabase } from '@/supabase';
 import type { User } from '@/types/user';
+import { dataSync } from '@/lib/dataSync';
 
 // ================= CONTEXT =================
 interface AuthContextType {
@@ -76,6 +77,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const parsedUser = JSON.parse(storedUser);
           setUser(parsedUser);
           console.log('✅ User loaded from localStorage:', parsedUser.msnv);
+          
+          // Trigger sync on startup if logged in
+          dataSync.fullSync().catch(err => console.error('Startup sync failed:', err));
           return;
         }
 
@@ -85,6 +89,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const parsedUser = JSON.parse(sessionUser);
           setUser(parsedUser);
           console.log('✅ User loaded from sessionStorage:', parsedUser.msnv);
+          
+          // Trigger sync on startup if logged in
+          dataSync.fullSync().catch(err => console.error('Startup sync failed:', err));
           return;
         }
 
@@ -170,6 +177,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
 
           console.log('✅ Login successful via Supabase');
+          
+          // Trigger sync after login
+          dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
+          
           return true;
         } catch (err) {
           console.log('⚠️ Supabase failed, falling back to localStorage:', err);
@@ -232,6 +243,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       console.log('✅ Login successful via localStorage');
+      
+      // Trigger sync after login (to push local changes if any)
+      dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
+      
       return true;
     } catch (err) {
       console.error('💥 Login error:', err);

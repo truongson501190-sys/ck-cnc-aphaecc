@@ -4,6 +4,7 @@ import { getSupabase, syncDataToSupabase, loadDataFromSupabase } from '@/supabas
 export class DataSyncService {
   private static instance: DataSyncService;
   private isOnline = false;
+  private isSyncingInternal = false;
 
   private constructor() {
     this.checkConnection();
@@ -38,44 +39,36 @@ export class DataSyncService {
       return;
     }
 
-    // 2. DNS Error Throttling: If we had a DNS error, don't retry for 5 minutes
+    // 2. DNS Error Throttling: If we had a DNS error, don't retry for 30 seconds
     const now = Date.now();
     const lastDnsError = (this as any)._lastDnsError || 0;
-    if (lastDnsError && (now - lastDnsError < 300000)) { // 5 minutes
-      this.isOnline = false;
-      return;
+    if (lastDnsError && (now - lastDnsError < 30000)) { // 30 seconds
+      // Still check if we're back online via navigator
+      if (typeof navigator !== 'undefined' && navigator.onLine) {
+         // Maybe it's fixed? Let's try once if it's been at least 10s
+         if (now - lastDnsError < 10000) return;
+      } else {
+        return;
+      }
     }
 
     try {
-      let supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl) return;
-
-      // Robust URL cleaning
-      supabaseUrl = supabaseUrl.trim().replace(/\s+/g, ''); // Remove all spaces
-
-      // Fix missing protocol colon (e.g., http// -> http://)
-      if (/^https?:\/\//i.test(supabaseUrl)) {
-        // Already correct
-      } else if (/^https?\/\//i.test(supabaseUrl)) {
-        supabaseUrl = supabaseUrl.replace(/^(https?)/i, '$1:');
-      } else if (!/^https?:\/\//i.test(supabaseUrl) && !supabaseUrl.startsWith('//')) {
-        // No protocol at all, assume http:// for localhost
-        supabaseUrl = 'http://' + supabaseUrl;
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!supabaseUrl || !supabaseKey) {
+        this.isOnline = false;
+        return;
       }
-
-      // Ensure no double protocols or other common typos
-      supabaseUrl = supabaseUrl.replace(/^(https?:\/\/)+/i, '$1');
 
       // 3. Silent check using fetch with short timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 3000);
 
-      const response = await fetch(`${supabaseUrl}/rest/v1/`, {
+      const response = await fetch(`${supabaseUrl}/rest/v1/?apikey=${supabaseKey}`, { 
         method: 'GET',
-        headers: { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '' },
         signal: controller.signal
       });
-
+      
       clearTimeout(timeoutId);
       this.isOnline = response.ok || response.status === 401;
       (this as any)._lastDnsError = null;
@@ -98,6 +91,9 @@ export class DataSyncService {
     const client = getSupabase();
     if (!client) return false;
 
+    console.log('🔄 Starting sync to cloud...');
+    let allSuccess = true;
+
     try {
       const tables = [
         { key: 'users', table: 'users' },
@@ -116,21 +112,26 @@ export class DataSyncService {
       for (const { key, table } of tables) {
         const localData = localStorage.getItem(key);
         if (localData) {
-          const data = JSON.parse(localData);
-          if (Array.isArray(data) && data.length > 0) {
-            const success = await syncDataToSupabase(table, data);
-            if (!success) {
-              // If one table fails, stop the whole process to avoid spaming errors
-              console.warn(`⚠️ Sync to cloud paused at table ${table} due to failure.`);
-              return false;
+          try {
+            const data = JSON.parse(localData);
+            if (Array.isArray(data) && data.length > 0) {
+              const success = await syncDataToSupabase(table, data);
+              if (!success) {
+                console.warn(`⚠️ Sync to cloud failed for table ${table}`);
+                allSuccess = false;
+              }
             }
+          } catch (e) {
+            console.error(`❌ Error parsing/syncing ${key}:`, e);
+            allSuccess = false;
           }
         }
       }
 
-      console.log('✅ All data synced to cloud');
-      return true;
+      if (allSuccess) console.log('✅ All data synced to cloud');
+      return allSuccess;
     } catch (error) {
+      console.error('❌ syncToCloud critical error:', error);
       return false;
     }
   }
@@ -140,6 +141,10 @@ export class DataSyncService {
     if (!this.isConnected || !navigator.onLine) return false;
     const client = getSupabase();
     if (!client) return false;
+
+    console.log('🔄 Starting sync from cloud...');
+    let allSuccess = true;
+    this.isSyncingInternal = true;
 
     try {
       const tables = [
@@ -157,20 +162,27 @@ export class DataSyncService {
       ];
 
       for (const { key, table } of tables) {
-        const cloudData = await loadDataFromSupabase(table);
-        if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
-          localStorage.setItem(key, JSON.stringify(cloudData));
-        } else if (cloudData === null) {
-          // If loadData returns null, it means it failed (likely network)
-          console.warn(`⚠️ Sync from cloud paused at table ${table} due to failure.`);
-          return false;
+        try {
+          const cloudData = await loadDataFromSupabase(table);
+          if (cloudData && Array.isArray(cloudData) && cloudData.length > 0) {
+            localStorage.setItem(key, JSON.stringify(cloudData));
+          } else if (cloudData === null) {
+            console.warn(`⚠️ Sync from cloud failed for table ${table}`);
+            allSuccess = false;
+          }
+        } catch (e) {
+          console.error(`❌ Error loading ${table}:`, e);
+          allSuccess = false;
         }
       }
 
-      console.log('✅ All data synced from cloud');
-      return true;
+      if (allSuccess) console.log('✅ All data synced from cloud');
+      return allSuccess;
     } catch (error) {
+      console.error('❌ syncFromCloud critical error:', error);
       return false;
+    } finally {
+      this.isSyncingInternal = false;
     }
   }
 
@@ -181,9 +193,10 @@ export class DataSyncService {
     const client = getSupabase();
     if (!client) return false;
 
+    console.log('🚀 Starting full bidirectional sync...');
+    
     // 1. First push local changes to cloud
-    const pushSuccess = await this.syncToCloud();
-    if (!pushSuccess) return false;
+    await this.syncToCloud();
     
     // 2. Then pull from cloud
     const pullSuccess = await this.syncFromCloud();
@@ -206,11 +219,11 @@ export class DataSyncService {
       ];
 
       if (syncKeys.includes(key)) {
-        if (this.isConnected && navigator.onLine) {
+        if (this.isConnected && navigator.onLine && !this.isSyncingInternal) {
           // Debounce slightly
           if ((this as any)._syncTimeout) clearTimeout((this as any)._syncTimeout);
           (this as any)._syncTimeout = setTimeout(() => {
-            if (this.isConnected && navigator.onLine) {
+            if (this.isConnected && navigator.onLine && !this.isSyncingInternal) {
               this.syncToCloud().catch(() => {});
             }
           }, 5000); // 5 seconds debounce for less noise
