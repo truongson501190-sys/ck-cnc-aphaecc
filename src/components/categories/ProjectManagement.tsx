@@ -23,6 +23,11 @@ export function ProjectManagement() {
 
   useEffect(() => {
     loadProjects();
+    
+    // Listen for sync events
+    const handleSync = () => loadProjects();
+    window.addEventListener('app-data-synced', handleSync);
+    return () => window.removeEventListener('app-data-synced', handleSync);
   }, []);
 
   const loadProjects = () => {

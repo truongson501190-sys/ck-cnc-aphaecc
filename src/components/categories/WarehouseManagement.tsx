@@ -23,6 +23,11 @@ export function WarehouseManagement() {
 
   useEffect(() => {
     loadWarehouses();
+    
+    // Listen for sync events
+    const handleSync = () => loadWarehouses();
+    window.addEventListener('app-data-synced', handleSync);
+    return () => window.removeEventListener('app-data-synced', handleSync);
   }, []);
 
   const loadWarehouses = () => {

@@ -80,7 +80,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log('✅ User loaded from localStorage:', parsedUser.msnv);
           
           // Trigger sync on startup if logged in
-          dataSync.fullSync().catch(err => console.error('Startup sync failed:', err));
+          setTimeout(() => {
+            dataSync.fullSync()
+              .then(() => console.log('🚀 Initial sync completed'))
+              .catch(err => console.error('Startup sync failed:', err));
+          }, 1000);
+          
           setLoading(false);
           return;
         }
@@ -93,7 +98,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           console.log('✅ User loaded from sessionStorage:', parsedUser.msnv);
           
           // Trigger sync on startup if logged in
-          dataSync.fullSync().catch(err => console.error('Startup sync failed:', err));
+          setTimeout(() => {
+            dataSync.fullSync()
+              .then(() => console.log('🚀 Initial sync completed'))
+              .catch(err => console.error('Startup sync failed:', err));
+          }, 1000);
+
           setLoading(false);
           return;
         }

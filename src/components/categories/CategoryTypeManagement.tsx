@@ -27,13 +27,19 @@ export function CategoryTypeManagement() {
 
   useEffect(() => { 
     const loadData = async () => { 
-      const data = 
-        await db.get('categoryTypes') 
-  
-      setCategoryTypes(data) 
+      const data = await db.get('categories') // Use table name 'categories'
+      if (data && data.length > 0) {
+        setCategoryTypes(data) 
+        localStorage.setItem('categoryTypes', JSON.stringify(data))
+      }
     } 
   
-    loadData() 
+    loadData()
+
+    // Listen for sync events from other devices
+    const handleSync = () => loadData();
+    window.addEventListener('app-data-synced', handleSync);
+    return () => window.removeEventListener('app-data-synced', handleSync);
   }, [])
 
   const saveCategories = (updatedCategories: Category[]) => {

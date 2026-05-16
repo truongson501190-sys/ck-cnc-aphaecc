@@ -24,6 +24,11 @@ export function MachineManagement() {
 
   useEffect(() => {
     loadMachines();
+    
+    // Listen for sync events
+    const handleSync = () => loadMachines();
+    window.addEventListener('app-data-synced', handleSync);
+    return () => window.removeEventListener('app-data-synced', handleSync);
   }, []);
 
   const loadMachines = () => {

@@ -23,6 +23,11 @@ export function EmployeeManagement() {
 
   useEffect(() => {
     loadEmployees();
+    
+    // Listen for sync events
+    const handleSync = () => loadEmployees();
+    window.addEventListener('app-data-synced', handleSync);
+    return () => window.removeEventListener('app-data-synced', handleSync);
   }, []);
 
   const loadEmployees = () => {

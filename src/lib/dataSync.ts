@@ -201,11 +201,27 @@ export class DataSyncService {
 
     console.log('🚀 Starting full bidirectional sync...');
     
-    // 1. First push local changes to cloud
-    await this.syncToCloud();
+    // 1. Push local changes to cloud
+    // We don't stop if this fails, we want to at least try to get new data
+    try {
+      await this.syncToCloud();
+    } catch (e) {
+      console.error('Push phase of fullSync failed:', e);
+    }
     
-    // 2. Then pull from cloud
-    const pullSuccess = await this.syncFromCloud();
+    // 2. Pull from cloud to get changes from other devices
+    let pullSuccess = false;
+    try {
+      pullSuccess = await this.syncFromCloud();
+    } catch (e) {
+      console.error('Pull phase of fullSync failed:', e);
+    }
+
+    // 3. Notify app that data has changed
+    if (pullSuccess) {
+      window.dispatchEvent(new CustomEvent('app-data-synced'));
+    }
+
     return pullSuccess;
   }
 
