@@ -224,12 +224,14 @@ export function UserManagement() {
     };
 
     const updatedUsers = [...users, newUser];
-    syncUserData(updatedUsers);
+    
+    // Save both to users and userRecords immediately to ensure consistency
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
+    setUsers(updatedUsers);
 
-    // Also save password to userRecords with the new password
     const userRecords = JSON.parse(localStorage.getItem('userRecords') || '[]');
     const newUserRecord = {
-      id: (userRecords.length + 1).toString(),
+      id: Date.now().toString(),
       msnv: formData.msnv,
       fullName: formData.fullName,
       department: formData.department,
@@ -241,6 +243,11 @@ export function UserManagement() {
     };
     userRecords.push(newUserRecord);
     localStorage.setItem('userRecords', JSON.stringify(userRecords));
+
+    // Force dataSync to push all changes to cloud
+    import('@/lib/dataSync').then(({ dataSync }) => {
+      dataSync.syncToCloud().catch(err => console.error('Cloud sync failed after adding user:', err));
+    });
 
     logUserAction('ADD_USER', newUser.msnv, newUser);
     
@@ -272,7 +279,32 @@ export function UserManagement() {
     };
 
     const updatedUsers = users.map(u => u.msnv === selectedUser.msnv ? updatedUser : u);
-    syncUserData(updatedUsers);
+    
+    // Save to users table
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
+    setUsers(updatedUsers);
+
+    // Sync with userRecords for authentication
+    const userRecords = JSON.parse(localStorage.getItem('userRecords') || '[]');
+    const updatedUserRecords = userRecords.map((r: any) => {
+      if (r.msnv === selectedUser.msnv) {
+        return {
+          ...r,
+          fullName: updatedUser.fullName,
+          department: updatedUser.department,
+          position: updatedUser.position,
+          role: updatedUser.role,
+          status: updatedUser.status === 'active'
+        };
+      }
+      return r;
+    });
+    localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+
+    // Force dataSync to push all changes to cloud
+    import('@/lib/dataSync').then(({ dataSync }) => {
+      dataSync.syncToCloud().catch(err => console.error('Cloud sync failed after editing user:', err));
+    });
 
     logUserAction('EDIT_USER', selectedUser.msnv, { before: selectedUser, after: updatedUser });
     
@@ -312,6 +344,11 @@ export function UserManagement() {
     );
     localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
 
+    // Force dataSync to push all changes to cloud
+    import('@/lib/dataSync').then(({ dataSync }) => {
+      dataSync.syncToCloud().catch(err => console.error('Cloud sync failed after changing password:', err));
+    });
+
     logUserAction('CHANGE_PASSWORD', selectedUser.msnv, { changedBy: currentUser.msnv });
     
     setIsPasswordDialogOpen(false);
@@ -339,7 +376,20 @@ export function UserManagement() {
     if (!userToDelete) return;
 
     const updatedUsers = users.filter(u => u.msnv !== msnv);
-    syncUserData(updatedUsers);
+    
+    // Update users
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
+    setUsers(updatedUsers);
+
+    // Update userRecords
+    const userRecords = JSON.parse(localStorage.getItem('userRecords') || '[]');
+    const updatedUserRecords = userRecords.filter((r: any) => r.msnv !== msnv);
+    localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+
+    // Force dataSync to push all changes to cloud
+    import('@/lib/dataSync').then(({ dataSync }) => {
+      dataSync.syncToCloud().catch(err => console.error('Cloud sync failed after deleting user:', err));
+    });
 
     logUserAction('DELETE_USER', msnv, userToDelete);
     toast.success('Xóa người dùng thành công');
@@ -359,7 +409,21 @@ export function UserManagement() {
       u.msnv === msnv ? { ...u, status: newStatus, updatedAt: new Date().toISOString() } : u
     );
     
-    syncUserData(updatedUsers);
+    // Update users
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
+    setUsers(updatedUsers);
+
+    // Update userRecords
+    const userRecords = JSON.parse(localStorage.getItem('userRecords') || '[]');
+    const updatedUserRecords = userRecords.map((r: any) => 
+      r.msnv === msnv ? { ...r, status: newStatus === 'active' } : r
+    );
+    localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+
+    // Force dataSync to push all changes to cloud
+    import('@/lib/dataSync').then(({ dataSync }) => {
+      dataSync.syncToCloud().catch(err => console.error('Cloud sync failed after toggling status:', err));
+    });
 
     logUserAction('TOGGLE_STATUS', msnv, { from: user.status, to: newStatus });
     toast.success(`${newStatus === 'active' ? 'Kích hoạt' : 'Khóa'} tài khoản thành công`);
