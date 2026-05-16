@@ -36,20 +36,73 @@ export const syncDataToSupabase = async (table: string, data: any[]) => {
   try {
     console.log(`🔄 Syncing ${data.length} records to ${table}...`);
     
+    // Prepare data for Supabase (mapping local fields to DB columns)
+    const mappedData = data.map(item => {
+      const mapped: any = { ...item };
+      
+      // User Records mapping
+      if (table === 'user_records') {
+        if (item.msnv) mapped.employee_code = item.msnv;
+        if (item.passwordHash) mapped.password_hash = item.passwordHash;
+      }
+      
+      // Users/Employees mapping
+      if (table === 'users') {
+        if (item.msnv) mapped.employee_code = item.msnv;
+        if (item.fullName) mapped.full_name = item.fullName;
+        if (item.ten_nhan_vien) mapped.full_name = item.ten_nhan_vien;
+        if (item.ghiChu) mapped.note = item.ghiChu;
+        if (!mapped.role) mapped.role = 'user'; // Default role for employees
+      }
+      
+      // Categories mapping
+      if (table === 'categories') {
+        if (item.maLoai) mapped.code = item.maLoai;
+        if (item.tenLoai) mapped.name = item.tenLoai;
+        if (item.donVi) mapped.unit = item.donVi;
+        if (item.gia) mapped.price = item.gia;
+      }
+      
+      // Machines mapping
+      if (table === 'machines') {
+        if (item.maMay) mapped.code = item.maMay;
+        if (item.tenMay) mapped.name = item.tenMay;
+        if (item.ghiChu) mapped.note = item.ghiChu;
+      }
+      
+      // Projects mapping
+      if (table === 'projects') {
+        if (item.maDuAn) mapped.project_code = item.maDuAn;
+        if (item.tenDuAn) mapped.name = item.tenDuAn;
+        if (item.ghiChu) mapped.note = item.ghiChu;
+      }
+
+      // Warehouses mapping
+      if (table === 'warehouses') {
+        if (item.maKho) mapped.code = item.maKho;
+        if (item.tenKho) mapped.name = item.tenKho;
+        if (item.ghiChu) mapped.note = item.ghiChu;
+      }
+
+      return mapped;
+    });
+
     // Use upsert instead of delete + insert for better multi-device sync
-    // This preserves existing records on the cloud that aren't in local storage
-    // and updates existing ones that are in both.
+    let conflictColumn = 'id';
+    if (table === 'user_records' || table === 'users') conflictColumn = 'employee_code';
+    if (table === 'machines' || table === 'categories' || table === 'warehouses') conflictColumn = 'code';
+    if (table === 'projects') conflictColumn = 'project_code';
+    
     const { error } = await supabase
       .from(table)
-      .upsert(data, { 
-        onConflict: table === 'user_records' ? 'msnv' : 'id',
+      .upsert(mappedData, { 
+        onConflict: conflictColumn,
         ignoreDuplicates: false 
       });
     
     if (error) {
-      // Fallback if upsert with specific onConflict fails
       console.warn(`⚠️ Specific upsert failed for ${table}, trying generic:`, error.message);
-      const { error: error2 } = await supabase.from(table).upsert(data);
+      const { error: error2 } = await supabase.from(table).upsert(mappedData);
       if (error2) throw error2;
     }
 
@@ -69,8 +122,54 @@ export const loadDataFromSupabase = async (table: string) => {
     const { data, error } = await supabase.from(table).select('*');
     if (error) throw error;
 
-    console.log(`✅ Loaded ${data?.length || 0} records from ${table}`);
-    return data;
+    // Map back from DB columns to local fields
+    const unmappedData = (data || []).map(item => {
+      const unmapped: any = { ...item };
+      
+      if (table === 'user_records') {
+        if (item.employee_code) unmapped.msnv = item.employee_code;
+        if (item.password_hash) unmapped.passwordHash = item.password_hash;
+      }
+      
+      if (table === 'users') {
+        if (item.employee_code) unmapped.msnv = item.employee_code;
+        if (item.full_name) {
+          unmapped.fullName = item.full_name;
+          unmapped.ten_nhan_vien = item.full_name;
+        }
+        if (item.note) unmapped.ghiChu = item.note;
+      }
+      
+      if (table === 'categories') {
+        if (item.code) unmapped.maLoai = item.code;
+        if (item.name) unmapped.tenLoai = item.name;
+        if (item.unit) unmapped.donVi = item.unit;
+        if (item.price) unmapped.gia = item.price;
+      }
+      
+      if (table === 'machines') {
+        if (item.code) unmapped.maMay = item.code;
+        if (item.name) unmapped.tenMay = item.name;
+        if (item.note) unmapped.ghiChu = item.note;
+      }
+      
+      if (table === 'projects') {
+        if (item.project_code) unmapped.maDuAn = item.project_code;
+        if (item.name) unmapped.tenDuAn = item.name;
+        if (item.note) unmapped.ghiChu = item.note;
+      }
+
+      if (table === 'warehouses') {
+        if (item.code) unmapped.maKho = item.code;
+        if (item.name) unmapped.tenKho = item.name;
+        if (item.note) unmapped.ghiChu = item.note;
+      }
+
+      return unmapped;
+    });
+
+    console.log(`✅ Loaded ${unmappedData.length} records from ${table}`);
+    return unmappedData;
   } catch (error: any) {
     console.error(`❌ Load error ${table}:`, error);
     return null;

@@ -87,7 +87,7 @@ export class DataSyncService {
 
   // Sync local data to Supabase
   async syncToCloud() {
-    if (!this.isConnected || !navigator.onLine) return false;
+    if (!navigator.onLine) return false;
     const client = getSupabase();
     if (!client) return false;
 
@@ -98,15 +98,18 @@ export class DataSyncService {
       const tables = [
         { key: 'users', table: 'users' },
         { key: 'userRecords', table: 'user_records' },
-        { key: 'inventoryItems', table: 'inventory_items' },
-        { key: 'categoryTypes', table: 'category_types' },
-        { key: 'category_items', table: 'inventory_items' },
-        { key: 'category_warehouses', table: 'warehouse_locations' },
-        { key: 'warehouseLocations', table: 'warehouse_locations' },
+        { key: 'systemUsers', table: 'user_records' },
+        { key: 'categoryTypes', table: 'categories' },
+        { key: 'machines', table: 'machines' },
+        { key: 'projects', table: 'projects' },
+        { key: 'employees', table: 'users' }, 
+        { key: 'warehouses', table: 'warehouses' },
         { key: 'warehouseTransactions', table: 'warehouse_transactions' },
-        { key: 'warehouseExports', table: 'warehouse_exports' },
-        { key: 'warehouseImports', table: 'warehouse_imports' },
-        { key: 'warehouseTransfers', table: 'warehouse_transfers' }
+        { key: 'inventoryItems', table: 'categories' },
+        { key: 'warehouseLocations', table: 'warehouses' },
+        { key: 'warehouseExports', table: 'warehouse_transactions' },
+        { key: 'warehouseImports', table: 'warehouse_transactions' },
+        { key: 'warehouseTransfers', table: 'warehouse_transactions' }
       ];
 
       for (const { key, table } of tables) {
@@ -138,7 +141,7 @@ export class DataSyncService {
 
   // Load data from Supabase to local
   async syncFromCloud() {
-    if (!this.isConnected || !navigator.onLine) return false;
+    if (!navigator.onLine) return false;
     const client = getSupabase();
     if (!client) return false;
 
@@ -150,15 +153,18 @@ export class DataSyncService {
       const tables = [
         { key: 'users', table: 'users' },
         { key: 'userRecords', table: 'user_records' },
-        { key: 'inventoryItems', table: 'inventory_items' },
-        { key: 'categoryTypes', table: 'category_types' },
-        { key: 'category_items', table: 'inventory_items' },
-        { key: 'category_warehouses', table: 'warehouse_locations' },
-        { key: 'warehouseLocations', table: 'warehouse_locations' },
+        { key: 'systemUsers', table: 'user_records' },
+        { key: 'categoryTypes', table: 'categories' },
+        { key: 'machines', table: 'machines' },
+        { key: 'projects', table: 'projects' },
+        { key: 'employees', table: 'users' }, 
+        { key: 'warehouses', table: 'warehouses' },
         { key: 'warehouseTransactions', table: 'warehouse_transactions' },
-        { key: 'warehouseExports', table: 'warehouse_exports' },
-        { key: 'warehouseImports', table: 'warehouse_imports' },
-        { key: 'warehouseTransfers', table: 'warehouse_transfers' }
+        { key: 'inventoryItems', table: 'categories' },
+        { key: 'warehouseLocations', table: 'warehouses' },
+        { key: 'warehouseExports', table: 'warehouse_transactions' },
+        { key: 'warehouseImports', table: 'warehouse_transactions' },
+        { key: 'warehouseTransfers', table: 'warehouse_transactions' }
       ];
 
       for (const { key, table } of tables) {
@@ -213,17 +219,17 @@ export class DataSyncService {
 
       // Auto-sync important data changes
       const syncKeys = [
-        'users', 'userRecords', 'inventoryItems', 'warehouseTransactions', 
-        'categoryTypes', 'category_items', 'category_warehouses',
-        'warehouseLocations', 'warehouseExports', 'warehouseImports', 'warehouseTransfers'
+        'users', 'userRecords', 'systemUsers', 'categoryTypes', 'machines', 
+        'projects', 'employees', 'warehouses', 'warehouseTransactions',
+        'inventoryItems', 'warehouseLocations', 'warehouseExports', 'warehouseImports', 'warehouseTransfers'
       ];
 
       if (syncKeys.includes(key)) {
-        if (this.isConnected && navigator.onLine && !this.isSyncingInternal) {
+        if (navigator.onLine && !this.isSyncingInternal) {
           // Debounce slightly
           if ((this as any)._syncTimeout) clearTimeout((this as any)._syncTimeout);
           (this as any)._syncTimeout = setTimeout(() => {
-            if (this.isConnected && navigator.onLine && !this.isSyncingInternal) {
+            if (navigator.onLine && !this.isSyncingInternal) {
               this.syncToCloud().catch(() => {});
             }
           }, 5000); // 5 seconds debounce for less noise
