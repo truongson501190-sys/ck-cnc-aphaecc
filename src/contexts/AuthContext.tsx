@@ -106,148 +106,54 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
-  const login = useCallback(async (msnv: string, password: string, rememberMe = false): Promise<boolean> => {
-    console.log('🔐 Login attempt for:', msnv);
+  const login = useCallback(
+  async (
+    msnv: string,
+    password: string,
+    rememberMe = false
+  ): Promise<boolean> => {
+
+    console.log('🔐 Login:', msnv);
 
     try {
-      // Try Supabase first if configured (with 2 second timeout)
-      if (supabase) {
-        try {
-          const supabasePromise = (async () => {
-            // 1. Check user_records table (password)
-            const { data: record, error: err1 } = await supabase
-              .from('user_records')
-              .select('*')
-              .eq('msnv', msnv)
-              .eq('status', true)
-              .single();
 
-            if (err1 || !record) {
-              console.error('❌ Supabase: User record not found');
-              throw new Error('User not found');
-            }
+      const { data: userData, error } =
+        await supabase
+          .from('users')
+          .select('*')
+          .eq('msnv', msnv)
+          .single();
 
-            // Verify password
-            try {
-              const decodedPassword = atob(record.passwordHash);
-              if (decodedPassword !== password) {
-                console.error('❌ Password incorrect');
-                return false;
-              }
-            } catch (e) {
-              console.error('❌ Invalid password hash encoding');
-              return false;
-            }
-
-            // 2. Get user information
-            const { data: userData, error: err2 } = await supabase
-              .from('users')
-              .select('*')
-              .eq('msnv', msnv)
-              .single();
-
-            if (err2 || !userData) {
-              console.error('❌ Supabase: User not found');
-              throw new Error('User not found');
-            }
-
-            return userData;
-          })();
-
-          // Wait for Supabase with 2 second timeout
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Supabase timeout')), 2000)
-          );
-
-          const userData = await Promise.race([supabasePromise, timeoutPromise]);
-
-          if (userData === false) {
-            return false; // Password incorrect
-          }
-
-          // 3. Save session
-          setUser(userData);
-
-          if (rememberMe) {
-            localStorage.setItem('sessionUser', JSON.stringify(userData));
-            localStorage.removeItem('rememberedLogin');
-          } else {
-            sessionStorage.setItem('sessionUser', JSON.stringify(userData));
-            localStorage.removeItem('sessionUser');
-          }
-
-          console.log('✅ Login successful via Supabase');
-          
-          // Trigger sync after login
-          dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
-          
-          return true;
-        } catch (err) {
-          console.log('⚠️ Supabase failed, falling back to localStorage:', err);
-          // Fall through to localStorage backup
-        }
-      }
-
-      // Fallback: Use localStorage
-      console.log('📦 Using localStorage fallback mode');
-      const userRecordsStr = localStorage.getItem('userRecords');
-      if (!userRecordsStr) {
-        console.error('❌ No userRecords found in localStorage');
+      if (error || !userData) {
+        console.error('❌ User not found');
         return false;
       }
 
-      const userRecords = JSON.parse(userRecordsStr);
-      const record = userRecords.find((r: any) => r.msnv === msnv && r.status === true);
-
-      if (!record) {
-        console.error('❌ User record not found in localStorage');
+      // check password
+      if (userData.password !== password) {
+        console.error('❌ Wrong password');
         return false;
       }
 
-      // Verify password
-      try {
-        const decodedPassword = atob(record.passwordHash);
-        if (decodedPassword !== password) {
-          console.error('❌ Password incorrect');
-          return false;
-        }
-      } catch (e) {
-        console.error('❌ Invalid password hash encoding');
-        return false;
-      }
-
-      // Get user information
-      const usersStr = localStorage.getItem('users');
-      if (!usersStr) {
-        console.error('❌ No users found in localStorage');
-        return false;
-      }
-
-      const users = JSON.parse(usersStr);
-      const userData = users.find((u: any) => u.msnv === msnv);
-
-      if (!userData) {
-        console.error('❌ User not found in localStorage');
-        return false;
-      }
-
-      // Save session
+      // save session
       setUser(userData);
 
       if (rememberMe) {
-        localStorage.setItem('sessionUser', JSON.stringify(userData));
-        localStorage.removeItem('rememberedLogin');
+        localStorage.setItem(
+          'sessionUser',
+          JSON.stringify(userData)
+        );
       } else {
-        sessionStorage.setItem('sessionUser', JSON.stringify(userData));
-        localStorage.removeItem('sessionUser');
+        sessionStorage.setItem(
+          'sessionUser',
+          JSON.stringify(userData)
+        );
       }
 
-      console.log('✅ Login successful via localStorage');
-      
-      // Trigger sync after login (to push local changes if any)
-      dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
-      
+      console.log('✅ Login success');
+
       return true;
+
     } catch (err) {
       console.error('💥 Login error:', err);
       return false;
