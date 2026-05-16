@@ -17,15 +17,30 @@ export function SyncStatus({ compact = false }: SyncStatusProps) {
   const [lastSync, setLastSync] = useState<Date | null>(null);
 
   useEffect(() => {
-    const checkConnection = () => {
-      setIsConnected(dataSync.isConnected);
-    };
+  const checkConnection = async () => {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .select('id')
+        .limit(1);
 
-    checkConnection();
-    const interval = setInterval(checkConnection, 5000); // Check every 5 seconds
+      setIsConnected(!error);
 
-    return () => clearInterval(interval);
-  }, []);
+      if (error) {
+        console.error('Supabase error:', error.message);
+      }
+    } catch (err) {
+      console.error('Connection error:', err);
+      setIsConnected(false);
+    }
+  };
+
+  checkConnection();
+
+  const interval = setInterval(checkConnection, 5000);
+
+  return () => clearInterval(interval);
+}, []);
 
   const handleSync = async () => {
     setIsSyncing(true);
