@@ -68,7 +68,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.setItem('userRecords', JSON.stringify(defaultUserRecords));
           
           console.log('✅ Default data initialized');
-          console.log('📝 Test credentials: MSNV: 1118, Password: admin123');
         }
 
         // Try localStorage first (persistent login)
@@ -107,58 +106,108 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = useCallback(
-  async (
-    msnv: string,
-    password: string,
-    rememberMe = false
-  ): Promise<boolean> => {
+    async (msnv: string, password: string, rememberMe = false): Promise<boolean> => {
+      console.log('🔐 Login attempt for:', msnv);
+      
+      try {
+        // 1. Try LocalStorage fallback first (Offline reliable)
+        const userRecordsStr = localStorage.getItem('userRecords');
+        const usersStr = localStorage.getItem('users');
+        
+        if (userRecordsStr && usersStr) {
+          const userRecords = JSON.parse(userRecordsStr);
+          const users = JSON.parse(usersStr);
+          
+          const record = userRecords.find((r: any) => r.msnv === msnv && r.status === true);
+          
+          if (record) {
+            // Check password (handle both plain and base64)
+            let isPasswordCorrect = false;
+            if (record.passwordHash === password) {
+              isPasswordCorrect = true;
+            } else {
+              try {
+                if (atob(record.passwordHash) === password) {
+                  isPasswordCorrect = true;
+                }
+              } catch (e) {
+                // Not base64
+              }
+            }
 
-    console.log('🔐 Login:', msnv);
+            if (isPasswordCorrect) {
+              const userData = users.find((u: any) => u.msnv === msnv);
+              if (userData) {
+                setUser(userData);
+                if (rememberMe) {
+                  localStorage.setItem('sessionUser', JSON.stringify(userData));
+                } else {
+                  sessionStorage.setItem('sessionUser', JSON.stringify(userData));
+                }
+                console.log('✅ Login successful via localStorage');
+                dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
+                return true;
+              }
+            }
+          }
+        }
 
-    try {
+        // 2. Try Supabase if online or local failed
+        if (supabase) {
+          // Get user record for auth
+          const { data: record, error: err1 } = await supabase
+            .from('user_records')
+            .select('*')
+            .eq('msnv', msnv)
+            .eq('status', true)
+            .single();
 
-      const { data: userData, error } =
-        await supabase
-          .from('users')
-          .select('*')
-          .eq('msnv', msnv)
-          .single();
+          if (!err1 && record) {
+            let isPasswordCorrect = false;
+            if (record.passwordHash === password) {
+              isPasswordCorrect = true;
+            } else {
+              try {
+                if (atob(record.passwordHash) === password) {
+                  isPasswordCorrect = true;
+                }
+              } catch (e) {
+                // Not base64
+              }
+            }
 
-      if (error || !userData) {
-        console.error('❌ User not found');
+            if (isPasswordCorrect) {
+              // Get full user profile
+              const { data: userData, error: err2 } = await supabase
+                .from('users')
+                .select('*')
+                .eq('msnv', msnv)
+                .single();
+
+              if (!err2 && userData) {
+                setUser(userData);
+                if (rememberMe) {
+                  localStorage.setItem('sessionUser', JSON.stringify(userData));
+                } else {
+                  sessionStorage.setItem('sessionUser', JSON.stringify(userData));
+                }
+                console.log('✅ Login successful via Supabase');
+                dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
+                return true;
+              }
+            }
+          }
+        }
+
+        console.error('❌ Login failed: Invalid MSNV or password');
+        return false;
+      } catch (err) {
+        console.error('💥 Login critical error:', err);
         return false;
       }
-
-      // check password
-      if (userData.password !== password) {
-        console.error('❌ Wrong password');
-        return false;
-      }
-
-      // save session
-      setUser(userData);
-
-      if (rememberMe) {
-        localStorage.setItem(
-          'sessionUser',
-          JSON.stringify(userData)
-        );
-      } else {
-        sessionStorage.setItem(
-          'sessionUser',
-          JSON.stringify(userData)
-        );
-      }
-
-      console.log('✅ Login success');
-
-      return true;
-
-    } catch (err) {
-      console.error('💥 Login error:', err);
-      return false;
-    }
-  }, []);
+    },
+    []
+  );
 
   const logout = useCallback(() => {
     console.log('🚪 Logout');
