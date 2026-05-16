@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               position: 'Quản trị viên hệ thống',
               role: 'admin',
               status: true,
-              passwordHash: 'YWRtaW4xMjM=', // admin123
+              passwordHash: 'admin123', // admin123
               createdAt: new Date().toISOString()
             }
           ];
