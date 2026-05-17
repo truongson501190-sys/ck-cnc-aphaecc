@@ -28,8 +28,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const initializeAuth = () => {
       try {
         // ... existing seeding logic ...
-        if (!localStorage.getItem('userRecords')) {
-          // (giữ nguyên logic khởi tạo dữ liệu mặc định bên dưới)
+        const userRecordsStr = localStorage.getItem('userRecords');
+        const usersStr = localStorage.getItem('users');
+        
+        if (!userRecordsStr || !usersStr) {
           console.log('📦 Initializing localStorage with default data...');
           
           const defaultUsers = [
@@ -61,7 +63,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               position: 'Quản trị viên hệ thống',
               role: 'admin',
               status: true,
-              passwordHash: 'admin123', // admin123
+              passwordHash: 'admin123', // plain text for initial local check
               createdAt: new Date().toISOString()
             }
           ];
@@ -70,6 +72,47 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.setItem('userRecords', JSON.stringify(defaultUserRecords));
           
           console.log('✅ Default data initialized');
+        } else {
+          // If storage exists, ensure 1118 exists
+          const userRecords = JSON.parse(userRecordsStr);
+          if (!userRecords.find((r: any) => r.msnv === '1118')) {
+            console.log('📦 Adding missing admin user to local storage...');
+            const adminRecord = {
+              id: 'admin-' + Date.now(),
+              msnv: '1118',
+              fullName: 'Nguyễn Trường Sơn',
+              department: 'Admin',
+              position: 'Quản trị viên hệ thống',
+              role: 'admin',
+              status: true,
+              passwordHash: 'admin123',
+              createdAt: new Date().toISOString()
+            };
+            userRecords.push(adminRecord);
+            localStorage.setItem('userRecords', JSON.stringify(userRecords));
+            
+            const users = JSON.parse(usersStr);
+            if (!users.find((u: any) => u.msnv === '1118')) {
+              users.push({
+                msnv: '1118',
+                fullName: 'Nguyễn Trường Sơn',
+                department: 'Admin',
+                position: 'Quản trị viên hệ thống',
+                role: 'admin',
+                status: 'active',
+                permissions: {
+                  'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                  'kho-co-khi': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                  'kho-cnc': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                  'kho-dau': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                  'bao-cao-tong-hop': { view: true, add: true, edit: true, delete: true, approve: true, export: true }
+                },
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              });
+              localStorage.setItem('users', JSON.stringify(users));
+            }
+          }
         }
 
         // Try localStorage first (persistent login)
@@ -182,11 +225,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         // 2. Try Supabase if online or local failed
         if (supabase) {
           console.log('🌐 Attempting Supabase login for:', msnv);
-          // Get user record for auth
+          // Get user record for auth - Use correct DB column names
           const { data: record, error: err1 } = await supabase
             .from('user_records')
             .select('*')
-            .eq('msnv', msnv)
+            .eq('employee_code', msnv)
             .eq('status', true)
             .single();
 
@@ -200,12 +243,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
           if (!err1 && record) {
             console.log('👤 User record found in Supabase. Verifying password...');
+            
+            // Map DB fields to local expectations for the password check logic
+            const dbPasswordHash = record.password_hash || record.passwordHash;
+            
             let isPasswordCorrect = false;
-            if (record.passwordHash === password) {
+            if (dbPasswordHash === password) {
               isPasswordCorrect = true;
             } else {
               try {
-                if (atob(record.passwordHash) === password) {
+                if (atob(dbPasswordHash) === password) {
                   isPasswordCorrect = true;
                 }
               } catch (e) {
@@ -214,19 +261,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             if (isPasswordCorrect) {
-              // Get full user profile
+              // Get full user profile - Use correct DB column names
               const { data: userData, error: err2 } = await supabase
                 .from('users')
                 .select('*')
-                .eq('msnv', msnv)
+                .eq('employee_code', msnv)
                 .single();
 
               if (!err2 && userData) {
-                setUser(userData);
+                // Map back to expected User type if needed (fullName vs full_name)
+                const normalizedUser: User = {
+                  ...userData,
+                  fullName: userData.full_name || userData.fullName,
+                  msnv: userData.employee_code || userData.msnv
+                };
+
+                setUser(normalizedUser);
                 if (rememberMe) {
-                  localStorage.setItem('sessionUser', JSON.stringify(userData));
+                  localStorage.setItem('sessionUser', JSON.stringify(normalizedUser));
                 } else {
-                  sessionStorage.setItem('sessionUser', JSON.stringify(userData));
+                  sessionStorage.setItem('sessionUser', JSON.stringify(normalizedUser));
                 }
                 console.log('✅ Login successful via Supabase');
                 dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
