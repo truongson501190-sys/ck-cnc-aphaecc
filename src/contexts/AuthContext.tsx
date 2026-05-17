@@ -126,48 +126,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔐 Login attempt for:', msnv);
       
       try {
-        // 1. Try LocalStorage fallback first (Offline reliable)
-        const userRecordsStr = localStorage.getItem('userRecords');
-        const usersStr = localStorage.getItem('users');
-        
-        if (userRecordsStr && usersStr) {
-          const userRecords = JSON.parse(userRecordsStr);
-          const users = JSON.parse(usersStr);
-          
-          const record = userRecords.find((r: any) => r.msnv === msnv && r.status === true);
-          
-          if (record) {
-            // Check password (handle both plain and base64)
-            let isPasswordCorrect = false;
-            if (record.passwordHash === password) {
-              isPasswordCorrect = true;
-            } else {
-              try {
-                if (atob(record.passwordHash) === password) {
-                  isPasswordCorrect = true;
-                }
-              } catch (e) {
-                // Not base64
-              }
-            }
-
-            if (isPasswordCorrect) {
-              const userData = users.find((u: any) => u.msnv === msnv);
-              if (userData) {
-                setUser(userData);
-                if (rememberMe) {
-                  localStorage.setItem('sessionUser', JSON.stringify(userData));
-                } else {
-                  sessionStorage.setItem('sessionUser', JSON.stringify(userData));
-                }
-                console.log('✅ Login successful via localStorage');
-                dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
-                return true;
-              }
-            }
-          }
-        }
-
         // Try LocalStorage fallback first (Offline reliable)
         const userRecordsStr = localStorage.getItem('userRecords');
         const usersStr = localStorage.getItem('users');
