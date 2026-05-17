@@ -170,6 +170,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // 2. Try Supabase if online or local failed
         if (supabase) {
+          console.log('🌐 Attempting Supabase login...');
           // Get user record for auth
           const { data: record, error: err1 } = await supabase
             .from('user_records')
@@ -177,6 +178,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             .eq('msnv', msnv)
             .eq('status', true)
             .single();
+
+          if (err1) {
+            if (err1.code === 'PGRST116') {
+              console.warn('ℹ️ User not found in Supabase user_records');
+            } else {
+              console.error('❌ Supabase auth error:', err1.message, err1.code);
+            }
+          }
 
           if (!err1 && record) {
             let isPasswordCorrect = false;

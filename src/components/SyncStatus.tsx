@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { toast } from 'sonner';
 import { Cloud, CloudOff, RefreshCw, Wifi, WifiOff } from 'lucide-react';
 import { dataSync } from '@/lib/dataSync';
-import { getSupabase } from '@/supabase';
 
 interface SyncStatusProps {
   compact?: boolean;
@@ -17,30 +16,26 @@ export function SyncStatus({ compact = false }: SyncStatusProps) {
   const [lastSync, setLastSync] = useState<Date | null>(null);
 
   useEffect(() => {
-  const checkConnection = async () => {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .select('id')
-        .limit(1);
+    // Listen to data sync events
+    const handleDataSynced = () => {
+      setLastSync(new Date());
+    };
 
-      setIsConnected(!error);
+    window.addEventListener('app-data-synced', handleDataSynced);
 
-      if (error) {
-        console.error('Supabase error:', error.message);
-      }
-    } catch (err) {
-      console.error('Connection error:', err);
-      setIsConnected(false);
-    }
-  };
+    // Sync status with DataSyncService
+    const interval = setInterval(() => {
+      setIsConnected(dataSync.connected);
+    }, 2000);
 
-  checkConnection();
+    // Initial check
+    setIsConnected(dataSync.connected);
 
-  const interval = setInterval(checkConnection, 5000);
-
-  return () => clearInterval(interval);
-}, []);
+    return () => {
+      window.removeEventListener('app-data-synced', handleDataSynced);
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleSync = async () => {
     setIsSyncing(true);

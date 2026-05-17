@@ -51,20 +51,26 @@ export class DataSyncService {
     }
 
     try {
+      // Use Supabase client query to check connection as requested
       const { error } = await client
         .from('users')
         .select('id')
         .limit(1);
 
-      this.isConnected = !error;
-
       if (error) {
-        console.error('❌ Supabase connection error:', error.message);
+        // Handle 401 specifically for clarity
+        if (error.code === '401' || error.message?.includes('401') || error.code === 'PGRST301') {
+          console.error('❌ Supabase connection error: 401 Unauthorized. Please check your Anon Key in .env');
+        } else {
+          console.error('❌ Supabase connection error:', error.message);
+        }
+        this.isConnected = false;
       } else {
+        this.isConnected = true;
         console.log('✅ Supabase connected');
       }
-    } catch (err) {
-      console.error('❌ Connection failed:', err);
+    } catch (err: any) {
+      console.error('❌ Connection failed:', err.message || err);
       this.isConnected = false;
     }
   }
@@ -95,6 +101,7 @@ export class DataSyncService {
         { key: 'projects', table: 'projects' },
         { key: 'employees', table: 'users' },
         { key: 'warehouses', table: 'warehouses' },
+        { key: 'warehouseTransactions', table: 'warehouse_transactions' }
       ];
 
       for (const { key, table } of tables) {
@@ -138,10 +145,13 @@ export class DataSyncService {
       const tables = [
         { key: 'users', table: 'users' },
         { key: 'userRecords', table: 'user_records' },
+        { key: 'systemUsers', table: 'user_records' },
         { key: 'categoryTypes', table: 'categories' },
         { key: 'machines', table: 'machines' },
         { key: 'projects', table: 'projects' },
+        { key: 'employees', table: 'users' },
         { key: 'warehouses', table: 'warehouses' },
+        { key: 'warehouseTransactions', table: 'warehouse_transactions' }
       ];
 
       for (const { key, table } of tables) {
@@ -164,9 +174,19 @@ export class DataSyncService {
 
   // ================= FULL SYNC =================
   async fullSync() {
-    if (!this.isConnected) return false;
+    if (!navigator.onLine) return false;
 
-    await this.syncToCloud();
+    const client = getSupabase();
+    if (!client) return false;
+
+    // 1. Push local changes
+    try {
+      await this.syncToCloud();
+    } catch (e) {
+      console.warn('Sync to cloud failed, trying pull anyway');
+    }
+
+    // 2. Pull from cloud
     const success = await this.syncFromCloud();
 
     if (success) {

@@ -5,7 +5,7 @@ const fs = require('fs');
 const path = require('path');
 
 const envPath = path.join(__dirname, '.env');
-const supabasePath = path.join(__dirname, 'src', 'lib', 'supabase.ts');
+const supabasePath = path.join(__dirname, 'src', 'supabase.ts');
 
 const action = process.argv[2]; // 'enable' or 'disable'
 
@@ -31,22 +31,39 @@ import { createClient } from '@supabase/supabase-js';
 let supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-// Fix malformed URLs (e.g., " http//localhost" or " http://localhost")
+// Fix malformed URLs
 if (supabaseUrl) {
-  supabaseUrl = supabaseUrl.trim().replace(/\\s+/g, ''); // Remove all spaces
+  // 1. Remove all whitespace (including invisible ones) and encoded spaces
+  supabaseUrl = String(supabaseUrl).trim().replace(/[\\s\\uFEFF\\xA0]+/g, '').replace(/%20/g, '');
   
-  // Fix missing protocol colon (e.g., http// -> http://)
-  if (/^https?:\\/\\//i.test(supabaseUrl)) {
-    // Already correct
-  } else if (/^https?\\/\\//i.test(supabaseUrl)) {
-    supabaseUrl = supabaseUrl.replace(/^(https?)/i, '$1:');
-  } else if (!/^https?:\\/\\//i.test(supabaseUrl) && !supabaseUrl.startsWith('//')) {
-    // No protocol at all, assume http:// for localhost
-    supabaseUrl = 'http://' + supabaseUrl;
+  // 2. Handle cases where the URL might be prefixed with " http" or similar
+  // Keep only the last occurrence of http/https
+  const httpMatches = supabaseUrl.match(/https?:\\/\\//gi);
+  if ((httpMatches && httpMatches.length > 1) || supabaseUrl.includes('http//') || supabaseUrl.includes('http:/')) {
+    const httpIndex = supabaseUrl.toLowerCase().lastIndexOf('http');
+    if (httpIndex >= 0) {
+      supabaseUrl = supabaseUrl.substring(httpIndex);
+    }
   }
 
-  // Ensure no double protocols or other common typos
+  // 3. Fix protocol formatting (e.g., "http//", "http:/")
+  supabaseUrl = supabaseUrl.replace(/^(https?):?\\/*\\/*/i, '$1://');
+  
+  // 4. Ensure no double slashes after protocol
+  supabaseUrl = supabaseUrl.replace(/^(https?:\\/\\/)\\/+/i, '$1');
+  
+  // 5. Remove any trailing slashes
+  if (supabaseUrl.length > 8) {
+    supabaseUrl = supabaseUrl.replace(/\\/+$/, '');
+  }
+
+  // 6. Ensure no double protocols
   supabaseUrl = supabaseUrl.replace(/^(https?:\\/\\/)+/i, '$1');
+
+  // 7. Final sanity check
+  if (!/^https?:\\/\\//i.test(supabaseUrl) && supabaseUrl.length > 0) {
+    supabaseUrl = 'https://' + supabaseUrl;
+  }
 }
 
 export const supabase = supabaseUrl && supabaseAnonKey
