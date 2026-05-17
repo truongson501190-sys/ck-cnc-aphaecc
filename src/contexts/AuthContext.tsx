@@ -168,9 +168,62 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
         }
 
+        // Try LocalStorage fallback first (Offline reliable)
+        const userRecordsStr = localStorage.getItem('userRecords');
+        const usersStr = localStorage.getItem('users');
+        
+        console.log('📦 Checking local storage for user...');
+        
+        if (userRecordsStr && usersStr) {
+          const userRecords = JSON.parse(userRecordsStr);
+          const users = JSON.parse(usersStr);
+          
+          const record = userRecords.find((r: any) => r.msnv === msnv && r.status === true);
+          
+          if (record) {
+            console.log('👤 User record found locally. Verifying password...');
+            // Check password (handle both plain and base64)
+            let isPasswordCorrect = false;
+            if (record.passwordHash === password) {
+              isPasswordCorrect = true;
+            } else {
+              try {
+                if (atob(record.passwordHash) === password) {
+                  isPasswordCorrect = true;
+                }
+              } catch (e) {
+                // Not base64
+              }
+            }
+
+            if (isPasswordCorrect) {
+              const userData = users.find((u: any) => u.msnv === msnv);
+              if (userData) {
+                setUser(userData);
+                if (rememberMe) {
+                  localStorage.setItem('sessionUser', JSON.stringify(userData));
+                } else {
+                  sessionStorage.setItem('sessionUser', JSON.stringify(userData));
+                }
+                console.log('✅ Login successful via localStorage');
+                dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
+                return true;
+              } else {
+                console.warn('⚠️ User record exists but full user data is missing locally');
+              }
+            } else {
+              console.warn('❌ Local password mismatch');
+            }
+          } else {
+            console.log('ℹ️ User not found in local storage');
+          }
+        } else {
+          console.warn('⚠️ Local storage is empty (no userRecords or users)');
+        }
+
         // 2. Try Supabase if online or local failed
         if (supabase) {
-          console.log('🌐 Attempting Supabase login...');
+          console.log('🌐 Attempting Supabase login for:', msnv);
           // Get user record for auth
           const { data: record, error: err1 } = await supabase
             .from('user_records')
@@ -188,6 +241,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           }
 
           if (!err1 && record) {
+            console.log('👤 User record found in Supabase. Verifying password...');
             let isPasswordCorrect = false;
             if (record.passwordHash === password) {
               isPasswordCorrect = true;
@@ -219,9 +273,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 console.log('✅ Login successful via Supabase');
                 dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
                 return true;
+              } else {
+                console.error('❌ Failed to fetch user profile from Supabase:', err2?.message);
               }
+            } else {
+              console.warn('❌ Supabase password mismatch');
             }
           }
+        } else {
+          console.warn('⚠️ Supabase client is not initialized (check your .env key)');
         }
 
         console.error('❌ Login failed: Invalid MSNV or password');
