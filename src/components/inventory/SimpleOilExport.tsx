@@ -8,8 +8,7 @@ import { Combobox } from '@/components/ui/combobox';
 import { toast } from 'sonner';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
-import { Category, Machine, User, Project } from '@/types/categories';
-import { Employee } from '@/types/categories';
+import { Category, Machine, Employee } from '@/types/categories';
 import { getSavedCategories } from '@/lib/utils';
 
 interface SimpleOilExportProps {
@@ -21,7 +20,6 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   
   const [formData, setFormData] = useState({
@@ -55,15 +53,6 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
             maMay: m.maMayMoc,
             createdAt: new Date().toISOString()
           })));
-        }
-      }
-
-      // Load users
-      const savedUsers = localStorage.getItem('users');
-      if (savedUsers) {
-        const parsedUsers = JSON.parse(savedUsers);
-        if (Array.isArray(parsedUsers)) {
-          setUsers(parsedUsers);
         }
       }
 
@@ -111,12 +100,12 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
     }
 
     // Validate nguoiVanHanh if provided
-    if (formData.nguoiVanHanh && !employees.find(e => e.ten_nhan_vien === formData.nguoiVanHanh)) {
+    if (formData.nguoiVanHanh && !employees.some(emp => emp.ten_nhan_vien === formData.nguoiVanHanh)) {
       toast.error('Vui lòng chọn người nhận từ danh sách');
       return;
     }
 
-    const selectedCategory = categories.find(cat => cat.id === formData.loaiDau);
+    const selectedCategory = categories.find(cat => cat.id === formData.loaiDau || cat.maLoai === formData.loaiDau);
     const selectedMachine = machines.find(machine => machine.id === formData.mayMoc);
     
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
@@ -172,22 +161,16 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
             
             <div>
               <Label className="text-sm font-medium">Loại dầu *</Label>
-              <Select value={formData.loaiDau} onValueChange={(value) => handleInputChange('loaiDau', value)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn loại dầu..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.length === 0 ? (
-                    <div className="p-2 text-sm text-gray-500">Chưa có loại dầu nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                  ) : (
-                    categories.map((category) => (
-                      <SelectItem key={category.id} value={category.maLoai || category.id}>
-                        {category.tenLoai || category.tenChungLoai || category.maLoai || category.id}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+              <Combobox
+                value={formData.loaiDau}
+                onValueChange={(value) => handleInputChange('loaiDau', value)}
+                placeholder="Nhập hoặc chọn loại dầu..."
+                options={categories.map((c) => ({
+                  label: c.tenLoai || c.tenChungLoai || c.maLoai || c.id,
+                  value: c.id
+                }))}
+                allowCustom={true}
+              />
             </div>
           </div>
 

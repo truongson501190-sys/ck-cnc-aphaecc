@@ -6,13 +6,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Combobox } from '@/components/ui/combobox';
 import { toast } from 'sonner';
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
-import { Category, Warehouse, User, Project } from '@/types/categories';
-import { Employee } from '@/types/categories';
+import { Category, Warehouse, Project, Employee } from '@/types/categories';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { getSavedCategories } from '@/lib/utils';
+import { getSystemUsers, type SystemUser } from '@/hooks/useSystemUsers';
+import { 
+  getAllowedWarehousesByDepartment, 
+  getWarehouseDisplayName, 
+  validateWarehouseSelection,
+  WAREHOUSES
+} from '@/lib/warehousePermissions';
 
 interface ExactLayoutWarehouseExportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
@@ -23,9 +29,10 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+  const [selectedUserDepartment, setSelectedUserDepartment] = useState<string>('');
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategory, setNewCategory] = useState({
     tenChungLoai: '',
@@ -47,8 +54,6 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     ghiChu: ''
   });
 
-  const [dataList, setDataList] = useState<any[]>([]);
-  const [showFilter, setShowFilter] = useState(false);
   const [extraItems, setExtraItems] = useState<Array<{ id: string; chungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }>>([]);
 
   useEffect(() => {
@@ -58,6 +63,10 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
   const loadData = () => {
     try {
       setCategories(getSavedCategories());
+
+      // Load system users
+      const users = getSystemUsers();
+      setSystemUsers(users);
 
       // Load warehouses from localStorage
       const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
@@ -72,15 +81,6 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
             diaChi: w.diaChi,
             createdAt: w.createdAt || new Date().toISOString()
           })));
-        }
-      }
-
-      // Load users
-      const savedUsers = localStorage.getItem('users');
-      if (savedUsers) {
-        const parsedUsers = JSON.parse(savedUsers);
-        if (Array.isArray(parsedUsers)) {
-          setUsers(parsedUsers);
         }
       }
 
@@ -261,6 +261,16 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
       const donGia = parseFloat(field === 'donGia' ? value : newData.donGia) || 0;
       newData.thanhTien = (soLuong * donGia).toString();
     }
+
+    // Handle user selection and update allowed warehouses
+    if (field === 'nguoiXuat') {
+      const selectedUser = systemUsers.find(u => u.fullName === value || u.msnv === value);
+      if (selectedUser) {
+        setSelectedUserDepartment(selectedUser.department);
+        // Clear the warehouse selection to force user to reselect
+        newData.khoXuat = '';
+      }
+    }
     
     setFormData(newData);
   };
@@ -273,20 +283,31 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
       return;
     }
 
+    // Validate that a user is selected
+    if (!formData.nguoiXuat) {
+      toast.error('Vui lòng chọn người xuất');
+      return;
+    }
+
+    // Validate warehouse selection based on user's department
+    const validation = validateWarehouseSelection(selectedUserDepartment, formData.khoXuat as any);
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+
     // Validate nguoiNhan is valid employee
-    const validEmployee = employees.find(e => e.msnv === formData.nguoiNhan);
-    if (!validEmployee) {
+    const validRecipient = employees.find(e => e.ten_nhan_vien === formData.nguoiNhan);
+    if (!validRecipient) {
       toast.error('Vui lòng chọn người nhận từ danh sách');
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      ...formData,
-      createdAt: new Date().toLocaleString('vi-VN')
-    };
-
-    setDataList([...dataList, newItem]);
+    // Validate nguoiXuat if provided
+    if (formData.nguoiXuat && !employees.find(e => e.ten_nhan_vien === formData.nguoiXuat)) {
+      toast.error('Vui lòng chọn người xuất từ danh sách');
+      return;
+    }
 
     const selectedCategory = findCategoryByValue(formData.chungLoai);
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
@@ -314,76 +335,10 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
 
   return (
     <div className="max-w-7xl mx-auto bg-white">
-      {/* Header Lọc Và Chỉnh Sửa */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-red-400 to-orange-500 text-white p-4 rounded-t-lg">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">📤 Phiếu Xuất Kho</h2>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setShowFilter(!showFilter)}
-            className="text-white hover:bg-white/20"
-          >
-            {showFilter ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {showFilter ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
-          </Button>
-        </div>
+        <h2 className="text-xl font-semibold">📤 Phiếu Xuất Kho</h2>
       </div>
-
-      {/* Phần Filter - Có thể ẩn/hiện */}
-      {showFilter && (
-        <div className="bg-gray-50 p-4 border-b">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div>
-              <Label className="text-sm font-medium">Từ ngày</Label>
-              <Input type="date" className="w-full" />
-            </div>
-            
-            <div>
-              <Label className="text-sm font-medium">Đến ngày</Label>
-              <Input type="date" className="w-full" />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Chủng loại</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.tenChungLoai}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Kho</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  {warehouses.map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={warehouse.id}>
-                      {warehouse.tenKho}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-600 mt-2">
-            Hiển thị {dataList.length} bản ghi
-          </div>
-        </div>
-      )}
 
       {/* Layout dầu: Header thông tin chính, bảng giữa, các field dưới bảng */}
       <div className="p-6 space-y-6">
@@ -562,20 +517,39 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
             {/* Các field dưới bảng */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
               <div>
-                <Label className="text-sm font-medium">Kho xuất *</Label>
-                <Select value={formData.khoXuat} onValueChange={(value) => handleInputChange('khoXuat', value)}>
-                  <SelectTrigger className="bg-white"><SelectValue placeholder="Chọn kho xuất" /></SelectTrigger>
-                  <SelectContent>
-                    {warehouses.map((w) => <SelectItem key={w.id} value={w.tenKho}>{w.tenKho}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label className="text-sm font-medium">Người xuất *</Label>
+                <Combobox
+                  value={formData.nguoiXuat}
+                  onValueChange={(value) => handleInputChange('nguoiXuat', value)}
+                  placeholder="Tìm kiếm và chọn người xuất..."
+                  options={systemUsers.map(u => ({ 
+                    label: `${u.fullName} - ${u.msnv} (${u.department})`, 
+                    value: u.fullName 
+                  }))}
+                  allowCustom={false}
+                />
               </div>
               <div>
-                <Label className="text-sm font-medium">Người xuất *</Label>
-                <Select value={formData.nguoiXuat} onValueChange={(value) => handleInputChange('nguoiXuat', value)}>
-                  <SelectTrigger className="bg-white"><SelectValue placeholder="Chọn người xuất..." /></SelectTrigger>
+                <Label className="text-sm font-medium">
+                  Kho xuất * 
+                  {selectedUserDepartment && (
+                    <span className="text-xs text-gray-600 ml-2">
+                      Bộ phận: {selectedUserDepartment}
+                    </span>
+                  )}
+                </Label>
+                <Select value={formData.khoXuat} onValueChange={(value) => handleInputChange('khoXuat', value)}>
+                  <SelectTrigger className="bg-white"><SelectValue placeholder={selectedUserDepartment ? "Chọn kho được phép" : "Chọn người xuất trước"} /></SelectTrigger>
                   <SelectContent>
-                    {users.map((u) => <SelectItem key={u.id} value={u.hoTen}>{u.hoTen} - {u.msnv}</SelectItem>)}
+                    {selectedUserDepartment ? (
+                      getAllowedWarehousesByDepartment(selectedUserDepartment).map((code) => (
+                        <SelectItem key={code} value={code}>
+                          {getWarehouseDisplayName(code)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>Vui lòng chọn người xuất trước</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -585,7 +559,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                   value={formData.nguoiNhan}
                   onValueChange={(value) => handleInputChange('nguoiNhan', value)}
                   placeholder="Tìm kiếm và chọn người nhận..."
-                  options={employees.map(e => ({ label: `${e.ten_nhan_vien} - ${e.msnv}`, value: e.msnv }))}
+                  options={employees.map(e => ({ label: `${e.ten_nhan_vien} - ${e.msnv}`, value: e.ten_nhan_vien }))}
                   allowCustom={false}
                 />
               </div>

@@ -5,13 +5,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ChevronDown, ChevronUp, Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import { WarehouseTransaction } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
-import { Category, Warehouse, User, Project, Machine } from '@/types/categories';
+import { Category, Warehouse, Employee } from '@/types/categories';
 import { getSavedCategories } from '@/lib/utils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Combobox } from '@/components/ui/combobox';
+import { getSystemUsers, type SystemUser } from '@/hooks/useSystemUsers';
 
 interface ExactLayoutWarehouseImportProps {
   onSubmit: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void;
@@ -22,7 +23,8 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategory, setNewCategory] = useState({
     tenChungLoai: '',
@@ -42,8 +44,6 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
     ghiChu: ''
   });
 
-  const [dataList, setDataList] = useState<any[]>([]);
-  const [showFilter, setShowFilter] = useState(false);
   const [extraItems, setExtraItems] = useState<Array<{ id: string; chungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }>>([]);
 
   useEffect(() => {
@@ -61,7 +61,11 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
     try {
       setCategories(getSavedCategories());
 
-      // Load warehouses from localStorage, support both current and legacy keys
+      // Load system users
+      const users = getSystemUsers();
+      setSystemUsers(users);
+
+      // Load warehouses from localStorage
       const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
       if (savedWarehouses) {
         const parsedWarehouses = JSON.parse(savedWarehouses);
@@ -76,12 +80,12 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
         }
       }
 
-      // Load users
-      const savedUsers = localStorage.getItem('users');
-      if (savedUsers) {
-        const parsedUsers = JSON.parse(savedUsers);
-        if (Array.isArray(parsedUsers)) {
-          setUsers(parsedUsers);
+      // Load employees
+      const savedEmployees = localStorage.getItem('employees');
+      if (savedEmployees) {
+        const parsedEmployees = JSON.parse(savedEmployees);
+        if (Array.isArray(parsedEmployees)) {
+          setEmployees(parsedEmployees);
         }
       }
     } catch (error) {
@@ -259,18 +263,10 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
     }
 
     // Validate nguoiNhap if provided
-    if (formData.nguoiNhap && !users.find(u => u.msnv === formData.nguoiNhap && ['user', 'admin', 'manager'].includes(u.role))) {
+    if (formData.nguoiNhap && !employees.find(e => e.ten_nhan_vien === formData.nguoiNhap)) {
       toast.error('Vui lòng chọn người nhập từ danh sách');
       return;
     }
-
-    const newItem = {
-      id: Date.now(),
-      ...formData,
-      createdAt: new Date().toLocaleString('vi-VN')
-    };
-
-    setDataList([...dataList, newItem]);
 
     const selectedCategory = findCategoryByValue(formData.chungLoai);
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
@@ -296,127 +292,10 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
 
   return (
     <div className="max-w-7xl mx-auto bg-white">
-      {/* Header Lọc Và Chỉnh Sửa */}
+      {/* Header */}
       <div className="bg-gradient-to-r from-green-400 to-blue-500 text-white p-4 rounded-t-lg">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold">✅ Lọc Và Chỉnh Sửa</h2>
-          <Button 
-            variant="ghost" 
-            size="sm" 
-            onClick={() => setShowFilter(!showFilter)}
-            className="text-white hover:bg-white/20"
-          >
-            {showFilter ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-            {showFilter ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
-          </Button>
-        </div>
+        <h2 className="text-xl font-semibold">➕ Phiếu Nhập Kho</h2>
       </div>
-
-      {/* Phần Filter - Có thể ẩn/hiện */}
-      {showFilter && (
-        <div className="bg-gray-50 p-4 border-b">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-            <div>
-              <Label className="text-sm font-medium">Từ ngày</Label>
-              <Input type="date" className="w-full" />
-            </div>
-            
-            <div>
-              <Label className="text-sm font-medium">Đến ngày</Label>
-              <Input type="date" className="w-full" />
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Chủng loại</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.tenChungLoai}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Kho</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  {warehouses.map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={warehouse.id}>
-                      {warehouse.tenKho}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Người dùng</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  {users.map((user) => (
-                    <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
-                      {user.hoTen}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label className="text-sm font-medium">Sắp xếp</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="Mới nhất" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Mới nhất</SelectItem>
-                  <SelectItem value="oldest">Cũ nhất</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium">Hiển thị</Label>
-              <Select>
-                <SelectTrigger>
-                  <SelectValue placeholder="25 bản ghi" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="25">25 bản ghi</SelectItem>
-                  <SelectItem value="50">50 bản ghi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm">📋 Đặt lại</Button>
-              <Button type="button" variant="outline" size="sm" className="bg-blue-50">📊 Chỉnh sửa</Button>
-              <Button type="button" variant="outline" size="sm" className="bg-green-50">📤 Xuất Excel</Button>
-            </div>
-          </div>
-
-          <div className="text-sm text-gray-600 mt-2">
-            Hiển thị {dataList.length} bản ghi
-          </div>
-        </div>
-      )}
 
       {/* Layout dầu: Header thông tin chính, bảng giữa, các field dưới bảng */}
       <div className="p-6 space-y-6">
@@ -492,7 +371,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                         placeholder="Nhập hoặc chọn chủng loại"
                         options={categories.map((c) => ({
                           label: c.tenLoai || c.tenChungLoai || c.maLoai,
-                          value: c.tenLoai || c.tenChungLoai || c.maLoai
+                          value: c.id
                         }))}
                         allowCustom={true}
                       />
@@ -523,7 +402,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                           placeholder="Nhập hoặc chọn chủng loại"
                           options={categories.map((c) => ({
                             label: c.tenLoai || c.tenChungLoai || c.maLoai,
-                            value: c.tenLoai || c.tenChungLoai || c.maLoai
+                            value: c.id
                           }))}
                           allowCustom={true}
                         />
@@ -568,7 +447,10 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                   value={formData.nguoiNhap}
                   onValueChange={(value) => handleInputChange('nguoiNhap', value)}
                   placeholder="Tìm kiếm và chọn người nhập..."
-                  options={users.filter(u => ['user', 'admin', 'manager'].includes(u.role)).map(u => ({ label: `${u.fullName} - ${u.msnv}`, value: u.msnv }))}
+                  options={systemUsers.map(u => ({ 
+                    label: `${u.fullName} - ${u.msnv} (${u.department})`, 
+                    value: u.fullName 
+                  }))}
                   allowCustom={false}
                 />
               </div>

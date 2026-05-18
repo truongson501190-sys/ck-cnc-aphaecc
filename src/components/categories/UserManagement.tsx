@@ -8,12 +8,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Edit, Trash2, Users, Eye, EyeOff } from 'lucide-react';
+import type { SystemUser } from '@/hooks/useSystemUsers';
+import { getSystemUsers } from '@/hooks/useSystemUsers';
 import { User } from '@/types/categories';
 
 export function UserManagement() {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<SystemUser[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     msnv: '',
@@ -36,33 +38,59 @@ export function UserManagement() {
     { value: 'inactive', label: 'Tạm khóa' }
   ];
 
+  const departments = [
+    { value: 'Kho', label: 'Bộ phận Kho' },
+    { value: 'Tổ CNC', label: 'Tổ CNC' },
+    { value: 'Tổ Cơ khí', label: 'Tổ Cơ Khí' },
+    { value: 'Khác', label: 'Khác' }
+  ];
+
   useEffect(() => {
     loadUsers();
+    // Listen for storage changes from other tabs/windows
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'users') {
+        loadUsers();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
   }, []);
 
   const loadUsers = () => {
     try {
-      const saved = localStorage.getItem('systemUsers');
-      if (saved) {
-        setUsers(JSON.parse(saved));
-      }
+      const saved = getSystemUsers();
+      setUsers(saved);
     } catch (error) {
       console.error('Error loading users:', error);
     }
   };
 
-  const saveUsers = (updatedUsers: User[]) => {
+  const saveUsers = (updatedUsers: SystemUser[]) => {
     setUsers(updatedUsers);
-    localStorage.setItem('systemUsers', JSON.stringify(updatedUsers));
+    localStorage.setItem('users', JSON.stringify(updatedUsers));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.msnv || !formData.hoTen || !formData.chucDanh || !formData.boPhan || !formData.matKhau) {
+      alert('Vui lòng điền đầy đủ tất cả các trường bắt buộc (*)');
+      return;
+    }
+    
     if (editingUser) {
       const updatedUsers = users.map(user =>
-        user.id === editingUser.id
-          ? { ...user, ...formData }
+        user.msnv === editingUser.msnv
+          ? {
+              ...user,
+              fullName: formData.hoTen,
+              department: formData.boPhan as any,
+              position: formData.chucDanh,
+              role: formData.vaiTro,
+              status: formData.trangThai as any,
+              updatedAt: new Date().toISOString()
+            }
           : user
       );
       saveUsers(updatedUsers);
@@ -73,19 +101,15 @@ export function UserManagement() {
         return;
       }
 
-      const newUser: User = {
-        id: Date.now().toString(),
-        // map formData to User fields expected by categories.User
+      const newUser: SystemUser = {
         msnv: formData.msnv,
-        hoTen: formData.hoTen,
-        chucVu: formData.chucDanh ?? formData.hoTen,
-        phongBan: formData.boPhan ?? '',
-        chucDanh: formData.chucDanh,
-        boPhan: formData.boPhan,
-        matKhau: formData.matKhau,
-        vaiTro: formData.vaiTro,
-        trangThai: formData.trangThai,
-        createdAt: new Date().toISOString()
+        fullName: formData.hoTen,
+        department: formData.boPhan as any,
+        position: formData.chucDanh,
+        role: formData.vaiTro,
+        status: formData.trangThai as any,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       };
       saveUsers([...users, newUser]);
     }
@@ -108,23 +132,23 @@ export function UserManagement() {
     setShowPassword(false);
   };
 
-  const handleEdit = (user: User) => {
+  const handleEdit = (user: SystemUser) => {
     setEditingUser(user);
     setFormData({
       msnv: user.msnv,
-      hoTen: user.hoTen ?? '',
-      chucDanh: user.chucDanh ?? '',
-      boPhan: user.boPhan ?? '',
-      matKhau: user.matKhau ?? '',
-      vaiTro: (user.vaiTro as any) ?? 'user',
-      trangThai: (user.trangThai as any) ?? 'active'
+      hoTen: user.fullName,
+      chucDanh: user.position,
+      boPhan: user.department,
+      matKhau: '',
+      vaiTro: user.role,
+      trangThai: user.status
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (msnv: string) => {
     if (confirm('Bạn có chắc chắn muốn xóa người dùng này?')) {
-      const updatedUsers = users.filter(user => user.id !== id);
+      const updatedUsers = users.filter(user => user.msnv !== msnv);
       saveUsers(updatedUsers);
     }
   };
@@ -206,17 +230,25 @@ export function UserManagement() {
               
               <div>
                 <Label htmlFor="boPhan">Bộ Phận *</Label>
-                <Input
-                  id="boPhan"
+                <Select
                   value={formData.boPhan}
-                  onChange={(e) => setFormData({...formData, boPhan: e.target.value})}
-                  placeholder="VD: Phòng Kỹ thuật, Phòng Sản xuất..."
-                  required
-                />
+                  onValueChange={(value) => setFormData({...formData, boPhan: value})}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Chọn bộ phận" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.value} value={dept.value}>
+                        {dept.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               
               <div>
-                <Label htmlFor="matKhau">Mật Khẩu *</Label>
+                <Label htmlFor="matKhau">Mật Khẩu {editingUser ? '(Để trống nếu không thay đổi)' : '*'}</Label>
                 <div className="relative">
                   <Input
                     id="matKhau"
@@ -224,7 +256,7 @@ export function UserManagement() {
                     value={formData.matKhau}
                     onChange={(e) => setFormData({...formData, matKhau: e.target.value})}
                     placeholder="Nhập mật khẩu"
-                    required
+                    required={!editingUser}
                   />
                   <Button
                     type="button"
@@ -319,19 +351,19 @@ export function UserManagement() {
                   </TableRow>
                 ) : (
                   users.map((user) => (
-                    <TableRow key={user.id}>
+                    <TableRow key={user.msnv}>
                       <TableCell className="font-medium">{user.msnv}</TableCell>
-                      <TableCell>{user.hoTen}</TableCell>
-                      <TableCell>{user.chucDanh}</TableCell>
-                      <TableCell>{user.boPhan}</TableCell>
+                      <TableCell>{user.fullName}</TableCell>
+                      <TableCell>{user.position}</TableCell>
+                      <TableCell>{user.department}</TableCell>
                       <TableCell>
-                        <Badge className={getRoleColor(user.vaiTro ?? 'user')}>
-                          {roles.find(r => r.value === (user.vaiTro ?? 'user'))?.label}
+                        <Badge className={getRoleColor(user.role)}>
+                          {roles.find(r => r.value === user.role)?.label}
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(user.trangThai ?? 'active')}>
-                          {statuses.find(s => s.value === (user.trangThai ?? 'active'))?.label}
+                        <Badge className={getStatusColor(user.status)}>
+                          {statuses.find(s => s.value === user.status)?.label}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
@@ -346,7 +378,7 @@ export function UserManagement() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => handleDelete(user.id)}
+                            onClick={() => handleDelete(user.msnv)}
                             className="text-red-600 hover:text-red-700"
                           >
                             <Trash2 className="w-4 h-4" />

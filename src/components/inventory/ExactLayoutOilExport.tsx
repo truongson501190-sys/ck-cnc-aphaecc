@@ -5,10 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { ChevronDown, ChevronUp, Plus, Trash2, Download } from 'lucide-react';
+import { Plus, Trash2, Download } from 'lucide-react';
 import { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
 import { useAuth } from '@/hooks/useAuth';
-import { Category, Machine, User, Employee } from '@/types/categories';
+import { Category, Machine, Employee } from '@/types/categories';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Combobox } from '@/components/ui/combobox';
@@ -23,7 +23,6 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
   
   const [categories, setCategories] = useState<Category[]>([]);
   const [machines, setMachines] = useState<Machine[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
   const [newCategory, setNewCategory] = useState({
@@ -53,9 +52,6 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
     }
   ]);
 
-  const [dataList, setDataList] = useState<any[]>([]);
-  const [showFilter, setShowFilter] = useState(false);
-
   useEffect(() => {
     loadData();
   }, []);
@@ -67,11 +63,6 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
       if (savedMachines) {
         const parsed = JSON.parse(savedMachines);
         if (Array.isArray(parsed)) setMachines(parsed);
-      }
-      const savedUsers = localStorage.getItem('users');
-      if (savedUsers) {
-        const parsed = JSON.parse(savedUsers);
-        if (Array.isArray(parsed)) setUsers(parsed);
       }
       // Load employees from category management
       const savedEmployees = localStorage.getItem('employees');
@@ -97,7 +88,7 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
       createdAt: new Date().toISOString()
     };
     const savedCategories = localStorage.getItem('categoryTypes');
-    let allCategories: Category[] = savedCategories ? JSON.parse(savedCategories) : [];
+    const allCategories: Category[] = savedCategories ? JSON.parse(savedCategories) : [];
     allCategories.push(categoryToAdd);
     localStorage.setItem('categoryTypes', JSON.stringify(allCategories));
     setCategories(prev => [...prev, categoryToAdd]);
@@ -171,6 +162,12 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
       return;
     }
 
+    // Validate nguoiVanHanh if provided
+    if (headerData.nguoiVanHanh && !employees.find(e => e.ten_nhan_vien === headerData.nguoiVanHanh)) {
+      toast.error('Vui lòng chọn người nhận từ danh sách');
+      return;
+    }
+
     const totalValue = items.reduce((sum, item) => sum + item.totalValue, 0);
     const selectedMachine = machines.find(m => m.id === headerData.mayMoc);
     
@@ -196,7 +193,6 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
       createdAt: new Date().toLocaleString('vi-VN')
     };
 
-    setDataList([newItem, ...dataList]);
     onSubmit(transaction);
     setItems([{
       id: Date.now().toString(),
@@ -216,68 +212,14 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
     toast.success('Đã thêm phiếu xuất dầu thành công!');
   };
 
-  const handleExportExcel = () => {
-    if (dataList.length === 0) {
-      toast.error('Không có dữ liệu để xuất');
-      return;
-    }
-
-    const exportData = dataList.flatMap(phieu => 
-      phieu.items.map((item: any, index: number) => ({
-        'STT': index + 1,
-        'Ngày Xuất': phieu.ngayXuat,
-        'Số Phiếu': phieu.id,
-        'Máy Móc': machines.find(m => m.id === phieu.mayMoc)?.tenMay || phieu.mayMoc,
-        'Người Vận Hành': phieu.nguoiVanHanh,
-        'Trạng Thái Ban Đầu': phieu.trangThaiBanDau || '',
-        'Loại Dầu': item.itemName,
-        'Số Lượng': item.quantity,
-        'Đơn Vị': item.unit,
-        'Đơn Giá': item.price,
-        'Thành Tiền': item.totalValue,
-        'Ghi Chú': phieu.ghiChu || ''
-      }))
-    );
-
-    const ws = XLSX.utils.json_to_sheet(exportData);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'XuatDau');
-    XLSX.writeFile(wb, `Bao_Cao_Xuat_Dau_${new Date().toISOString().split('T')[0]}.xlsx`);
-    toast.success('Đã xuất file Excel thành công');
-  };
-
   return (
     <div className="max-w-7xl mx-auto bg-white">
       {/* Header */}
       <div className="bg-gradient-to-r from-orange-400 to-yellow-500 text-white p-4 rounded-t-lg">
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold">🛢️ Phiếu Xuất Dầu Mỡ (Nhiều Loại)</h2>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={handleExportExcel} className="text-white hover:bg-white/20">
-              <Download className="w-4 h-4 mr-1" /> Xuất Excel
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setShowFilter(!showFilter)} className="text-white hover:bg-white/20">
-              {showFilter ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              {showFilter ? 'Ẩn bộ lọc' : 'Hiện bộ lọc'}
-            </Button>
-          </div>
         </div>
       </div>
-
-      {/* Filter */}
-      {showFilter && (
-        <div className="bg-gray-50 p-4 border-b">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div><Label className="text-sm font-medium">Từ ngày</Label><Input type="date" className="w-full" /></div>
-            <div><Label className="text-sm font-medium">Đến ngày</Label><Input type="date" className="w-full" /></div>
-            <div><Label className="text-sm font-medium">Máy móc</Label>
-              <Select><SelectTrigger><SelectValue placeholder="Tất cả" /></SelectTrigger>
-              <SelectContent>{machines.map(m => <SelectItem key={m.id} value={m.id}>{m.tenMay}</SelectItem>)}</SelectContent></Select>
-            </div>
-            <div className="flex items-end"><Button type="button" variant="outline" size="sm" className="w-full">Đặt lại</Button></div>
-          </div>
-        </div>
-      )}
 
       <div className="p-6 space-y-6">
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -330,12 +272,12 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
                       <td className="p-2 text-center text-gray-500">{index + 1}</td>
                       <td className="p-2">
                         <Combobox
-                          value={item.itemName}
-                          onValueChange={(v) => handleItemChange(item.id, 'itemName', v)}
-                          placeholder="Chọn hoặc nhập loại dầu..."
+                          value={item.itemId}
+                          onValueChange={(v) => handleItemChange(item.id, 'itemId', v)}
+                          placeholder="Chọn chủng loại..."
                           options={categories.map(c => ({
                             label: c.tenLoai || c.tenChungLoai || c.maLoai || c.id,
-                            value: c.tenLoai || c.tenChungLoai || c.maLoai || c.id
+                            value: c.id
                           }))}
                           allowCustom={true}
                         />
@@ -373,16 +315,13 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
               </div>
               <div>
                 <Label className="text-sm font-medium">Người nhận</Label>
-                <Select value={headerData.nguoiVanHanh} onValueChange={(v) => setHeaderData({...headerData, nguoiVanHanh: v})}>
-                  <SelectTrigger><SelectValue placeholder="Chọn người nhận" /></SelectTrigger>
-                  <SelectContent>
-                    {employees.map((emp) => (
-                      <SelectItem key={emp.id} value={emp.ten_nhan_vien}>
-                        {emp.ten_nhan_vien} - {emp.msnv}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Combobox
+                  value={headerData.nguoiVanHanh}
+                  onValueChange={(value) => setHeaderData({...headerData, nguoiVanHanh: value})}
+                  placeholder="Tìm kiếm và chọn người nhận..."
+                  options={employees.map(e => ({ label: `${e.ten_nhan_vien} - ${e.msnv}`, value: e.ten_nhan_vien }))}
+                  allowCustom={false}
+                />
               </div>
               <div>
                 <Label className="text-sm font-medium">Ghi chú</Label>
@@ -397,31 +336,6 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
 
           <Button type="submit" className="w-full bg-orange-600 hover:bg-orange-700 h-12 text-lg font-bold shadow-lg">💾 Lưu Phiếu Xuất Dầu</Button>
         </form>
-
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold border-b pb-2 text-gray-700">Các phiếu vừa tạo</h3>
-          <div className="grid grid-cols-1 gap-4">
-            {dataList.map((phieu) => (
-              <div key={phieu.id} className="border border-orange-100 rounded-lg p-4 bg-white shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    <div className="font-bold text-orange-700">Phiếu: {phieu.id}</div>
-                    <div className="text-sm text-gray-500">
-                      Ngày: {phieu.ngayXuat} | Máy: {machines.find(m => m.id === phieu.mayMoc)?.tenMay || phieu.mayMoc}
-                    </div>
-                    {phieu.trangThaiBanDau && (
-                      <div className="text-xs text-blue-600 font-medium mt-1">
-                        Trạng thái ban đầu: {phieu.trangThaiBanDau}
-                      </div>
-                    )}
-                  </div>
-                  <div className="text-right"><div className="font-bold text-orange-600 text-lg">{phieu.totalValue.toLocaleString('vi-VN')} VND</div><div className="text-xs text-gray-400">{phieu.createdAt}</div></div>
-                </div>
-                <div className="text-sm text-gray-600 bg-orange-50/50 p-2 rounded italic">Loại: {phieu.items.map((i: any) => `${i.itemName} (${i.quantity} ${i.unit})`).join(', ')}</div>
-              </div>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );

@@ -163,86 +163,75 @@ export const syncDataToSupabase = async (table: string, data: any[]) => {
       if (table === 'users') {
         if (item.msnv) {
           mapped.employee_code = item.msnv;
-          delete mapped.msnv;
         }
         if (item.fullName || item.ten_nhan_vien) {
           mapped.full_name = item.fullName || item.ten_nhan_vien;
-          delete mapped.fullName;
-          delete mapped.ten_nhan_vien;
         }
-        if (item.ghiChu) {
-          mapped.note = item.ghiChu;
-          delete mapped.ghiChu;
+        if (item.ghiChu || item.note) {
+          mapped.note = item.ghiChu || item.note;
         }
-        if (!mapped.role) mapped.role = 'user'; // Default role for employees
+        if (!mapped.role) mapped.role = 'user'; 
+
+        // Clean up ALL local fields that are not in the Supabase schema
+        const schemaColumns = [
+          'id', 'employee_code', 'full_name', 'role', 'note', 'status', 'permissions',
+          'created_at', 'updated_at'
+        ];
+        
+        Object.keys(mapped).forEach(key => {
+          if (!schemaColumns.includes(key)) {
+            delete mapped[key];
+          }
+        });
       }
       
       // Categories mapping
       if (table === 'categories') {
-        if (item.maLoai) {
-          mapped.code = item.maLoai;
-          delete mapped.maLoai;
-        }
-        if (item.tenLoai) {
-          mapped.name = item.tenLoai;
-          delete mapped.tenLoai;
-        }
-        if (item.donVi) {
-          mapped.unit = item.donVi;
-          delete mapped.donVi;
-        }
-        if (item.gia) {
-          mapped.price = item.gia;
-          delete mapped.gia;
-        }
+        if (item.maLoai) mapped.code = item.maLoai;
+        if (item.tenLoai) mapped.name = item.tenLoai;
+        if (item.donVi) mapped.unit = item.donVi;
+        if (item.gia) mapped.price = item.gia;
+
+        const schemaColumns = ['id', 'name', 'code', 'unit', 'price', 'created_at', 'updated_at'];
+        Object.keys(mapped).forEach(key => {
+          if (!schemaColumns.includes(key)) delete mapped[key];
+        });
       }
       
       // Machines mapping
       if (table === 'machines') {
-        if (item.maMay) {
-          mapped.code = item.maMay;
-          delete mapped.maMay;
-        }
-        if (item.tenMay) {
-          mapped.name = item.tenMay;
-          delete mapped.tenMay;
-        }
-        if (item.ghiChu) {
-          mapped.note = item.ghiChu;
-          delete mapped.ghiChu;
-        }
+        if (item.maMay) mapped.code = item.maMay;
+        if (item.tenMay) mapped.name = item.tenMay;
+        if (item.ghiChu) mapped.note = item.ghiChu;
+
+        const schemaColumns = ['id', 'name', 'code', 'note', 'created_at', 'updated_at'];
+        Object.keys(mapped).forEach(key => {
+          if (!schemaColumns.includes(key)) delete mapped[key];
+        });
       }
       
       // Projects mapping
       if (table === 'projects') {
-        if (item.maDuAn) {
-          mapped.project_code = item.maDuAn;
-          delete mapped.maDuAn;
-        }
-        if (item.tenDuAn) {
-          mapped.name = item.tenDuAn;
-          delete mapped.tenDuAn;
-        }
-        if (item.ghiChu) {
-          mapped.note = item.ghiChu;
-          delete mapped.ghiChu;
-        }
+        if (item.maDuAn) mapped.project_code = item.maDuAn;
+        if (item.tenDuAn) mapped.name = item.tenDuAn;
+        if (item.ghiChu) mapped.note = item.ghiChu;
+
+        const schemaColumns = ['id', 'project_code', 'name', 'note', 'created_at', 'updated_at'];
+        Object.keys(mapped).forEach(key => {
+          if (!schemaColumns.includes(key)) delete mapped[key];
+        });
       }
 
       // Warehouses mapping
       if (table === 'warehouses') {
-        if (item.maKho) {
-          mapped.code = item.maKho;
-          delete mapped.maKho;
-        }
-        if (item.tenKho) {
-          mapped.name = item.tenKho;
-          delete mapped.tenKho;
-        }
-        if (item.ghiChu) {
-          mapped.note = item.ghiChu;
-          delete mapped.ghiChu;
-        }
+        if (item.maKho) mapped.code = item.maKho;
+        if (item.tenKho) mapped.name = item.tenKho;
+        if (item.ghiChu) mapped.note = item.ghiChu;
+
+        const schemaColumns = ['id', 'name', 'code', 'type', 'address', 'note', 'created_at', 'updated_at'];
+        Object.keys(mapped).forEach(key => {
+          if (!schemaColumns.includes(key)) delete mapped[key];
+        });
       }
 
       // Transactions mapping
@@ -259,6 +248,38 @@ export const syncDataToSupabase = async (table: string, data: any[]) => {
           mapped.total_value = item.totalValue;
           delete mapped.totalValue;
         }
+        
+        // Map itemId/itemName to category_id
+        if (item.itemId || item.category_id) {
+          mapped.category_id = item.itemId || item.category_id;
+        }
+        
+        // Map warehouse locations
+        if (item.fromLocation) mapped.from_warehouse_id = item.fromLocation;
+        if (item.toLocation) mapped.to_warehouse_id = item.toLocation;
+        
+        // Map users
+        if (item.operator) mapped.created_by = item.operator;
+        if (item.recipient) mapped.received_by = item.recipient;
+
+        // Map IDs
+        if (item.projectId) mapped.project_id = item.projectId;
+        if (item.machineId) mapped.machine_id = item.machineId;
+
+        // Clean up ALL local fields that are not in the Supabase schema
+        const schemaColumns = [
+          'id', 'type', 'category_id', 'quantity', 'unit', 'price', 'total_value', 
+          'warehouse_id', 'from_warehouse_id', 'to_warehouse_id', 'project_id', 
+          'machine_id', 'created_by', 'received_by', 'approved_by', 'reason', 
+          'reference_number', 'status', 'transaction_date', 'notes', 
+          'approved_at', 'created_at', 'updated_at'
+        ];
+        
+        Object.keys(mapped).forEach(key => {
+          if (!schemaColumns.includes(key)) {
+            delete mapped[key];
+          }
+        });
       }
 
       // Final check to ensure id is removed before returning

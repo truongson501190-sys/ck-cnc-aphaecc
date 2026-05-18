@@ -23,7 +23,7 @@ export function getSavedCategories(): Category[] {
   const merged = [...categoryTypes, ...categoryItems];
 
   const normalized = merged.map((cat: any) => ({
-    id: cat.id || cat.maLoai || cat.maChungLoai || cat.tenChungLoai || Date.now().toString(),
+    id: cat.id || cat.maLoai || cat.maChungLoai || cat.tenChungLoai || `${cat.tenLoai}-${Math.random()}`,
     maLoai: cat.maLoai || cat.maChungLoai || cat.id || cat.tenChungLoai || cat.tenLoai || '',
     tenLoai: cat.tenLoai || cat.tenChungLoai || '',
     tenChungLoai: cat.tenChungLoai || cat.tenLoai || '',
@@ -33,7 +33,12 @@ export function getSavedCategories(): Category[] {
     createdAt: cat.createdAt || new Date().toISOString()
   })) as Category[];
 
+  // Lọc trùng lặp theo ID hoặc mã loại, và quan trọng nhất là theo TÊN (để tránh lỗi Key trong Combobox)
   return normalized.filter((cat, index, self) =>
-    index === self.findIndex(c => c.id === cat.id || c.maLoai === cat.maLoai)
+    index === self.findIndex(c => 
+      (c.id === cat.id && cat.id !== '') || 
+      (c.maLoai === cat.maLoai && cat.maLoai !== '') ||
+      (c.tenChungLoai === cat.tenChungLoai && cat.tenChungLoai !== '')
+    )
   );
 }
