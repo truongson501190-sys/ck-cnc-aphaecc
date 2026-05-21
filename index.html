@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="manifest" href="/manifest.json" />  <!-- thêm dòng này -->
+  <meta name="theme-color" content="#0f172a" /> <!-- thêm dòng này -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⚙️</text></svg>" />
+  <title>Hệ Thống Quản Lý Kho</title>
+  <meta name="description" content="Hệ thống quản lý kho và báo cáo" />
+  <meta name="author" content="Son" />
+
+  <meta property="og:title" content="Hệ Thống Quản Lý kho" />
+  <meta property="og:description" content="Hệ thống quản lý Kho và báo cáo " />
+  <meta property="og:type" content="website" />
+
+  <!-- Mobile optimization -->
+  <meta name="theme-color" content="#1e293b" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  
+  <style>
+    /* Prevent zoom on iOS */
+    input[type="text"],
+    input[type="password"],
+    input[type="email"],
+    input[type="number"],
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+    
+    /* Improve mobile scrolling */
+    * {
+      -webkit-overflow-scrolling: touch;
+    }
+    
+    /* Better mobile tap targets */
+    button, a, input, select, textarea {
+      min-height: 44px;
+      min-width: 44px;
+    }
+  </style>
+  <script>
+    // EMERGENCY URL & CACHE CLEANUP
+    (function() {
+      // 1. Clear malformed items from localStorage
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        const value = localStorage.getItem(key);
+        if (value && (value.includes('%20') || value.includes('http//'))) {
+          console.warn('🗑️ Removing malformed localStorage item:', key);
+          localStorage.removeItem(key);
+        }
+      }
+
+      // 2. Unregister all service workers
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          for (let registration of registrations) {
+            registration.unregister();
+            console.warn('🛠️ Unregistered ghost ServiceWorker');
+          }
+        });
+      }
+
+      // 3. Global Fetch Interceptor (Strongest version)
+      const originalFetch = window.fetch;
+      window.fetch = function(input, init) {
+        let url = '';
+        if (typeof input === 'string') url = input;
+        else if (input instanceof URL) url = input.href;
+        else if (input && input.url) url = input.url;
+
+        // Detect multiple protocols or spaces/encoded spaces
+        if (url.includes('%20') || url.includes('http//') || url.includes('http:/') || url.includes(' ') || (url.match(/https?:\/\//gi) || []).length > 1) {
+          let fixedUrl = url.replace(/%20/g, '').replace(/[\s\uFEFF\xA0]+/g, '');
+          
+          // Handle nested protocols like http://http:// or http://http//
+          // We want to keep only the last part that looks like a valid URL
+          if ((fixedUrl.match(/https?:\/\//gi) || []).length > 1 || fixedUrl.includes('http//') || fixedUrl.includes('http:/')) {
+            const lastHttpIndex = fixedUrl.toLowerCase().lastIndexOf('http');
+            if (lastHttpIndex >= 0) {
+              fixedUrl = fixedUrl.substring(lastHttpIndex);
+            }
+          }
+          
+          // Fix protocol formatting
+          if (fixedUrl.toLowerCase().startsWith('http')) {
+            fixedUrl = fixedUrl.replace(/^(https?)[^a-z0-9]+/i, '$1://');
+          } else if (fixedUrl.length > 0) {
+            fixedUrl = 'https://' + fixedUrl;
+          }
+          
+          // Remove double slashes or extra junk after protocol
+          fixedUrl = fixedUrl.replace(/^(https?:\/\/)[^a-z0-9]+/i, '$1');
+
+          // Remove double protocols (take last one)
+          if ((fixedUrl.match(/https?:\/\//gi) || []).length > 1) {
+            const lastHttp = fixedUrl.toLowerCase().lastIndexOf('http');
+            fixedUrl = fixedUrl.substring(lastHttp);
+          }
+
+          console.error('🚨 FIXED MALFORMED URL:', url, '->', fixedUrl);
+          
+          if (typeof input === 'string') {
+            return originalFetch.call(this, fixedUrl, init);
+          } else if (input instanceof URL) {
+            return originalFetch.call(this, fixedUrl, init);
+          } else if (input instanceof Request) {
+            // For Request objects, we create a new one with the fixed URL
+            try {
+              const newRequest = new Request(fixedUrl, input);
+              return originalFetch.call(this, newRequest, init);
+            } catch (e) {
+              console.error('Failed to clone request with fixed URL:', e);
+            }
+          }
+        }
+        return originalFetch.apply(this, arguments);
+      };
+      
+      console.log('🛡️ Emergency Protection Active');
+    })();
+  </script>
+</head>
+
+<body>
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
+
+</html>

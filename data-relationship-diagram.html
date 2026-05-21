@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sơ Đồ Liên Kết Dữ Liệu - Hệ Thống CNC-CK</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            position: relative;
+        }
+        .section-title {
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 10px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            color: white;
+        }
+        .management { background-color: #3b82f6; }
+        .forms { background-color: #10b981; }
+        
+        .field-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .field {
+            background: #f8fafc;
+            padding: 8px 12px;
+            border: 1px solid #e2e8f0;
+            border-radius: 5px;
+            font-size: 14px;
+            position: relative;
+        }
+        .field.primary {
+            background: #fef3c7;
+            border-color: #f59e0b;
+            font-weight: bold;
+        }
+        .field-id {
+            font-size: 10px;
+            color: #666;
+            position: absolute;
+            top: 2px;
+            right: 5px;
+        }
+        
+        .instructions {
+            background: #eff6ff;
+            border: 2px dashed #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+        .instructions h3 {
+            color: #1d4ed8;
+            margin-top: 0;
+        }
+        
+        .legend {
+            display: flex;
+            gap: 20px;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .legend-box {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 Sơ Đồ Liên Kết Dữ Liệu - Hệ Thống CNC-CK</h1>
+        
+        <div class="instructions">
+            <h3>📝 Hướng Dẫn Sử Dụng:</h3>
+            <p><strong>1.</strong> Vẽ đường nối từ các trường trong <strong>"QUẢN LÝ DANH MỤC"</strong> đến các trường trong <strong>"CÁC PHIẾU"</strong></p>
+            <p><strong>2.</strong> Sử dụng bút màu hoặc công cụ vẽ để nối các trường có liên quan</p>
+            <p><strong>3.</strong> Ví dụ: Nối "Tên Chủng Loại" từ Quản lý Chủng Loại → "Chủng Loại" trong Phiếu Nhập Kho</p>
+            <p><strong>4.</strong> Chụp ảnh hoặc scan lại gửi cho tôi để thực hiện</p>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="legend-box" style="background: #fef3c7; border: 1px solid #f59e0b;"></div>
+                <span>Trường chính (Primary Key)</span>
+            </div>
+            <div class="legend-item">
+                <div class="legend-box" style="background: #f8fafc; border: 1px solid #e2e8f0;"></div>
+                <span>Trường thông thường</span>
+            </div>
+        </div>
+
+        <!-- QUẢN LÝ DANH MỤC -->
+        <div class="section">
+            <div class="section-title management">📂 QUẢN LÝ DANH MỤC</div>
+            
+            <h4>🏭 1. Quản Lý Máy Móc</h4>
+            <div class="field-list">
+                <div class="field primary">ID Máy <span class="field-id">M1</span></div>
+                <div class="field">Tên Máy <span class="field-id">M2</span></div>
+                <div class="field">Giá Giờ 8h/1Ca <span class="field-id">M3</span></div>
+                <div class="field">Giá Giờ 10h/1Ca <span class="field-id">M4</span></div>
+                <div class="field">Giá Giờ 8h/2Ca <span class="field-id">M5</span></div>
+                <div class="field">Giá Giờ 10h/2Ca <span class="field-id">M6</span></div>
+                <div class="field">Giá Giờ 12h/1Ca <span class="field-id">M7</span></div>
+                <div class="field">Ghi Chú Máy <span class="field-id">M8</span></div>
+            </div>
+
+            <h4>📋 2. Quản Lý Dự Án</h4>
+            <div class="field-list">
+                <div class="field primary">ID Dự Án <span class="field-id">P1</span></div>
+                <div class="field">Mã Dự Án <span class="field-id">P2</span></div>
+                <div class="field">Tên Khách Hàng <span class="field-id">P3</span></div>
+                <div class="field">Phòng <span class="field-id">P4</span></div>
+                <div class="field">Ghi Chú Dự Án <span class="field-id">P5</span></div>
+            </div>
+
+            <h4>📦 3. Quản Lý Chủng Loại</h4>
+            <div class="field-list">
+                <div class="field primary">ID Chủng Loại <span class="field-id">C1</span></div>
+                <div class="field">Tên Chủng Loại <span class="field-id">C2</span></div>
+                <div class="field">Đơn Vị <span class="field-id">C3</span></div>
+                <div class="field">Giá <span class="field-id">C4</span></div>
+                <div class="field">Ghi Chú Chủng Loại <span class="field-id">C5</span></div>
+            </div>
+
+            <h4>🏪 4. Quản Lý Kho</h4>
+            <div class="field-list">
+                <div class="field primary">ID Kho <span class="field-id">W1</span></div>
+                <div class="field">Tên Kho <span class="field-id">W2</span></div>
+                <div class="field">Loại Kho <span class="field-id">W3</span></div>
+                <div class="field">Ghi Chú Kho <span class="field-id">W4</span></div>
+            </div>
+
+            <h4>👥 5. Quản Lý Người Dùng</h4>
+            <div class="field-list">
+                <div class="field primary">ID User <span class="field-id">U1</span></div>
+                <div class="field">MSNV <span class="field-id">U2</span></div>
+                <div class="field">Họ Tên <span class="field-id">U3</span></div>
+                <div class="field">Chức Danh <span class="field-id">U4</span></div>
+                <div class="field">Bộ Phận <span class="field-id">U5</span></div>
+                <div class="field">Vai Trò <span class="field-id">U6</span></div>
+                <div class="field">Trạng Thái <span class="field-id">U7</span></div>
+            </div>
+        </div>
+
+        <!-- CÁC PHIẾU -->
+        <div class="section">
+            <div class="section-title forms">📋 CÁC PHIẾU WAREHOUSE</div>
+            
+            <h4>📥 1. Phiếu Nhập Kho</h4>
+            <div class="field-list">
+                <div class="field">Số Phiếu <span class="field-id">NK1</span></div>
+                <div class="field">Ngày Nhập <span class="field-id">NK2</span></div>
+                <div class="field">Người Nhập <span class="field-id">NK3</span></div>
+                <div class="field">Kho Nhập <span class="field-id">NK4</span></div>
+                <div class="field">Nhà Cung Cấp <span class="field-id">NK5</span></div>
+                <div class="field">Chủng Loại <span class="field-id">NK6</span></div>
+                <div class="field">Đơn Vị <span class="field-id">NK7</span></div>
+                <div class="field">Số Lượng <span class="field-id">NK8</span></div>
+                <div class="field">Đơn Giá <span class="field-id">NK9</span></div>
+                <div class="field">Thành Tiền <span class="field-id">NK10</span></div>
+                <div class="field">Ghi Chú <span class="field-id">NK11</span></div>
+            </div>
+
+            <h4>📤 2. Phiếu Xuất Kho</h4>
+            <div class="field-list">
+                <div class="field">Số Phiếu <span class="field-id">XK1</span></div>
+                <div class="field">Ngày Xuất <span class="field-id">XK2</span></div>
+                <div class="field">Người Xuất <span class="field-id">XK3</span></div>
+                <div class="field">Kho Xuất <span class="field-id">XK4</span></div>
+                <div class="field">Người Nhận <span class="field-id">XK5</span></div>
+                <div class="field">Lý Do Xuất <span class="field-id">XK6</span></div>
+                <div class="field">Chủng Loại <span class="field-id">XK7</span></div>
+                <div class="field">Đơn Vị <span class="field-id">XK8</span></div>
+                <div class="field">Số Lượng <span class="field-id">XK9</span></div>
+                <div class="field">Đơn Giá <span class="field-id">XK10</span></div>
+                <div class="field">Thành Tiền <span class="field-id">XK11</span></div>
+                <div class="field">Ghi Chú <span class="field-id">XK12</span></div>
+            </div>
+
+            <h4>🔄 3. Phiếu Chuyển Kho</h4>
+            <div class="field-list">
+                <div class="field">Số Phiếu <span class="field-id">CK1</span></div>
+                <div class="field">Ngày Chuyển <span class="field-id">CK2</span></div>
+                <div class="field">Người Chuyển <span class="field-id">CK3</span></div>
+                <div class="field">Kho Xuất <span class="field-id">CK4</span></div>
+                <div class="field">Kho Nhập <span class="field-id">CK5</span></div>
+                <div class="field">Lý Do Chuyển <span class="field-id">CK6</span></div>
+                <div class="field">Chủng Loại <span class="field-id">CK7</span></div>
+                <div class="field">Đơn Vị <span class="field-id">CK8</span></div>
+                <div class="field">Số Lượng <span class="field-id">CK9</span></div>
+                <div class="field">Đơn Giá <span class="field-id">CK10</span></div>
+                <div class="field">Thành Tiền <span class="field-id">CK11</span></div>
+                <div class="field">Ghi Chú <span class="field-id">CK12</span></div>
+            </div>
+
+            <h4>🛢️ 4. Phiếu Xuất Dầu</h4>
+            <div class="field-list">
+                <div class="field">Số Phiếu <span class="field-id">XD1</span></div>
+                <div class="field">Ngày Xuất <span class="field-id">XD2</span></div>
+                <div class="field">Người Xuất <span class="field-id">XD3</span></div>
+                <div class="field">Kho Xuất <span class="field-id">XD4</span></div>
+                <div class="field">Người Nhận <span class="field-id">XD5</span></div>
+                <div class="field">Bộ Phận <span class="field-id">XD6</span></div>
+                <div class="field">Chủng Loại Dầu <span class="field-id">XD7</span></div>
+                <div class="field">Đơn Vị <span class="field-id">XD8</span></div>
+                <div class="field">Số Lượng <span class="field-id">XD9</span></div>
+                <div class="field">Đơn Giá <span class="field-id">XD10</span></div>
+                <div class="field">Thành Tiền <span class="field-id">XD11</span></div>
+                <div class="field">Máy Sử Dụng <span class="field-id">XD12</span></div>
+                <div class="field">Ghi Chú <span class="field-id">XD13</span></div>
+            </div>
+        </div>
+
+        <div class="instructions">
+            <h3>💡 Gợi Ý Liên Kết Phổ Biến:</h3>
+            <ul>
+                <li><strong>C2 (Tên Chủng Loại)</strong> → NK6, XK7, CK7, XD7 (Chủng Loại trong các phiếu)</li>
+                <li><strong>C3 (Đơn Vị)</strong> → NK7, XK8, CK8, XD8 (Đơn vị trong các phiếu)</li>
+                <li><strong>C4 (Giá)</strong> → NK9, XK10, CK10, XD10 (Đơn giá trong các phiếu)</li>
+                <li><strong>W2 (Tên Kho)</strong> → NK4, XK4, CK4, CK5, XD4 (Kho trong các phiếu)</li>
+                <li><strong>U3 (Họ Tên)</strong> → NK3, XK3, CK3, XD3 (Người thực hiện)</li>
+                <li><strong>M2 (Tên Máy)</strong> → XD12 (Máy sử dụng dầu)</li>
+                <li><strong>P2 (Mã Dự Án)</strong> → Có thể thêm vào các phiếu để phân bổ chi phí</li>
+            </ul>
+        </div>
+    </div>
+</body>
+</html>
