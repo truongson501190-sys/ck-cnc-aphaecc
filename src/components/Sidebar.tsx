@@ -1,203 +1,438 @@
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+
 import {
-  ChevronLeft,
+  ChevronDown,
   ChevronRight,
   LogOut,
-  ChevronDown,
-  ChevronUp,
-  User,
-  Factory,
 } from 'lucide-react';
+
+import {
+  ERP_NAVIGATION,
+  isNavItemVisible,
+} from '@/modules/erp/routes';
+
 import { useAuth } from '@/hooks/useAuth';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { toast } from 'sonner';
-import { ERP_NAVIGATION, ERP_ROUTE, ERPNavItem, isNavItemVisible } from '@/modules/erp/routes';
 
 export function Sidebar() {
-  const { user, logout } = useAuth();
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [expandedGroups, setExpandedGroups] = useState<string[]>(['warehouse', 'manufacturing', 'reports', 'masterData']);
+
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleLogout = () => {
-    if (confirm('Bạn có chắc chắn muốn đăng xuất?')) {
-      logout();
-      toast.success('👋 Đăng xuất thành công');
-      navigate(ERP_ROUTE.login);
-    }
-  };
+  const { user, logout } = useAuth();
 
-  const toggleGroup = (groupId: string) => {
-    setExpandedGroups((prev) => (prev.includes(groupId) ? prev.filter((id) => id !== groupId) : [...prev, groupId]));
-  };
+  // MENU ĐANG MỞ
+  const [openMenus, setOpenMenus] = useState<string[]>([]);
 
-  const handleMenuItemClick = (item: ERPNavItem) => {
-    if (item.action === 'logout') {
-      handleLogout();
-      return;
-    }
-    if (item.path) {
-      navigate(item.path);
-    }
-  };
+  // TỰ MỞ MENU KHI ĐANG Ở TRANG CON
+  useEffect(() => {
 
-  const isActiveRoute = (path?: string) => !!path && (location.pathname === path || location.pathname.startsWith(`${path}/`));
-  const menuGroups = ERP_NAVIGATION;
+    ERP_NAVIGATION.forEach((group) => {
+
+      const hasActiveChild = group.items.some(
+        (item) => item.path === location.pathname
+      );
+
+      if (hasActiveChild && group.id !== 'main') {
+
+        setOpenMenus((prev) => {
+
+          if (!prev.includes(group.id)) {
+            return [...prev, group.id];
+          }
+
+          return prev;
+        });
+      }
+    });
+
+  }, [location.pathname]);
+
+  // ĐÓNG / MỞ MENU
+  const toggleMenu = (menuId: string) => {
+
+    setOpenMenus((prev) =>
+
+      prev.includes(menuId)
+        ? prev.filter((id) => id !== menuId)
+        : [...prev, menuId]
+
+    );
+  };
 
   return (
-    <div
-      className={`bg-blue-50/80 border-r border-blue-200/50 transition-all duration-300 ${
-        isCollapsed ? 'w-12' : 'w-56'
-      } min-h-screen flex flex-col`}
-    >
-      {/* Header thu gọn */}
-      <div className="p-3 border-b border-blue-200/50">
-        <div className="flex items-center justify-between">
-          {!isCollapsed && (
-            <div className="flex items-center space-x-2">
-              <div className="w-6 h-6 bg-blue-500 rounded-md flex items-center justify-center">
-                <Factory className="w-3 h-3 text-white" />
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-blue-800">CNC-CK</h2>
-                <p className="text-xs text-blue-600">Quản lý</p>
-              </div>
-            </div>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="text-blue-600 hover:text-blue-800 hover:bg-blue-100/50 p-1 h-6 w-6"
-          >
-            {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
-          </Button>
+
+    <div className="w-64 h-screen bg-white border-r border-slate-200 flex flex-col">
+
+      {/* HEADER */}
+      <div className="p-4 border-b border-slate-200 shrink-0 space-y-3">
+
+        <div>
+          <h1 className="text-lg font-bold text-slate-800">
+            ERP/WMS CNC
+          </h1>
+
+          <p className="text-xs text-slate-500 mt-1">
+            Quản lý xưởng cơ khí
+          </p>
         </div>
+
+        {/* USER INFO */}
+        {user && (
+
+          <div className="flex items-center gap-2.5 p-2 bg-slate-50 rounded-xl border border-slate-100">
+
+            {/* AVATAR */}
+            <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold shadow-sm shrink-0">
+
+              {(user?.name || user?.username || 'U')
+                .charAt(0)
+                .toUpperCase()}
+
+            </div>
+
+            {/* INFO */}
+            <div className="flex flex-col min-w-0 flex-1 justify-center">
+
+              {/* NAME */}
+              <div className="flex items-center gap-1">
+
+                <span className="text-xs font-medium text-slate-800 truncate max-w-[140px]">
+
+                  {user?.name ||
+                    user?.fullName ||
+                    user?.username ||
+                    'Đang tải...'}
+
+                </span>
+
+                {user?.role === 'admin' && (
+
+                  <span className="px-1 py-0.5 text-[9px] font-bold bg-blue-100 text-blue-600 rounded shrink-0">
+                    A
+                  </span>
+
+                )}
+
+              </div>
+
+              {/* MSNv + PHÒNG BAN */}
+              <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500 flex-wrap">
+
+                <span className="text-blue-600">
+                  Msnv:
+                  {' '}
+                  {user?.Mnv ||
+                    user?.mnv ||
+                    user?.username ||
+                    user?.employeeCode ||
+                    '---'}
+                </span>
+
+                <span className="text-slate-300">
+                  |
+                </span>
+
+                <span className="text-slate-600">
+
+                  {user?.department ||
+                    user?.boPhan ||
+                    user?.toBophan ||
+                    'Tổ CNC'}
+
+                </span>
+
+              </div>
+
+            </div>
+
+          </div>
+
+        )}
+
       </div>
 
-      {/* Thông tin người dùng thu gọn */}
-      {!isCollapsed && user && (
-        <div className="p-3 border-b border-blue-200/50 bg-blue-100/30">
-          <div className="flex items-center space-x-2">
-            <div className="w-6 h-6 bg-blue-300 rounded-full flex items-center justify-center">
-              <User className="w-3 h-3 text-blue-700" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center space-x-1 mb-1">
-                <span className="text-xs font-medium text-blue-800 truncate">
-                  {user.fullName || user.name || 'Admin'}
-                </span>
-                <Badge
-                  variant={user.role === 'admin' ? 'default' : 'secondary'}
-                  className="text-xs px-1 py-0 h-3 bg-blue-500/20 text-blue-700 border-blue-400/30"
-                >
-                  {user.role === 'admin' ? 'A' : 'U'}
-                </Badge>
-              </div>
-              <div className="text-xs text-blue-600">{user.msnv || ''}</div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* MENU */}
+      <div className="p-3 space-y-2 flex-1 overflow-y-auto">
 
-      {/* Menu điều hướng thu gọn */}
-      <nav className="flex-1 p-2">
-        <div className="space-y-1">
-          {menuGroups.map((group) => {
-            const isExpanded = expandedGroups.includes(group.id);
-            const GroupIcon = group.icon;
+        {ERP_NAVIGATION
 
-            // Nhóm main (Trang chủ)
-            if (group.id === 'main') {
-              const item = group.items[0];
-              const ItemIcon = item.icon;
-              const isActive = isActiveRoute(item.path);
+          .sort((a, b) => {
 
-              return (
-                <div key={group.id}>
-                  <Button
-                    variant="ghost"
-                    className={`w-full justify-start text-left p-2 h-auto ${
-                      isActive ? 'bg-blue-200/50 text-blue-800 border-l-2 border-blue-500' : 'text-blue-700 hover:bg-blue-100/50'
-                    }`}
-                    onClick={() => {
-                      if (item.path) navigate(item.path);
-                    }}
-                  >
-                    <ItemIcon className="w-3 h-3 mr-2" />
-                    {!isCollapsed && <span className="text-xs font-medium">{item.label}</span>}
-                  </Button>
-                </div>
-              );
-            }
+            // THỨ TỰ MENU
+            const order = [
 
-            const visibleItems = group.items.filter((item) => isNavItemVisible(item, user));
-            if (visibleItems.length === 0) {
+              'main',            // Trang chủ
+              'manufacturing',   // Sản xuất
+              'warehouse',       // Kho bãi
+              'reports',         // Báo cáo
+              'masterData',      // Danh mục
+              'system',          // Hệ thống
+              'account',         // Tài khoản
+
+            ];
+
+            return order.indexOf(a.id) - order.indexOf(b.id);
+
+          })
+
+          .map((group) => {
+
+            const isMainMenu = group.id === 'main';
+
+            const mainMenuItem = isMainMenu
+              ? group.items[0]
+              : null;
+
+            // LỌC THEO QUYỀN
+            const visibleItems = group.items.filter(
+
+              (item) =>
+
+                isNavItemVisible(item, user) &&
+                item.action !== 'logout'
+
+            );
+
+            // ẨN MENU KHÔNG CÓ QUYỀN
+            if (visibleItems.length === 0 && !isMainMenu) {
               return null;
             }
 
-            return (
-              <div key={group.id}>
-                {/* Group Header */}
-                <Button
-                  variant="ghost"
-                  className="w-full justify-start text-left p-2 h-auto text-blue-700 hover:bg-blue-100/50"
-                  onClick={() => !isCollapsed && toggleGroup(group.id)}
-                >
-                  <GroupIcon className="w-3 h-3 mr-2" />
-                  {!isCollapsed && (
-                    <>
-                      <span className="text-xs font-medium flex-1">{group.label}</span>
-                      {visibleItems.length > 1 && (
-                        <div className="ml-1">{isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}</div>
-                      )}
-                    </>
-                  )}
-                </Button>
+            // ACTIVE
+            const isGroupActive = isMainMenu
 
-                {/* Group Items */}
-                {!isCollapsed && (isExpanded || visibleItems.length === 1) && (
-                  <div className="ml-3 mt-1 space-y-1">
+              ? location.pathname === '/' ||
+                location.pathname === '/dashboard'
+
+              : visibleItems.some(
+                  (item) => item.path === location.pathname
+                );
+
+            // ĐANG MỞ
+            const isExpanded =
+
+              !isMainMenu &&
+              openMenus.includes(group.id);
+
+            return (
+
+              <div
+                key={group.id}
+                className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm"
+              >
+
+                {/* MENU CHA */}
+                <button
+
+                  onClick={() => {
+
+                    // TRANG CHỦ KHÔNG ĐÓNG MỞ
+                    if (isMainMenu && mainMenuItem?.path) {
+
+                      navigate(mainMenuItem.path);
+
+                    }
+
+                    // MENU KHÁC
+                    else {
+
+                      toggleMenu(group.id);
+
+                    }
+
+                  }}
+
+                  className={`
+                    w-full
+                    flex
+                    items-center
+                    justify-between
+                    px-3
+                    py-2.5
+                    transition-all
+                    text-left
+
+                    ${
+                      isMainMenu && isGroupActive
+
+                        ? 'bg-blue-500 text-white font-medium'
+
+                        : isMainMenu
+
+                          ? 'hover:bg-blue-500 hover:text-white text-slate-700'
+
+                          : isGroupActive
+
+                            ? 'bg-slate-50 text-blue-600 font-semibold'
+
+                            : 'hover:bg-slate-50 text-slate-700'
+                    }
+                  `}
+                >
+
+                  {/* ICON + TEXT */}
+                  <div className="flex items-center gap-2">
+
+                    <group.icon
+
+                      className={`
+                        w-4 h-4
+
+                        ${
+                          isMainMenu && isGroupActive
+
+                            ? 'text-white'
+
+                            : isMainMenu
+
+                              ? 'text-slate-500'
+
+                              : isGroupActive
+
+                                ? 'text-blue-600'
+
+                                : 'text-slate-500'
+                        }
+                      `}
+                    />
+
+                    <span className="text-sm">
+                      {group.label}
+                    </span>
+
+                  </div>
+
+                  {/* ICON ĐÓNG MỞ */}
+                  {!isMainMenu && (
+
+                    isExpanded
+
+                      ? (
+                        <ChevronDown className="w-4 h-4 text-slate-400" />
+                      )
+
+                      : (
+                        <ChevronRight className="w-4 h-4 text-slate-400" />
+                      )
+
+                  )}
+
+                </button>
+
+                {/* MENU CON */}
+                {isExpanded && !isMainMenu && (
+
+                  <div className="px-2 pb-2 pt-1 space-y-1 bg-white border-t border-slate-50">
+
                     {visibleItems.map((item) => {
-                      const ItemIcon = item.icon;
-                      const isActive = isActiveRoute(item.path);
+
+                      const active =
+                        item.path === location.pathname;
 
                       return (
-                        <Button
-                          key={item.id || 'item'}
-                          variant="ghost"
-                          className={`w-full justify-start text-left p-1.5 h-auto text-xs ${
-                            isActive ? 'bg-blue-200/50 text-blue-800 border-l-2 border-blue-500' : 'text-blue-600 hover:bg-blue-100/50'
-                          }`}
-                          onClick={() => handleMenuItemClick(item)}
+
+                        <button
+                          key={item.id}
+
+                          onClick={() => {
+
+                            if (item.path) {
+                              navigate(item.path);
+                            }
+
+                          }}
+
+                          className={`
+                            w-full
+                            flex
+                            items-center
+                            gap-2
+                            px-3
+                            py-2
+                            rounded-lg
+                            text-sm
+                            transition-all
+
+                            ${
+                              active
+
+                                ? 'bg-blue-500 text-white font-medium shadow-sm'
+
+                                : 'hover:bg-slate-100 text-slate-600'
+                            }
+                          `}
                         >
-                          <ItemIcon className="w-3 h-3 mr-1.5" />
-                          <span>{item.label}</span>
-                        </Button>
+
+                          <item.icon
+                            className={`
+                              w-4 h-4
+
+                              ${
+                                active
+                                  ? 'text-white'
+                                  : 'text-slate-400'
+                              }
+                            `}
+                          />
+
+                          <span>
+                            {item.label}
+                          </span>
+
+                        </button>
+
                       );
                     })}
+
                   </div>
+
                 )}
+
               </div>
+
             );
           })}
-        </div>
-      </nav>
 
-      {/* Nút đăng xuất */}
-      <div className="p-2 border-t border-blue-200/50">
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-left p-2 h-auto text-blue-600 hover:bg-red-100/50 hover:text-red-600"
-          onClick={handleLogout}
-        >
-          <LogOut className="w-3 h-3 mr-2" />
-          {!isCollapsed && <span className="text-xs font-medium">Đăng xuất</span>}
-        </Button>
       </div>
+
+      {/* ĐĂNG XUẤT */}
+      <div className="p-3 border-t border-slate-200 bg-white shrink-0">
+
+        <button
+
+          onClick={logout}
+
+          className="
+            w-full
+            flex
+            items-center
+            justify-center
+            gap-2
+            px-4
+            py-2.5
+            rounded-xl
+            text-sm
+            font-medium
+            text-white
+            bg-red-500
+            hover:bg-red-600
+            active:bg-red-700
+            transition-all
+            shadow-sm
+          "
+        >
+
+          <LogOut className="w-4 h-4" />
+
+          <span>
+            Đăng xuất tài khoản
+          </span>
+
+        </button>
+
+      </div>
+
     </div>
   );
 }

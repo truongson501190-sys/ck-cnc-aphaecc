@@ -1,348 +1,166 @@
-import { useEffect, useMemo, useState } from 'react';
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
-import { loadArrayFromStorage, saveArrayToStorage, buildLocalId } from '@/lib/localStorage';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Shield, Save, RefreshCw, User, Users, Search } from 'lucide-react';
 import { toast } from 'sonner';
 
-type PermissionAction = 'view' | 'add' | 'edit' | 'delete' | 'approve';
+const APP_MENU_TREE = {
+  'Kho bãi (WMS)': ['Nhập kho', 'Xuất kho', 'Chuyển kho', 'Xuất dầu', 'Kiểm kê kho', 'Tồn kho', 'Thẻ kho', 'Lịch sử giao dịch'],
+  'Sản xuất (Manufacturing)': ['Kế hoạch sản xuất', 'Nhật ký gia công', 'Nhật ký QC', 'Nhật ký bảo trì', 'Theo dõi tiến độ'],
+  'Báo cáo & Dashboard': ['Dashboard tổng hợp', 'Báo cáo kho', 'Báo cáo gia công', 'Báo cáo QC', 'Báo cáo bảo trì', 'Hiệu suất máy', 'Tiêu hao vật liệu'],
+  'Quản lý Danh mục': ['Chủng loại', 'Vật liệu', 'Kho', 'Máy móc', 'Dự án', 'Nhân viên'],
+  'Hệ thống': ['Quản lý người dùng', 'Phân quyền', 'Audit Log', 'Backup & Restore', 'Cài đặt hệ thống']
+};
 
-type SystemModuleId = 'kho' | 'qc' | 'bao-tri' | 'bao-cao' | 'he-thong';
+interface UserProfile { msnv: string; fullName: string; department: string; roleGroup: string; }
 
-interface RolePermissions {
-  [module: string]: Record<PermissionAction, boolean>;
-}
+export function Roles() {
+  const [permissionType, setPermissionType] = useState<'role' | 'user'>('role');
+  const [selectedRole, setSelectedRole] = useState<string>('Thợ CNC');
+  const [selectedUserMsnv, setSelectedUserMsnv] = useState<string>('');
+  const [userList, setUserList] = useState<UserProfile[]>([]);
+  const [searchUserTerm, setSearchUserTerm] = useState<string>('');
+  const [permissionsMatrix, setPermissionsMatrix] = useState<Record<string, Record<string, boolean>>>({});
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-interface RoleDefinition {
-  id: string;
-  name: string;
-  description: string;
-  permissions: RolePermissions;
-  createdAt: string;
-}
+  const currentTargetKey = permissionType === 'role' ? selectedRole : selectedUserMsnv;
 
-const PERMISSION_ACTIONS: { key: PermissionAction; label: string }[] = [
-  { key: 'view', label: 'View' },
-  { key: 'add', label: 'Add' },
-  { key: 'edit', label: 'Edit' },
-  { key: 'delete', label: 'Delete' },
-  { key: 'approve', label: 'Approve' },
-];
+  useEffect(() => { loadData(); }, []);
 
-const MODULES: { id: SystemModuleId; label: string }[] = [
-  { id: 'kho', label: 'Kho' },
-  { id: 'qc', label: 'QC' },
-  { id: 'bao-tri', label: 'Bảo trì' },
-  { id: 'bao-cao', label: 'Báo cáo' },
-  { id: 'he-thong', label: 'Hệ thống' },
-];
+  const loadData = () => {
+    setIsLoading(true);
+    try {
+      const savedUsers = localStorage.getItem('wms_users');
+      if (savedUsers) {
+        const parsedUsers = JSON.parse(savedUsers);
+        setUserList(parsedUsers);
+        if (parsedUsers.length > 0 && !selectedUserMsnv) setSelectedUserMsnv(parsedUsers[0].msnv);
+      }
 
-const defaultPermissions = () =>
-  MODULES.reduce((acc, module) => {
-    acc[module.id] = { view: false, add: false, edit: false, delete: false, approve: false };
-    return acc;
-  }, {} as RolePermissions);
-
-const DEFAULT_ROLES: RoleDefinition[] = [
-  {
-    id: 'role-admin',
-    name: 'Admin',
-    description: 'Toàn quyền hệ thống và truy cập mọi module.',
-    permissions: MODULES.reduce((acc, module) => {
-      acc[module.id] = { view: true, add: true, edit: true, delete: true, approve: true };
-      return acc;
-    }, {} as RolePermissions),
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: 'role-qc',
-    name: 'Người QC',
-    description: 'Chỉ quản lý quyền QC và xem báo cáo.',
-    permissions: MODULES.reduce((acc, module) => {
-      acc[module.id] = { view: module.id === 'qc' || module.id === 'bao-cao', add: module.id === 'qc', edit: module.id === 'qc', delete: false, approve: module.id === 'qc' };
-      return acc;
-    }, {} as RolePermissions),
-    createdAt: new Date().toISOString(),
-  },
-];
-
-const STORAGE_KEY = 'erp-role-definitions';
-
-function createEmptyRole() {
-  return {
-    id: '',
-    name: '',
-    description: '',
-    permissions: defaultPermissions(),
-    createdAt: new Date().toISOString(),
-  };
-}
-
-export default function Roles() {
-  const [roles, setRoles] = useState<RoleDefinition[]>([]);
-  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [formState, setFormState] = useState<RoleDefinition>(createEmptyRole());
-
-  useEffect(() => {
-    const persisted = loadArrayFromStorage<RoleDefinition>(STORAGE_KEY);
-    setRoles(persisted.length ? persisted : DEFAULT_ROLES);
-  }, []);
-
-  useEffect(() => {
-    if (roles.length) {
-      saveArrayToStorage(STORAGE_KEY, roles);
+      const savedPerms = localStorage.getItem('wms_permissions');
+      if (savedPerms) {
+        setPermissionsMatrix(JSON.parse(savedPerms));
+      } else {
+        const defaultMatrix: Record<string, Record<string, boolean>> = {
+          'Thợ CNC': { 'Nhật ký gia công': true, 'Nhật ký bảo trì': true, 'Theo dõi tiến độ': true, 'Báo cáo gia công': true },
+          'Quản lý kho': { 'Nhập kho': true, 'Xuất kho': true, 'Chuyển kho': true, 'Xuất dầu': true, 'Kiểm kê kho': true, 'Tồn kho': true, 'Thẻ kho': true, 'Lịch sử giao dịch': true, 'Báo cáo kho': true },
+          'Admin': {}
+        };
+        localStorage.setItem('wms_permissions', JSON.stringify(defaultMatrix));
+        setPermissionsMatrix(defaultMatrix);
+      }
+    } catch (error) {
+      toast.error('Lỗi khi nạp cấu hình dữ liệu.');
+    } finally {
+      setTimeout(() => setIsLoading(false), 200);
     }
-  }, [roles]);
-
-  const filteredRoles = useMemo(() => {
-    if (!search) return roles;
-    const normalized = search.toLowerCase();
-    return roles.filter((role) => role.name.toLowerCase().includes(normalized) || role.description.toLowerCase().includes(normalized));
-  }, [roles, search]);
-
-  const summary = useMemo(() => {
-    const permissionsByModule = MODULES.map((module) => ({
-      module: module.label,
-      assignedCount: roles.filter((role) => Object.values(role.permissions[module.id]).some(Boolean)).length,
-    }));
-    return {
-      totalRoles: roles.length,
-      moduleStats: permissionsByModule,
-    };
-  }, [roles]);
-
-  const openDialogToCreate = () => {
-    setSelectedRoleId(null);
-    setFormState(createEmptyRole());
-    setDialogOpen(true);
   };
 
-  const openDialogToEdit = (role: RoleDefinition) => {
-    setSelectedRoleId(role.id);
-    setFormState(role);
-    setDialogOpen(true);
+  const handleTogglePermission = (feature: string, checked: boolean) => {
+    if (!currentTargetKey) return;
+    setPermissionsMatrix(prev => ({ ...prev, [currentTargetKey]: { ...(prev[currentTargetKey] || {}), [feature]: checked } }));
   };
 
-  const handleTogglePermission = (moduleId: SystemModuleId, action: PermissionAction) => {
-    setFormState((prev) => ({
-      ...prev,
-      permissions: {
-        ...prev.permissions,
-        [moduleId]: {
-          ...prev.permissions[moduleId],
-          [action]: !prev.permissions[moduleId][action],
-        },
-      },
-    }));
+  const handleToggleAllInGroup = (groupName: string, enable: boolean) => {
+    if (!currentTargetKey) return;
+    const features = APP_MENU_TREE[groupName as keyof typeof APP_MENU_TREE];
+    const updatedGroupPerms = { ...(permissionsMatrix[currentTargetKey] || {}) };
+    features.forEach(f => { updatedGroupPerms[f] = enable; });
+    setPermissionsMatrix(prev => ({ ...prev, [currentTargetKey]: updatedGroupPerms }));
   };
 
-  const handleSaveRole = () => {
-    if (!formState.name.trim()) {
-      toast.error('Tên vai trò không được để trống');
-      return;
+  const handleSavePermissions = () => {
+    if (!currentTargetKey) return;
+    try {
+      localStorage.setItem('wms_permissions', JSON.stringify(permissionsMatrix));
+      const textLabel = permissionType === 'role' ? `nhóm [${selectedRole}]` : `nhân viên [${selectedUserMsnv}]`;
+      toast.success(`Đã áp dụng và lưu cấu hình cho ${textLabel}!`);
+    } catch (error) {
+      toast.error('Lưu cấu hình thất bại.');
     }
-
-    if (selectedRoleId) {
-      setRoles((current) => current.map((role) => (role.id === selectedRoleId ? { ...formState, id: selectedRoleId } : role)));
-      toast.success('Cập nhật vai trò thành công');
-    } else {
-      const newRole = { ...formState, id: buildLocalId('role'), createdAt: new Date().toISOString() };
-      setRoles((current) => [newRole, ...current]);
-      toast.success('Tạo vai trò mới thành công');
-    }
-    setDialogOpen(false);
   };
 
-  const handleDeleteRole = (roleId: string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xóa vai trò này?')) return;
-    setRoles((current) => current.filter((role) => role.id !== roleId));
-    toast.success('Đã xóa vai trò');
-  };
+  const filteredUsersForSelect = userList.filter(u => u.msnv.toLowerCase().includes(searchUserTerm.toLowerCase()) || u.fullName.toLowerCase().includes(searchUserTerm.toLowerCase()));
+  const currentSelectedUserInfo = userList.find(u => u.msnv === selectedUserMsnv);
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6 dark:bg-slate-950">
-      <div className="mx-auto max-w-7xl space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">Phân quyền</h1>
-            <p className="text-sm text-slate-600 dark:text-slate-400">Quản lý role và phân quyền module cho hệ thống ERP/WMS.</p>
+    <div className="p-6 space-y-6 max-w-7xl mx-auto">
+      <Card className="border shadow-sm overflow-hidden">
+        <CardHeader className="bg-slate-900 text-white p-5 space-y-4">
+          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+            <CardTitle className="text-xl font-bold flex items-center gap-2"><Shield className="w-5 h-5 text-blue-400" /> Thiết Lập Cấp Quyền Hệ Thống</CardTitle>
+            <Tabs value={permissionType} onValueChange={(val) => setPermissionType(val as 'role' | 'user')} className="bg-slate-800 p-1 rounded-lg">
+              <TabsList className="bg-transparent grid grid-cols-2 w-[320px] h-8 text-slate-300 p-0">
+                <TabsTrigger value="role" className="text-xs data-[state=active]:bg-blue-600 data-[state=active]:text-white flex items-center gap-1"><Users className="w-3.5 h-3.5" /> Theo Nhóm Vai Trò</TabsTrigger>
+                <TabsTrigger value="user" className="text-xs data-[state=active]:bg-blue-600 data-[state=active]:text-white flex items-center gap-1"><User className="w-3.5 h-3.5" /> Theo Từng Nhân Viên</TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-          <Button onClick={openDialogToCreate}>Tạo role mới</Button>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Tổng số role</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-semibold">{summary.totalRoles}</p>
-            </CardContent>
-          </Card>
-          {summary.moduleStats.map((stat) => (
-            <Card key={stat.module}>
-              <CardHeader>
-                <CardTitle>{stat.module}</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-2xl font-semibold">{stat.assignedCount}</p>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Role có quyền ít nhất một hành động</p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between w-full">
-              <div>
-                <CardTitle>Danh sách role</CardTitle>
-                <p className="text-sm text-slate-500 dark:text-slate-400">Tìm kiếm theo tên hoặc mô tả.</p>
+          <Separator className="bg-slate-800" />
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-800/60 p-3 rounded-lg">
+            {permissionType === 'role' ? (
+              <Select value={selectedRole} onValueChange={setSelectedRole}>
+                <SelectTrigger className="w-56 font-bold text-blue-400 bg-slate-900 border-slate-700"><SelectValue /></SelectTrigger>
+                <SelectContent className="bg-white text-gray-900"><SelectItem value="Thợ CNC">Nhóm Thợ CNC</SelectItem><SelectItem value="Quản lý kho">Nhóm Quản lý Kho</SelectItem><SelectItem value="QC">Nhóm Kiểm soát QC</SelectItem><SelectItem value="Duyệt">Ban Quản Đốc</SelectItem><SelectItem value="Admin">Admin tối cao</SelectItem></SelectContent>
+              </Select>
+            ) : (
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="relative w-48"><Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 transform -translate-y-1/2 text-slate-400" /><Input placeholder="Lọc nhanh NV..." value={searchUserTerm} onChange={e => setSearchUserTerm(e.target.value)} className="h-8 pl-8 text-xs bg-slate-900 text-white border-slate-700" /></div>
+                <Select value={selectedUserMsnv} onValueChange={setSelectedUserMsnv}>
+                  <SelectTrigger className="w-64 font-bold text-amber-400 bg-slate-900 border-slate-700 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent className="bg-white text-gray-900">{filteredUsersForSelect.map(u => (<SelectItem key={u.msnv} value={u.msnv} className="text-xs">{u.msnv} - {u.fullName}</SelectItem>))}</SelectContent>
+                </Select>
               </div>
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-                <Input placeholder="Tìm kiếm role..." value={search} onChange={(e) => setSearch(e.target.value)} className="max-w-xs" />
-                <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                  <DialogContent className="sm:max-w-3xl w-full">
-                    <DialogHeader>
-                      <DialogTitle>{selectedRoleId ? 'Chỉnh sửa role' : 'Tạo role mới'}</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-6">
-                      <div className="grid gap-4 sm:grid-cols-2">
-                        <div>
-                          <Label htmlFor="role-name">Tên role</Label>
-                          <Input
-                            id="role-name"
-                            value={formState.name}
-                            onChange={(e) => setFormState((prev) => ({ ...prev, name: e.target.value }))}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="role-description">Mô tả</Label>
-                          <Input
-                            id="role-description"
-                            value={formState.description}
-                            onChange={(e) => setFormState((prev) => ({ ...prev, description: e.target.value }))}
-                          />
-                        </div>
-                      </div>
+            )}
+            <Button variant="ghost" size="icon" onClick={loadData} className="text-slate-400 hover:text-white"><RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} /></Button>
+          </div>
+        </CardHeader>
 
-                      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-2 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                        <table className="min-w-full divide-y divide-slate-200 dark:divide-slate-800">
-                          <thead className="bg-slate-100 dark:bg-slate-800">
-                            <tr>
-                              <th className="whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">Module</th>
-                              {PERMISSION_ACTIONS.map((action) => (
-                                <th key={action.key} className="whitespace-nowrap px-4 py-3 text-left text-sm font-semibold text-slate-700 dark:text-slate-300">
-                                  {action.label}
-                                </th>
-                              ))}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                            {MODULES.map((module) => (
-                              <tr key={module.id}>
-                                <td className="whitespace-nowrap px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-100">{module.label}</td>
-                                {PERMISSION_ACTIONS.map((action) => (
-                                  <td key={action.key} className="px-4 py-3">
-                                    <Checkbox
-                                      checked={formState.permissions[module.id][action.key]}
-                                      onCheckedChange={() => handleTogglePermission(module.id, action.key)}
-                                    />
-                                  </td>
-                                ))}
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-
-                      <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
-                        <Button variant="outline" onClick={() => setDialogOpen(false)}>Hủy</Button>
-                        <Button onClick={handleSaveRole}>{selectedRoleId ? 'Lưu thay đổi' : 'Tạo role'}</Button>
-                      </div>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+        <CardContent className="p-6 bg-slate-50/40">
+          {permissionType === 'role' && selectedRole === 'Admin' ? (
+            <div className="p-6 bg-blue-50 border text-blue-950 rounded-xl text-sm font-medium">💡 Tài khoản thuộc nhóm <strong>[Admin]</strong> mặc định luôn luôn hiển thị 100% chức năng.</div>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-white p-3 rounded-lg border border-dashed border-gray-300 text-xs font-medium">
+                Đang cấu hình quyền cho: <span className="text-blue-600 underline">{permissionType === 'role' ? selectedRole : currentSelectedUserInfo?.fullName + ` (${selectedUserMsnv})`}</span>
               </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {Object.entries(APP_MENU_TREE).map(([parentMenu, subMenus]) => {
+                  const targetPerms = permissionsMatrix[currentTargetKey] || {};
+                  const isAllChecked = subMenus.every(m => targetPerms[m]);
+                  return (
+                    <Card key={parentMenu} className="border shadow-sm bg-white">
+                      <div className="bg-gray-100 px-4 py-2 text-xs font-bold flex justify-between items-center"><span>📂 {parentMenu}</span><Button variant="ghost" size="sm" className="h-6 text-[11px] text-blue-600" onClick={() => handleToggleAllInGroup(parentMenu, !isAllChecked)}>{isAllChecked ? 'Tắt hết' : 'Bật hết'}</Button></div>
+                      <CardContent className="p-0 divide-y">
+                        {subMenus.map((subMenu) => {
+                          const hasAccess = targetPerms[subMenu] || false;
+                          return (
+                            <div key={subMenu} className="flex items-center justify-between p-3 px-4 hover:bg-slate-50">
+                              <span className="text-xs text-gray-700">▪️ {subMenu}</span>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[10px] font-bold ${hasAccess ? 'text-emerald-600 bg-emerald-50' : 'text-gray-400 bg-gray-50'} px-2 py-0.5 rounded border`}>{hasAccess ? 'ĐƯỢC VÀO' : 'ẨN CHẶN'}</span>
+                                <Switch checked={hasAccess} onCheckedChange={(checked) => handleTogglePermission(subMenu, checked)} className="data-[state=checked]:bg-emerald-500" />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+              <div className="flex justify-end"><Button onClick={handleSavePermissions} className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs py-5 px-8"><Save className="w-4 h-4 mr-2" /> Lưu & Áp dụng cấu hình</Button></div>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tên Role</TableHead>
-                    <TableHead>Mô tả</TableHead>
-                    <TableHead>Quyền hoạt động</TableHead>
-                    <TableHead>Ngày tạo</TableHead>
-                    <TableHead>Hành động</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRoles.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-slate-500 dark:text-slate-400">
-                        Không tìm thấy role phù hợp.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filteredRoles.map((role) => (
-                      <TableRow key={role.id}>
-                        <TableCell>{role.name}</TableCell>
-                        <TableCell>{role.description}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-2">
-                            {MODULES.map((module) => {
-                              const count = Object.values(role.permissions[module.id]).filter(Boolean).length;
-                              return count ? (
-                                <Badge key={module.id} variant="secondary">{module.label}: {count}</Badge>
-                              ) : null;
-                            })}
-                          </div>
-                        </TableCell>
-                        <TableCell>{new Date(role.createdAt).toLocaleDateString('vi-VN')}</TableCell>
-                        <TableCell>
-                          <div className="flex flex-wrap gap-2">
-                            <Button size="sm" variant="outline" onClick={() => openDialogToEdit(role)}>Sửa</Button>
-                            <Button size="sm" variant="destructive" onClick={() => handleDeleteRole(role.id)}>Xóa</Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Biểu đồ quyền theo module</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div style={{ height: 320 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={summary.moduleStats} margin={{ top: 16, right: 16, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#cbd5e1" />
-                  <XAxis dataKey="module" tick={{ fill: 'var(--muted-foreground)' }} />
-                  <YAxis tick={{ fill: 'var(--muted-foreground)' }} />
-                  <Tooltip formatter={(value) => [`${value} role`, 'Số role']} />
-                  <Bar dataKey="assignedCount" fill="#0ea5e9" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
+
+export default Roles;
