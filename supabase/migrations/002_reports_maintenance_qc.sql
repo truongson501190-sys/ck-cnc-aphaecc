@@ -1,4 +1,4 @@
--- Báo cáo Sản xuất / Bảo trì / QC (đồng bộ với localStorage)
+-- Nhât ký Sản xuất / Bảo trì / QC (đồng bộ với localStorage)
 
 -- Bổ sung cột thời gian làm việc cho production_reports (nếu chưa có)
 ALTER TABLE public.production_reports

@@ -1,3 +1,4 @@
+// Sản xuất -> Nhật ký Sản Xuất
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -90,13 +91,13 @@ export function ProductionReportPage() {
     void persistReports([...reports, newReport]);
     setIsDialogOpen(false);
     setFormKey((k) => k + 1);
-    toast.success('Thêm báo cáo sản xuất thành công');
+    toast.success('Thêm thành công');
   };
 
   const handleDeleteReport = (id: string) => {
-    if (confirm('Bạn có chắc chắn muốn xóa báo cáo này?')) {
+    if (confirm('Bạn có chắc chắn muốn xóa nhật ký này?')) {
       void persistReports(reports.filter((r) => r.id !== id));
-      toast.success('Xóa báo cáo thành công');
+      toast.success('Xóa nhật ký thành công');
     }
   };
 
@@ -135,23 +136,23 @@ export function ProductionReportPage() {
             <ArrowLeft className="w-4 h-4" />
           </Button>
           <div>
-            <h1 className="text-3xl font-bold text-gray-900">Báo Cáo Sản Xuất</h1>
-            <p className="text-gray-600 mt-1">Quản lý và theo dõi báo cáo sản xuất</p>
+            <h1 className="text-3xl font-bold text-gray-900">Nhật ký Sản Xuất</h1>
+            <p className="text-gray-600 mt-1">Quản lý và theo dõi nhật ký sản xuất</p>
           </div>
         </div>
 
         {/* Add Report Button */}
-          <div className="mb-6 flex justify-end">
+        <div className="mb-6 flex justify-end">
           <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
                 <Plus className="w-4 h-4 mr-2" />
-                Thêm báo cáo sản xuất
+                Thêm nhật ký sản xuất
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
-                <DialogTitle>Thêm Báo Cáo Sản Xuất Mới</DialogTitle>
+                <DialogTitle>Thêm Nhật ký Sản Xuất Mới</DialogTitle>
               </DialogHeader>
               <ProductionForm key={formKey} onSubmit={handleAddReport} onCancel={() => setIsDialogOpen(false)} />
             </DialogContent>
@@ -163,7 +164,7 @@ export function ProductionReportPage() {
           <Card>
             <CardContent className="pt-6">
               <div className="text-center">
-                <p className="text-sm font-medium text-gray-600">Tổng Báo Cáo</p>
+                <p className="text-sm font-medium text-gray-600">Tổng Nhật ký</p>
                 <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total}</p>
               </div>
             </CardContent>
@@ -283,10 +284,6 @@ export function ProductionReportPage() {
                   <TableRow>
                     <TableHead>Ngày</TableHead>
                     <TableHead>Dự Án</TableHead>
-                    <TableHead>Khách Hàng</TableHead>
-                    <TableHead>Bản Vẽ Số</TableHead>
-                    <TableHead>Tên Chi Tiết</TableHead>
-                    <TableHead>SL Hoàn Thành</TableHead>
                     <TableHead>Trạng Thái</TableHead>
                     <TableHead className="text-right">Thao Tác</TableHead>
                   </TableRow>
@@ -294,10 +291,10 @@ export function ProductionReportPage() {
                 <TableBody>
                   {filteredReports.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-gray-500">
+                      <TableCell colSpan={4} className="text-center py-8 text-gray-500">
                         {reports.length === 0
-                          ? 'Chưa có báo cáo sản xuất nào'
-                          : 'Không tìm thấy báo cáo phù hợp'}
+                          ? 'Chưa có nhật ký sản xuất nào'
+                          : 'Không tìm thấy nhật ký phù hợp'} 
                       </TableCell>
                     </TableRow>
                   ) : (
@@ -307,10 +304,6 @@ export function ProductionReportPage() {
                           {new Date(report.ngayThang).toLocaleDateString('vi-VN')}
                         </TableCell>
                         <TableCell className="font-medium">{report.duAn}</TableCell>
-                        <TableCell>{report.khachHang}</TableCell>
-                        <TableCell>{report.banVeSo}</TableCell>
-                        <TableCell>{report.tenChiTiet}</TableCell>
-                        <TableCell>{report.soLuongHoanThanh}</TableCell>
                         <TableCell>{getStatusBadge(report.status)}</TableCell>
                         <TableCell className="text-right">
                           <Button

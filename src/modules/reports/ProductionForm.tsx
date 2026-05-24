@@ -1,3 +1,4 @@
+// Sản xuất -> Nhật ký Sản Xuất-> Nút Thêm nhật ký sản xuất
 import React, { useState, useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -287,7 +288,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle className="text-center text-xl font-bold text-blue-600">
-          Báo Cáo Sản Xuất
+          Nhât ký Sản Xuất
         </CardTitle>
         <div className="text-center">
           <Badge variant="secondary">Người dùng: {user?.fullName || user?.name}</Badge>
@@ -689,7 +690,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
               Hủy
             </Button>
             <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-              Lưu báo cáo
+              Lưu 
             </Button>
           </div>
         </form>
