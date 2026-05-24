@@ -15,6 +15,8 @@ import {
 
 import { Sidebar } from '@/components/Sidebar';
 import { MobileSidebar } from '@/components/MobileSidebar';
+// CHÈN THÊM DÒNG NÀY ĐỂ GỌI NÚT QUAY LẠI TIẾNG VIỆT
+import NutQuayLai from '@/components/NutQuayLai';
 
 import { useAuth } from '@/hooks/useAuth';
 import { ERP_ROUTE } from '@/modules/erp/routes';
@@ -265,7 +267,6 @@ export default function Index() {
               <Card className="shadow-sm border-l-4 border-yellow-500 rounded-xl max-w-5xl mx-auto">
                 <CardHeader className="pb-2 pt-4 px-4">
                   <CardTitle className="flex items-center gap-2 text-yellow-600 text-base md:text-lg">
-                    {/* Đổi FolderTree thành Layers ở đây chú nhé */}
                     <Layers className="w-5 h-5" /> 
                     Quản lý Danh mục
                   </CardTitle>
@@ -401,6 +402,10 @@ export default function Index() {
           </div>
         </div>
       </div>
+      
+      {/* NÚT QUAY LẠI THÔNG MINH ĐÃ ĐƯỢC CHÈN Ở ĐÂY CHÚ NHÉ */}
+      <NutQuayLai />
+
     </div>
   );
 }
