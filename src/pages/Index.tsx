@@ -263,29 +263,21 @@ export default function Index() {
             {/* ================= DANH MỤC ================= */}
             {isAdmin && (
               <Card className="shadow-sm border-l-4 border-yellow-500 rounded-xl max-w-5xl mx-auto">
-
                 <CardHeader className="pb-2 pt-4 px-4">
                   <CardTitle className="flex items-center gap-2 text-yellow-600 text-base md:text-lg">
-                    <Layers className="w-5 h-5" />
+                    {/* Đổi FolderTree thành Layers ở đây chú nhé */}
+                    <Layers className="w-5 h-5" /> 
                     Quản lý Danh mục
                   </CardTitle>
                 </CardHeader>
 
                 <CardContent className="pt-0 px-4 pb-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-
                     <Button
                       className="min-h-[42px] text-xs md:text-sm bg-yellow-500 hover:bg-yellow-600 text-white whitespace-normal break-words"
                       onClick={() => navigate(ERP_ROUTE.masterData.categories)}
                     >
                       Chủng loại
-                    </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-yellow-500 hover:bg-yellow-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.masterData.materials)}
-                    >
-                      Vật liệu
                     </Button>
 
                     <Button
@@ -308,14 +300,6 @@ export default function Index() {
                     >
                       Dự án
                     </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-yellow-500 hover:bg-yellow-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.masterData.employees)}
-                    >
-                      Nhân viên
-                    </Button>
-
                   </div>
                 </CardContent>
               </Card>
