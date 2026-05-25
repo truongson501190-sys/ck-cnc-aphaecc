@@ -604,49 +604,16 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
             </CardContent>
           </Card>
 
-          {/* OPTIMIZED TIME INPUT */}
-          <OptimizedTimeInput onTimeChange={handleTimeChange} />
-
-          {/* Cost Information - ONLY FOR ADMIN */}
-          {isAdmin && (
-            <Card className="bg-red-50 border-red-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-lg font-semibold text-red-600 flex items-center gap-2">
-                  <Lock className="w-5 h-5" />
-                  Chi Phí Sản Xuất (Chỉ Quản Trị Viên)
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="cpMay">CP Máy (VND)</Label>
-                    <Input
-                      id="cpMay"
-                      type="number"
-                      min={0}
-                      value={formData.cpMay}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        handleInputChange('cpMay', parseFloat(e.target.value) || 0)
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="cpDaoCu">CP Dao Cụ (VND)</Label>
-                    <Input
-                      id="cpDaoCu"
-                      type="number"
-                      min={0}
-                      value={formData.cpDaoCu}
-                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                        handleInputChange('cpDaoCu', parseFloat(e.target.value) || 0)
-                      }
-                    />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
+          <OptimizedTimeInput 
+  onSetupTimeChange={(total, intervals) => {
+    // Chú điền logic xử lý gá phôi của chú vào đây
+    setFormData(prev => ({ ...prev, setupTimeEntries: intervals }));
+  }}
+  onWorkTimeChange={(total, shift, intervals) => {
+    // Chú điền logic xử lý gia công của chú vào đây
+    setFormData(prev => ({ ...prev, tgTrenCa: total, ca: shift, workTimeEntries: intervals }));
+  }}
+/>
           {/* Personnel */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
