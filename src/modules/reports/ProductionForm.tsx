@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Lock, QrCode } from 'lucide-react';
+import { Plus, Lock, QrCode, Search } from 'lucide-react';
 import { ProductionReport, ToolEntry, WorkTimeEntry } from '@/types/production';
 import { useMasterData } from '@/hooks/useMasterData';
 import { useAuth } from '@/hooks/useAuth';
@@ -28,11 +28,28 @@ const createEmptyToolEntry = (): ToolEntry => ({
   donVi: '',
 });
 
+interface Project {
+  id: string;
+  maDuAn: string;
+  tenDuAn: string;
+  ghiChu?: string;
+  createdAt: string;
+}
+
+interface CategoryType {
+  id: string;
+  maLoai: string;
+  tenLoai: string;
+  donVi: string;
+  gia: number;
+  ghiChu?: string;
+  createdAt: string;
+}
+
 export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
   const masterDataHook = useMasterData();
   const { user, isAdmin } = useAuth();
   
-  // Safely destructure with fallbacks
   const masterData = masterDataHook?.masterData || { machines: [], tools: [], operators: [], inspectors: [], projects: [] };
   const getProjectByCode = masterDataHook?.getProjectByCode || (() => undefined);
   
@@ -40,7 +57,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     ngayThang: new Date().toISOString().split('T')[0],
     maySanXuat: '',
     duAn: '',
-    khachHang: '',
+    tenDuAn: '',
     banVeSo: '',
     chiTietSo: '',
     tenChiTiet: '',
@@ -89,60 +106,17 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     setInspectors(masterData.inspectors);
   }, [masterData.inspectors]);
 
-  // Simple state for external data - no complex loading
-  type SimpleEntity = {
-    id: string;
-    name?: string;
-    tenMay?: string;
-    maDuAn?: string;
-    tenKhachHang?: string;
-    qrData?: string;
-    unit?: string;
-  };
-
-  const [customers, setCustomers] = useState<SimpleEntity[]>([]);
-  const [tools, setTools] = useState<SimpleEntity[]>([]);
-  const [machines, setMachines] = useState<SimpleEntity[]>([]);
-  const [projects, setProjects] = useState<SimpleEntity[]>([]);
-  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+  const [machines, setMachines] = useState<{ id: string; name?: string; tenMay?: string }[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [categoryTypes, setCategoryTypes] = useState<CategoryType[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
 
-  // Lazy-load scanner component
   const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
 
-  // Load data once on mount - SIMPLIFIED
-  useEffect(() => {
-    // Load customers
-    try {
-      const savedCustomers = localStorage.getItem('simpleCustomers');
-      if (savedCustomers) {
-        setCustomers(JSON.parse(savedCustomers));
-      }
-    } catch (error) {
-      console.error('Error loading customers:', error);
-    }
-
-    // Load tools
-    try {
-      const savedTools = localStorage.getItem('simpleTools');
-      if (savedTools) {
-        setTools(JSON.parse(savedTools));
-      }
-    } catch (error) {
-      console.error('Error loading tools:', error);
-    }
-
-    // Load machines from MachineManagement storage (key: 'machines')
-    try {
-      const savedMachines = localStorage.getItem('machines');
-      if (savedMachines) {
-        setMachines(JSON.parse(savedMachines));
-      }
-    } catch (error) {
-      console.error('Error loading machines:', error);
-    }
-
-    // Load projects from ProjectManagement storage (key: 'projects')
+  // LOAD DATA FROM CORRECT LOCALSTORAGE KEYS
+  const loadData = () => {
     try {
       const savedProjects = localStorage.getItem('projects');
       if (savedProjects) {
@@ -151,9 +125,41 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     } catch (error) {
       console.error('Error loading projects:', error);
     }
-  }, []); // Empty dependency array - only run once
 
-  // Handle time change from OptimizedTimeInput
+    try {
+      const savedCategories = localStorage.getItem('category_types');
+      if (savedCategories) {
+        setCategoryTypes(JSON.parse(savedCategories));
+      }
+    } catch (error) {
+      console.error('Error loading categories:', error);
+    }
+
+    try {
+      const savedMachines = localStorage.getItem('machines');
+      if (savedMachines) {
+        setMachines(JSON.parse(savedMachines));
+      }
+    } catch (error) {
+      console.error('Error loading machines:', error);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+
+    const handleStorageChange = () => {
+      loadData();
+    };
+
+    window.addEventListener('app-data-synced', handleStorageChange);
+    window.addEventListener('storage', handleStorageChange);
+    return () => {
+      window.removeEventListener('app-data-synced', handleStorageChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
   const handleTimeChange = (
     totalTime: string,
     shift: 'ngay' | 'dem' | '',
@@ -171,13 +177,11 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     e.preventDefault();
     
     try {
-      // Basic validation
-      if (!formData.maySanXuat || !formData.duAn || !formData.khachHang) {
+      if (!formData.maySanXuat || !formData.duAn || !formData.tenDuAn) {
         toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
         return;
       }
 
-      // Validate at least one tool entry
       const validToolEntries = formData.toolEntries.filter(entry => entry.tenDao);
       if (validToolEntries.length === 0) {
         toast.error('Vui lòng nhập ít nhất một dao cụ');
@@ -196,12 +200,11 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
         status: 'pending',
       });
       
-      // Reset form
       setFormData({
         ngayThang: new Date().toISOString().split('T')[0],
         maySanXuat: '',
         duAn: '',
-        khachHang: '',
+        tenDuAn: '',
         banVeSo: '',
         chiTietSo: '',
         tenChiTiet: '',
@@ -234,17 +237,22 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     }));
   };
 
-  // Handle project selection from dropdown - links to project management list
-  const handleProjectChange = (projectId: string) => {
-    const selectedProject = projects.find(p => p.id === projectId);
-    if (selectedProject) {
-      setFormData(prev => ({
-        ...prev,
-        duAn: selectedProject.maDuAn || '',
-        khachHang: selectedProject.tenKhachHang || ''
-      }));
-    }
+  // Handle project selection
+  const handleProjectSelect = (project: Project) => {
+    setFormData(prev => ({
+      ...prev,
+      duAn: project.maDuAn,
+      tenDuAn: project.tenDuAn
+    }));
+    setProjectSearch(project.maDuAn);
+    setIsProjectDropdownOpen(false);
   };
+
+  // Filter projects based on search
+  const filteredProjects = projects.filter(project =>
+    project.maDuAn.toLowerCase().includes(projectSearch.toLowerCase()) ||
+    project.tenDuAn.toLowerCase().includes(projectSearch.toLowerCase())
+  );
 
   const addToolEntry = () => {
     if (formData.toolEntries.length < 10) {
@@ -269,11 +277,11 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
         if (i === index) {
           const updatedEntry = { ...entry, [field]: value };
           
-          // Auto-fill unit when tool name is selected
+          // Auto-fill unit when tool name is selected from category types
           if (field === 'tenDao' && typeof value === 'string') {
-            const selectedTool = tools.find(tool => tool.name === value);
-            if (selectedTool) {
-              updatedEntry.donVi = selectedTool.unit ?? '';
+            const selectedCategory = categoryTypes.find(cat => cat.tenLoai === value);
+            if (selectedCategory) {
+              updatedEntry.donVi = selectedCategory.donVi ?? '';
             }
           }
           
@@ -288,7 +296,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
         <CardTitle className="text-center text-xl font-bold text-blue-600">
-          Nhât ký Sản Xuất
+          Nhật ký Sản Xuất
         </CardTitle>
         <div className="text-center">
           <Badge variant="secondary">Người dùng: {user?.fullName || user?.name}</Badge>
@@ -319,7 +327,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
                     <SelectValue placeholder="Chọn máy sản xuất" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(machines.length > 0 ? machines : (masterData.machines as SimpleEntity[])).map((machine) => (
+                    {(machines.length > 0 ? machines : (masterData.machines as any[])).map((machine) => (
                       <SelectItem key={machine.id} value={machine.name || machine.tenMay || machine.id}>
                         {machine.name || machine.tenMay || machine.id}
                       </SelectItem>
@@ -332,7 +340,6 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
                 </Button>
               </div>
 
-              {/* Scanner dialog for selecting machine by QR */}
               <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
                 <DialogContent className="max-w-md">
                   <DialogHeader>
@@ -342,10 +349,9 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
                     <p className="text-sm text-gray-600 mb-2">Đưa mã QR vào khung camera để quét.</p>
                     <Suspense fallback={<div>Đang tải máy quét...</div>}>
                       <LazyScanner onDetected={(text: string) => {
-                        // Merge possible machine sources: local `simpleMachines`, legacy `machines` key, and masterData
-                        let legacy: SimpleEntity[] = [];
-                        try { legacy = JSON.parse(localStorage.getItem('machines') || '[]') as SimpleEntity[]; } catch { legacy = []; }
-                        const pool: SimpleEntity[] = [ ...(machines || []), ...legacy, ...(masterData.machines || []) as SimpleEntity[] ];
+                        let legacy: any[] = [];
+                        try { legacy = JSON.parse(localStorage.getItem('machines') || '[]'); } catch { legacy = []; }
+                        const pool = [ ...(machines || []), ...legacy, ...(masterData.machines || []) ];
                         const found = pool.find(m => (m.qrData === text) || (m.id === text) || (m.name === text) || (m.tenMay === text));
                         if (found) {
                           const name = found.name || found.tenMay || found.id;
@@ -365,61 +371,61 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <Label htmlFor="duAn">Dự án *</Label>
+              <Label htmlFor="duAn">Mã Dự Án *</Label>
               <div className="space-y-2 relative">
-                <Input
-                  id="duAn"
-                  type="text"
-                  value={formData.duAn}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
-                    handleInputChange('duAn', e.target.value);
-                    setIsProjectDropdownOpen(true);
-                  }}
-                  onFocus={() => setIsProjectDropdownOpen(true)}
-                  placeholder="Nhập mã dự án"
-                  className="border-gray-300"
-                  required
-                />
-                {/* Dropdown list khi người dùng nhập vào */}
-                {isProjectDropdownOpen && formData.duAn && (
-                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-10">
-                    {projects
-                      .filter((project) =>
-                        (project.maDuAn ?? '').toLowerCase().includes(formData.duAn.toLowerCase())
-                      )
-                      .slice(0, 5)
-                      .map((project) => (
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
+                  <Input
+                    id="duAn"
+                    type="text"
+                    value={projectSearch}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => {
+                      setProjectSearch(e.target.value);
+                      setIsProjectDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsProjectDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setIsProjectDropdownOpen(false), 200)}
+                    placeholder="Nhập hoặc tìm mã dự án..."
+                    className="border-gray-300 pl-10"
+                    required
+                  />
+                </div>
+                {isProjectDropdownOpen && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-300 rounded-md shadow-lg z-20 max-h-60 overflow-y-auto">
+                    {filteredProjects.length === 0 ? (
+                      <div className="px-4 py-3 text-sm text-gray-500">
+                        {projects.length === 0 ? 'Chưa có dự án nào. Vui lòng thêm dự án ở Quản lý Danh Mục.' : 'Không tìm thấy dự án phù hợp.'}
+                      </div>
+                    ) : (
+                      filteredProjects.map((project) => (
                         <button
                           key={project.id}
                           type="button"
-                          onClick={() => {
-                            handleProjectChange(project.id);
-                            setIsProjectDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-200 last:border-b-0 text-sm"
+                          onMouseDown={() => handleProjectSelect(project)}
+                          className="w-full text-left px-4 py-2 hover:bg-blue-50 border-b border-gray-100 last:border-b-0 text-sm"
                         >
-                          {project.maDuAn}
+                          <div className="font-medium">{project.maDuAn}</div>
+                          <div className="text-gray-600 text-xs">{project.tenDuAn}</div>
                         </button>
-                      ))}
+                      ))
+                    )}
                   </div>
                 )}
               </div>
             </div>
             <div>
-              <Label htmlFor="khachHang" className="flex items-center gap-2">
+              <Label htmlFor="tenDuAn" className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-red-500" />
-                Khách Hàng * 
+                Tên Dự Án * 
               </Label>
               <Input
-                id="khachHang"
-                value={formData.khachHang}
+                id="tenDuAn"
+                value={formData.tenDuAn}  
                 readOnly
                 disabled
                 className="bg-gray-200 border-gray-300 text-gray-600 cursor-not-allowed"
                 placeholder="Sẽ tự động điền khi chọn dự án"
               />
-              <p className="text-xs text-red-500 mt-1 flex items-center gap-1">   
-              </p>
             </div>
           </div>
 
@@ -533,10 +539,10 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
                           <SelectValue placeholder="Chọn dao" />
                         </SelectTrigger>
                         <SelectContent>
-                          {tools.length > 0 
-                            ? tools.map((tool) => (
-                                <SelectItem key={tool.id} value={tool.name ?? tool.id}>
-                                  {tool.name ?? tool.id}
+                          {categoryTypes.length > 0 
+                            ? categoryTypes.map((category) => (
+                                <SelectItem key={category.id} value={category.tenLoai}>
+                                  {category.tenLoai}
                                 </SelectItem>
                               ))
                             : masterData.tools.map((tool) => (
@@ -606,11 +612,9 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
 
           <OptimizedTimeInput 
   onSetupTimeChange={(total, intervals) => {
-    // Chú điền logic xử lý gá phôi của chú vào đây
     setFormData(prev => ({ ...prev, setupTimeEntries: intervals }));
   }}
   onWorkTimeChange={(total, shift, intervals) => {
-    // Chú điền logic xử lý gia công của chú vào đây
     setFormData(prev => ({ ...prev, tgTrenCa: total, ca: shift, workTimeEntries: intervals }));
   }}
 />
@@ -629,8 +633,6 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
                 className="bg-gray-200 border-gray-300 text-gray-600 cursor-not-allowed"
                 placeholder="Tự động điền từ người đăng nhập"
               />
-              <p className="text-xs text-red-500 mt-1 flex items-center gap-1">
-              </p>
             </div>
             <div>
               <Label htmlFor="nguoiKiemTra">Người Kiểm Tra</Label>

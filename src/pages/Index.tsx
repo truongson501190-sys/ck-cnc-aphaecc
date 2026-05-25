@@ -71,6 +71,58 @@ export default function Index() {
 
           <div className="space-y-5">
 
+{/* ================= SẢN XUẤT ================= */}
+            <Card className="shadow-sm border-l-4 border-orange-500 rounded-xl max-w-5xl mx-auto">
+
+              <CardHeader className="pb-2 pt-4 px-4">
+                <CardTitle className="flex items-center gap-2 text-orange-600 text-base md:text-lg">
+                  <Factory className="w-5 h-5" />
+                  Sản xuất (Manufacturing)
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="pt-0 px-4 pb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+
+                  <Button
+                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
+                    onClick={() => navigate(ERP_ROUTE.manufacturing.plan)}
+                  >
+                    Kế hoạch sản xuất
+                  </Button>
+
+                  <Button
+                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
+                    onClick={() => navigate(ERP_ROUTE.manufacturing.machiningLog)}
+                  >
+                    Nhật ký gia công
+                  </Button>
+
+                  <Button
+                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
+                    onClick={() => navigate(ERP_ROUTE.manufacturing.qcLog)}
+                  >
+                    Nhật ký QC
+                  </Button>
+
+                  <Button
+                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
+                    onClick={() => navigate(ERP_ROUTE.manufacturing.maintenanceLog)}
+                  >
+                    Nhật ký bảo trì
+                  </Button>
+
+                  <Button
+                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
+                    onClick={() => navigate(ERP_ROUTE.manufacturing.progress)}
+                  >
+                    Theo dõi tiến độ
+                  </Button>
+
+                </div>
+              </CardContent>
+            </Card>
+
             {/* ================= KHO BÃI ================= */}
             <Card className="shadow-sm border-l-4 border-green-500 rounded-xl max-w-5xl mx-auto">
               
@@ -144,58 +196,7 @@ export default function Index() {
               </CardContent>
             </Card>
 
-            {/* ================= SẢN XUẤT ================= */}
-            <Card className="shadow-sm border-l-4 border-orange-500 rounded-xl max-w-5xl mx-auto">
-
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="flex items-center gap-2 text-orange-600 text-base md:text-lg">
-                  <Factory className="w-5 h-5" />
-                  Sản xuất (Manufacturing)
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="pt-0 px-4 pb-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.plan)}
-                  >
-                    Kế hoạch sản xuất
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.machiningLog)}
-                  >
-                    Nhật ký gia công
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.qcLog)}
-                  >
-                    Nhật ký QC
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.maintenanceLog)}
-                  >
-                    Nhật ký bảo trì
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.progress)}
-                  >
-                    Theo dõi tiến độ
-                  </Button>
-
-                </div>
-              </CardContent>
-            </Card>
-
+            
             {/* ================= BÁO CÁO ================= */}
             <Card className="shadow-sm border-l-4 border-indigo-500 rounded-xl max-w-5xl mx-auto">
 

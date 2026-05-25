@@ -1,4 +1,4 @@
-//Quản lý danh mục ->du an
+//Quản lý danh mục -> du an
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -385,7 +385,7 @@ export function ProjectManagement() {
                         />
                       </div>
                       <div className="text-left font-semibold">Mã Dự Án</div>
-                      <div className="text-left">Tên / Khách Hàng</div>
+                      <div className="text-left">Tên Dự Án</div>
                       <div className="text-left">Ghi Chú Công Việc</div>
                       <div>Thao tác</div>
                     </div>
