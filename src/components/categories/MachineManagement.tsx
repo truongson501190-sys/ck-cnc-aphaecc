@@ -288,8 +288,6 @@ export function MachineManagement() {
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">🏭 1. Quản Lý Máy Móc</h2>
-          <p className="text-gray-500 text-sm">Thiết lập đơn giá chạy máy theo ca làm việc</p>
         </div>
         <Badge className="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-100 font-bold shadow-sm">
           Tổng số: {machines.length} máy

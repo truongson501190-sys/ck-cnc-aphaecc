@@ -9,7 +9,7 @@ export { InventoryPage } from './InventoryPage';
 export { default as DashboardSummary } from './pages/DashboardSummary';
 export { MachiningReportsPage } from './MachiningReportsPage';
 export { MachinePerformancePage } from './MachinePerformancePage';
-export { MaterialConsumptionPage } from './MaterialConsumptionPage';
+export { PendingApprovalList } from './PendingApprovalList';
 export { QaReportsAnalyticsPage } from './QaReportsAnalyticsPage';
 export { default as QCReport } from './pages/QCReport';
 export { default as WarehouseReport } from './pages/WarehouseReport';

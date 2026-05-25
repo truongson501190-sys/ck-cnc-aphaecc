@@ -273,8 +273,8 @@ export function ProductionReportPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Danh Sách Báo Cáo</span>
-              <Badge variant="secondary">{filteredReports.length} báo cáo</Badge>
+              <span>Danh Sách Nhật Ký </span>
+              <Badge variant="secondary">{filteredReports.length} nhật ký</Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>

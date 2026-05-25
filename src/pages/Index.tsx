@@ -254,9 +254,9 @@ export default function Index() {
 
                   <Button
                     className="min-h-[42px] text-xs md:text-sm bg-indigo-500 hover:bg-indigo-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.materialConsumption)}
+                    onClick={() => navigate(ERP_ROUTE.reports.pendingApproval)}
                   >
-                    Tiêu hao vật liệu
+                    Chờ duyệt
                   </Button>
 
                 </div>

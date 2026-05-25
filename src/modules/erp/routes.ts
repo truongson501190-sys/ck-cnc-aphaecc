@@ -24,12 +24,13 @@ import {
   LayoutDashboard,
   Layers,
   MapPin,
-  FlaskConical,
+  Hourglass,
   Clock,
   HardDrive,
   LogOut,
   NotebookPen,
   BarChart2,
+  Boxes,
 } from 'lucide-react';
 import type { UserPermissions } from '@/types/user';
 
@@ -37,7 +38,7 @@ import type { UserPermissions } from '@/types/user';
 export type ERPNavAuthUser = { role?: string; permissions?: UserPermissions } | null | undefined;
 
 export const ERP_ROUTE = {
-  login: '/system/login',
+  login: '/login',
   dashboard: '/',
   warehouse: {
     base: '/warehouse',
@@ -65,7 +66,7 @@ export const ERP_ROUTE = {
   },
   reports: {
     base: '/reports',
-    summary: '/reports/dashboard',
+    summary: '/reports/summary',
     warehouse: '/reports/warehouse',
     /** Analytics / KPI — not daily entry forms */
     machining: '/reports/machining',
@@ -78,6 +79,7 @@ export const ERP_ROUTE = {
     manufacturing: '/reports/manufacturing',
     costing: '/reports/costing',
     productionKpi: '/reports/production-kpi',
+    pendingApproval: '/reports/pending-approval',
   },
   masterData: {
     base: '/master-data',
@@ -94,7 +96,6 @@ export const ERP_ROUTE = {
     roles: '/system/roles',
     auditLog: '/system/audit-log',
     backupRestore: '/system/backup-restore',
-    roles: '/system/roles',
     settings: '/system/settings',
   },
   account: {
@@ -308,10 +309,10 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
         permissionKey: 'bao-cao-tong-hop',
       },
       {
-        id: 'material-consumption',
-        label: 'Tiêu hao vật liệu',
-        icon: FlaskConical,
-        path: ERP_ROUTE.reports.materialConsumption,
+        id: 'pending-approval',
+        label: 'Chờ duyệt',
+        icon: Hourglass,
+        path: ERP_ROUTE.reports.pendingApproval,
         permissionKey: 'bao-cao-tong-hop',
       },
     ],
@@ -326,6 +327,13 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
         label: 'Chủng loại',
         icon: FolderTree,
         path: ERP_ROUTE.masterData.categories,
+        adminOnly: true,
+      },
+      {
+        id: 'materials',
+        label: 'Vật tư',
+        icon: Boxes,
+        path: ERP_ROUTE.masterData.materials,
         adminOnly: true,
       },
       {
@@ -349,7 +357,14 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
         path: ERP_ROUTE.masterData.projects,
         adminOnly: true,
       },
-       ],
+      {
+        id: 'employees',
+        label: 'Nhân viên',
+        icon: Users,
+        path: ERP_ROUTE.masterData.employees,
+        adminOnly: true,
+      },
+    ],
   },
   {
     id: 'system',

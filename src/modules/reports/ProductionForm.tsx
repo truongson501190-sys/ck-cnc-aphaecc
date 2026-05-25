@@ -67,12 +67,14 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     nguyenCongSo: '',
     toolEntries: [createEmptyToolEntry()],
     workTimeEntries: [] as WorkTimeEntry[],
+    setupTimeEntries: [] as WorkTimeEntry[],
     ca: '' as 'ngay' | 'dem' | '',
     cpMay: 0,
     cpDaoCu: 0,
     nguoiVanHanh: user?.fullName || user?.name || '',
     nguoiKiemTra: '',
     tgTrenCa: '',
+    tgGaPhoi: '',
     status: 'draft' as const,
   });
 
@@ -161,24 +163,29 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
   }, []);
 
   const handleTimeChange = (
-    totalTime: string,
+    machiningHours: string,
+    setupHours: string,
     shift: 'ngay' | 'dem' | '',
-    intervals: WorkTimeEntry[]
+    machiningEntries: WorkTimeEntry[],
+    setupEntries: WorkTimeEntry[]
   ) => {
     setFormData((prev) => ({
       ...prev,
-      tgTrenCa: totalTime,
+      tgTrenCa: machiningHours,
+      tgGaPhoi: setupHours,
       ca: shift,
-      workTimeEntries: intervals,
+      workTimeEntries: machiningEntries,
+      setupTimeEntries: setupEntries,
     }));
   };
 
+  // HÀM XỬ LÝ LƯU: ĐÃ ĐƯỢC CẬP NHẬT ĐỂ LIÊN KẾT SANG PHÊ DUYỆT CHỜ DUYỆT
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
     try {
       if (!formData.maySanXuat || !formData.duAn || !formData.tenDuAn) {
-        toast.error('Vui lòng điền đầy đủ thông tin bắt buộc');
+        toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (Máy sản xuất, Dự án)');
         return;
       }
 
@@ -193,6 +200,37 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
         return;
       }
 
+      // -------------------------------------------------------------------------
+      // XỬ LÝ ĐẨY DỮ LIỆU SANG DANH SÁCH CHỜ DUYỆT (PENDING APPROVAL LIST)
+      // -------------------------------------------------------------------------
+      const newApprovalLog = {
+        id: "LOG-" + Date.now(),
+        ngay: formData.ngayThang,
+        maDuAn: formData.duAn,
+        tenDuAn: formData.tenDuAn,
+        tenDao: validToolEntries[0]?.tenDao || "Chưa chọn dao",
+        donVi: validToolEntries[0]?.donVi || "Cái",
+        nguoiThucHien: user?.fullName || user?.name || formData.nguoiVanHanh || "Nhân viên vận hành",
+        tinhTrang: formData.noiDungGiaCong || `Vận hành máy: ${formData.maySanXuat}. Hoàn thành: ${formData.soLuongHoanThanh} sản phẩm.`,
+        status: 'pending' as const // Đưa trạng thái về Chờ Duyệt
+      };
+
+      const rawApprovalData = localStorage.getItem('PRODUCTION_LOGS_DATA');
+      let currentApprovalList = [];
+      if (rawApprovalData) {
+        try {
+          currentApprovalList = JSON.parse(rawApprovalData);
+        } catch {
+          currentApprovalList = [];
+        }
+      }
+
+      // Thêm mới vào cuối mảng, không làm mất dữ liệu cũ của chú
+      const updatedApprovalList = [...currentApprovalList, newApprovalLog];
+      localStorage.setItem('PRODUCTION_LOGS_DATA', JSON.stringify(updatedApprovalList));
+      // -------------------------------------------------------------------------
+
+      // Chạy tiếp luồng xử lý gốc của Form
       onSubmit({
         ...formData,
         toolEntries: validToolEntries,
@@ -200,6 +238,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
         status: 'pending',
       });
       
+      // Reset form về mặc định sạch sẽ
       setFormData({
         ngayThang: new Date().toISOString().split('T')[0],
         maySanXuat: '',
@@ -214,16 +253,18 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
         nguyenCongSo: '',
         toolEntries: [createEmptyToolEntry()],
         workTimeEntries: [],
+        setupTimeEntries: [],
         ca: '',
         cpMay: 0,
         cpDaoCu: 0,
         nguoiVanHanh: user?.fullName || user?.name || '',
         nguoiKiemTra: '',
         tgTrenCa: '',
+        tgGaPhoi: '',
         status: 'draft',
       });
 
-      toast.success('Đã gửi báo cáo thành công!');
+      toast.success('Đã gửi báo cáo và chuyển sang danh sách chờ duyệt!');
     } catch (error) {
       console.error('Error submitting form:', error);
       toast.error('Lỗi khi gửi báo cáo');
@@ -303,7 +344,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
         </div>
       </CardHeader>
       <CardContent className="max-h-[80vh] overflow-y-auto">
-  <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
           {/* Basic Information */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -335,7 +376,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
                   </SelectContent>
                 </Select>
 
-                <Button variant="outline" onClick={() => setScannerOpen(true)} title="Quét mã QR máy">
+                <Button variant="outline" type="button" onClick={() => setScannerOpen(true)} title="Quét mã QR máy">
                   <QrCode className="w-4 h-4" />
                 </Button>
               </div>
@@ -416,8 +457,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
             <div>
               <Label htmlFor="tenDuAn" className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-red-500" />
-                Tên Dự Án * 
-              </Label>
+                Tên Dự Án * </Label>
               <Input
                 id="tenDuAn"
                 value={formData.tenDuAn}  
@@ -610,14 +650,8 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
             </CardContent>
           </Card>
 
-          <OptimizedTimeInput 
-  onSetupTimeChange={(total, intervals) => {
-    setFormData(prev => ({ ...prev, setupTimeEntries: intervals }));
-  }}
-  onWorkTimeChange={(total, shift, intervals) => {
-    setFormData(prev => ({ ...prev, tgTrenCa: total, ca: shift, workTimeEntries: intervals }));
-  }}
-/>
+          <OptimizedTimeInput onTimeChange={handleTimeChange} />
+
           {/* Personnel */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -658,8 +692,8 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
             <Button type="button" variant="outline" onClick={() => onCancel && onCancel()}>
               Hủy
             </Button>
-            <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
-              Lưu 
+            <Button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-medium">
+              Lưu
             </Button>
           </div>
         </form>

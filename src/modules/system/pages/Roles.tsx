@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 const APP_MENU_TREE = {
   'Kho bãi (WMS)': ['Nhập kho', 'Xuất kho', 'Chuyển kho', 'Xuất dầu', 'Kiểm kê kho', 'Tồn kho', 'Thẻ kho', 'Lịch sử giao dịch'],
   'Sản xuất (Manufacturing)': ['Kế hoạch sản xuất', 'Nhật ký gia công', 'Nhật ký QC', 'Nhật ký bảo trì', 'Theo dõi tiến độ'],
-  'Báo cáo & Dashboard': ['Dashboard tổng hợp', 'Báo cáo kho', 'Báo cáo gia công', 'Báo cáo QC', 'Báo cáo bảo trì', 'Hiệu suất máy', 'Tiêu hao vật liệu'],
+  'Báo cáo & Dashboard': ['Dashboard tổng hợp', 'Báo cáo kho', 'Báo cáo gia công', 'Báo cáo QC', 'Báo cáo bảo trì', 'Hiệu suất máy', 'Chờ duyệt'],
   'Quản lý Danh mục': ['Chủng loại', 'Kho', 'Máy móc', 'Dự án'],
   'Hệ thống': ['Quản lý người dùng', 'Phân quyền', 'Audit Log', 'Backup & Restore', 'Cài đặt hệ thống']
 };

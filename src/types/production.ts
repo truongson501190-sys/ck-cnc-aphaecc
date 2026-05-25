@@ -17,7 +17,8 @@ export interface ProductionReport {
   ngayThang: string;
   maySanXuat: string;
   duAn: string;
-  khachHang: string;
+  tenDuAn: string;
+  khachHang?: string;
   banVeSo: string;
   chiTietSo: string;
   tenChiTiet: string;
@@ -27,12 +28,14 @@ export interface ProductionReport {
   nguyenCongSo: string;
   toolEntries: ToolEntry[];
   workTimeEntries?: WorkTimeEntry[];
+  setupTimeEntries?: WorkTimeEntry[];
   ca: 'ngay' | 'dem' | '';
   cpMay: number;
   cpDaoCu: number;
   nguoiVanHanh: string;
   nguoiKiemTra: string;
   tgTrenCa: string;
+  tgGaPhoi?: string;
   status: 'draft' | 'pending' | 'approved' | 'rejected';
   createdAt: string;
 }
