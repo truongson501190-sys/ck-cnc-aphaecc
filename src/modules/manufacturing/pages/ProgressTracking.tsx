@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit3, Trash2, Activity } from 'lucide-react';
+import { Search, Plus, Edit3, Trash2, Activity, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
 import type { ProgressUpdateEntry } from '@/types/manufacturing';
@@ -44,6 +45,7 @@ const defaultUpdates: ProgressUpdateEntry[] = [
 ];
 
 export function ProgressTracking() {
+  const navigate = useNavigate();
   const [updates, setUpdates] = useState<ProgressUpdateEntry[]>([]);
   const [selectedUpdate, setSelectedUpdate] = useState<ProgressUpdateEntry | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -158,9 +160,19 @@ export function ProgressTracking() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Theo dõi tiến độ</h1>
-            <p className="text-sm text-slate-600 mt-2">Quản lý tiến độ thực tế cho đơn hàng và lệnh sản xuất.</p>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => navigate('/')}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Theo dõi tiến độ</h1>
+              <p className="text-sm text-slate-600 mt-2">Quản lý tiến độ thực tế cho đơn hàng và lệnh sản xuất.</p>
+            </div>
           </div>
           <Button onClick={openNewDialog} className="inline-flex items-center gap-2">
             <Plus className="w-4 h-4" /> Ghi tiến độ

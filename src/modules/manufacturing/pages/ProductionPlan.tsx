@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit3, Trash2, CalendarDays } from 'lucide-react';
+import { Search, Plus, Edit3, Trash2, CalendarDays, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
 import type { ProductionPlanEntry } from '@/types/manufacturing';
@@ -44,6 +45,7 @@ const defaultPlans: ProductionPlanEntry[] = [
 ];
 
 export function ProductionPlan() {
+  const navigate = useNavigate();
   const [plans, setPlans] = useState<ProductionPlanEntry[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<ProductionPlanEntry | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -159,9 +161,19 @@ export function ProductionPlan() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Kế hoạch sản xuất</h1>
-            <p className="text-sm text-slate-600 mt-2">Tạo và quản lý kế hoạch sản xuất, tiến độ và trạng thái đơn hàng.</p>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => navigate('/')}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Kế hoạch sản xuất</h1>
+              <p className="text-sm text-slate-600 mt-2">Tạo và quản lý kế hoạch sản xuất, tiến độ và trạng thái đơn hàng.</p>
+            </div>
           </div>
           <Button onClick={openNewDialog} className="inline-flex items-center gap-2">
             <Plus className="w-4 h-4" /> Thêm kế hoạch

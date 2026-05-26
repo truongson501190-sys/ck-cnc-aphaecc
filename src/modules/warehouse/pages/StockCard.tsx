@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Filter, Edit3, Trash2 } from 'lucide-react';
+import { Search, Plus, Filter, Edit3, Trash2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
 import type { StockCardEntry } from '@/types/warehouse';
@@ -44,6 +45,7 @@ const defaultEntries: StockCardEntry[] = [
 ];
 
 export function StockCard() {
+  const navigate = useNavigate();
   const [entries, setEntries] = useState<StockCardEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<StockCardEntry | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -159,9 +161,19 @@ export function StockCard() {
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Thẻ kho</h1>
-            <p className="text-sm text-slate-600 mt-2">Theo dõi dòng tồn, nhập xuất và số dư cuối kỳ cho mỗi vật tư.</p>
+          <div className="flex items-center gap-3">
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => navigate('/')}
+              className="border-gray-300 hover:bg-gray-100"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Thẻ kho</h1>
+              <p className="text-sm text-slate-600 mt-2">Theo dõi dòng tồn, nhập xuất và số dư cuối kỳ cho mỗi vật tư.</p>
+            </div>
           </div>
           <div className="flex flex-wrap gap-2 items-center">
             <Badge variant="secondary">{entries.length} dòng</Badge>

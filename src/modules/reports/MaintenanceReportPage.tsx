@@ -1,24 +1,36 @@
 // Page nhật ký bảo trì
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Wrench, Calendar, AlertTriangle, AlertOctagon, Plus, Search } from "lucide-react";
+import { Wrench, Calendar, AlertTriangle, AlertOctagon, Plus, Search, ArrowLeft } from "lucide-react";
 
 export default function MaintenanceReport() {
+  const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Nhật Ký Bảo Trì</h1>
-        {/* Nút bấm để mở Modal */}
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" /> Thêm nhật ký bảo trì
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate('/')}
+          className="border-gray-300 hover:bg-gray-100"
+        >
+          <ArrowLeft className="w-5 h-5" />
         </Button>
+        <div className="flex-1 flex justify-between items-center">
+          <h1 className="text-2xl font-bold">Nhật Ký Bảo Trì</h1>
+          {/* Nút bấm để mở Modal */}
+          <Button onClick={() => setIsModalOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" /> Thêm nhật ký bảo trì
+          </Button>
+        </div>
       </div>
 
       {/* Grid thống kê */}

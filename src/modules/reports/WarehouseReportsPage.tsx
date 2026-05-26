@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { BarChart3, Package, Download, Filter } from 'lucide-react';
+import { BarChart3, Package, Download, Filter, ArrowLeft } from 'lucide-react';
 import {
   ledgerStatsFromMovements,
   matchesMovementFilter,
@@ -18,6 +19,7 @@ import { useValuation, useLedgerMovements } from '@/shared/hooks/useInventory';
 
 /** Unified warehouse reporting — reads stock_ledger only. */
 export function WarehouseReportsPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'overview' | 'warehouse' | 'trends'>('overview');
   const [dateFilter, setDateFilter] = useState({
     startDate: '',
@@ -89,18 +91,28 @@ export function WarehouseReportsPage() {
 
   return (
     <div className="space-y-6">
-      <Card>
-        <CardHeader className="flex items-center justify-between">
-          <CardTitle className="text-2xl font-bold text-indigo-600 flex items-center gap-2">
-            <BarChart3 className="w-6 h-6" />
-            Báo Cáo Kho (stock_ledger)
-          </CardTitle>
-          <Button onClick={handleExportData} className="flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            Xuất Excel
-          </Button>
-        </CardHeader>
-      </Card>
+      <div className="flex items-center gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={() => navigate('/')}
+          className="border-gray-300 hover:bg-gray-100"
+        >
+          <ArrowLeft className="w-5 h-5" />
+        </Button>
+        <Card className="flex-1">
+          <CardHeader className="flex items-center justify-between">
+            <CardTitle className="text-2xl font-bold text-indigo-600 flex items-center gap-2">
+              <BarChart3 className="w-6 h-6" />
+              Báo Cáo Kho (stock_ledger)
+            </CardTitle>
+            <Button onClick={handleExportData} className="flex items-center gap-2">
+              <Download className="w-4 h-4" />
+              Xuất Excel
+            </Button>
+          </CardHeader>
+        </Card>
+      </div>
 
       <Card>
         <CardHeader>
