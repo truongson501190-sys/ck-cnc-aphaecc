@@ -6,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartLegendContent, ChartTooltipContent } from '@/components/ui/chart';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ArrowLeft } from 'lucide-react';
 import { 
   summaryStats, 
   dailyFlowChart, 
   machinePerformanceChart, 
-  materialConsumptionChart, // Sửa lại đúng tên biến được export từ mock data của chú
+  materialConsumptionChart,
   lowStockAlerts, 
   activeJobs 
 } from '@/modules/reports/mock/dashboardSummaryData';
@@ -49,12 +50,21 @@ function DashboardSummary() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Dashboard tổng hợp</h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
-              Bảng điều khiển ERP/WMS CNC-CK tổng hợp nhập xuất, tồn kho, hiệu suất sản xuất và quản lý phê duyệt vật tư.
-            </p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="flex items-start gap-4">
+            <Button 
+              variant="outline" 
+              className="h-11 shadow-sm gap-2" 
+              onClick={() => window.location.href = '/'}
+            >
+              <ArrowLeft className="w-4 h-4" /> Quay lại
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Dashboard tổng hợp</h1>
+              <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 max-w-2xl">
+                Bảng điều khiển ERP/WMS CNC-CK tổng hợp nhập xuất, tồn kho, hiệu suất sản xuất và quản lý phê duyệt vật tư.
+              </p>
+            </div>
           </div>
           <Button variant="secondary" className="h-11" onClick={() => window.location.reload()}>
             Làm mới dữ liệu
@@ -73,28 +83,6 @@ function DashboardSummary() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-            <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-              <Card className="h-[28rem]">
-                <CardContent className="p-6 space-y-4">
-                  <Skeleton className="h-6 w-1/3" />
-                  <Skeleton className="h-64 w-full" />
-                </CardContent>
-              </Card>
-              <div className="grid gap-6">
-                <Card className="h-64">
-                  <CardContent className="p-6 space-y-4">
-                    <Skeleton className="h-6 w-1/2" />
-                    <Skeleton className="h-40 w-full" />
-                  </CardContent>
-                </Card>
-                <Card className="h-64">
-                  <CardContent className="p-6 space-y-4">
-                    <Skeleton className="h-6 w-1/2" />
-                    <Skeleton className="h-40 w-full" />
-                  </CardContent>
-                </Card>
-              </div>
             </div>
           </div>
         ) : (
@@ -119,16 +107,13 @@ function DashboardSummary() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-              {/* Nhập Xuất theo ngày */}
               <Card className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800">
-                <CardHeader>
-                  <CardTitle>Nhập / Xuất theo ngày</CardTitle>
-                </CardHeader>
+                <CardHeader><CardTitle>Nhập / Xuất theo ngày</CardTitle></CardHeader>
                 <CardContent>
                   <ChartContainer
                     id="daily-flow"
                     config={{
-                      inbound: { label: 'Nhập kho', color: '#22c55e' }, // Sửa lỗi ChartConfig: Chỉ giữ lại thuộc tính color
+                      inbound: { label: 'Nhập kho', color: '#22c55e' },
                       outbound: { label: 'Xuất kho', color: '#2563eb' },
                     }}
                   >
@@ -146,16 +131,13 @@ function DashboardSummary() {
               </Card>
 
               <div className="grid gap-6">
-                {/* Hiệu suất máy gia công CNC */}
                 <Card className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800">
-                  <CardHeader>
-                    <CardTitle>Hiệu suất vận hành máy (%)</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle>Hiệu suất vận hành máy (%)</CardTitle></CardHeader>
                   <CardContent>
                     <ChartContainer
                       id="machine-performance"
                       config={{
-                        efficiency: { label: 'Hiệu suất', color: '#f97316' }, // Sửa lỗi ChartConfig
+                        efficiency: { label: 'Hiệu suất', color: '#f97316' },
                       }}
                     >
                       <BarChart data={machinePerformanceChart} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
@@ -170,19 +152,15 @@ function DashboardSummary() {
                   </CardContent>
                 </Card>
 
-                {/* Vật tư tiêu hao / chờ ký duyệt */}
                 <Card className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800">
-                  <CardHeader>
-                    <CardTitle>Yêu cầu vật tư chờ phê duyệt</CardTitle>
-                  </CardHeader>
+                  <CardHeader><CardTitle>Yêu cầu vật tư chờ phê duyệt</CardTitle></CardHeader>
                   <CardContent>
                     <ChartContainer
                       id="pending-approval"
                       config={{
-                        quantity: { label: 'Chờ duyệt', color: '#0ea5e9' }, // Sửa lỗi ChartConfig
+                        quantity: { label: 'Chờ duyệt', color: '#0ea5e9' },
                       }}
                     >
-                      {/* Đổi data thành materialConsumptionChart tương ứng dữ liệu của chú */}
                       <LineChart data={materialConsumptionChart} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                         <XAxis dataKey="material" tick={{ fill: 'var(--muted-foreground)' }} />
@@ -195,70 +173,6 @@ function DashboardSummary() {
                   </CardContent>
                 </Card>
               </div>
-            </div>
-
-            <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
-              {/* Lệnh Sản xuất */}
-              <Card className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800">
-                <CardHeader>
-                  <CardTitle>Tiến độ công việc sản xuất</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {activeJobs.map((job) => (
-                    <div key={job.orderNumber} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 p-4">
-                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mb-3">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">{job.orderNumber} · {job.product}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">Hạn hoàn thành: {job.dueDate}</p>
-                        </div>
-                        <Badge variant={job.status === 'Đang gia công' ? 'secondary' : job.status === 'Chuẩn bị gia công' ? 'outline' : 'default'}>
-                          {job.status}
-                        </Badge>
-                      </div>
-                      <div className="space-y-1">
-                        <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
-                          <span>Tiến độ hoàn thành</span>
-                          <span className="font-medium text-slate-900 dark:text-slate-100">{job.progress}%</span>
-                        </div>
-                        {renderProgressBar(job.progress)}
-                      </div>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-
-              {/* Bảng Cảnh báo tồn kho thấp dưới định mức */}
-              <Card className="bg-white dark:bg-slate-900 shadow-sm border border-slate-200 dark:border-slate-800">
-                <CardHeader>
-                  <CardTitle className="text-rose-600 dark:text-rose-400">Cảnh báo tồn kho thấp dưới định mức</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Mã vật tư</TableHead>
-                          <TableHead>Tên vật tư</TableHead>
-                          <TableHead>Vị trí kho</TableHead>
-                          <TableHead className="text-right">Tồn thực tế</TableHead>
-                          <TableHead className="text-right">Hạn mức tối thiểu</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {lowStockAlerts.map((item) => (
-                          <TableRow key={item.itemCode} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                            <TableCell className="font-medium text-slate-600 dark:text-slate-400">{item.itemCode}</TableCell>
-                            <TableCell>{item.itemName}</TableCell>
-                            <TableCell><Badge variant="outline">{item.warehouse}</Badge></TableCell>
-                            <TableCell className="text-right text-rose-600 font-semibold">{item.available}</TableCell>
-                            <TableCell className="text-right font-medium">{item.threshold}</TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </CardContent>
-              </Card>
             </div>
           </div>
         )}

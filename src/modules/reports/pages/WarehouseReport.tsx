@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { Pagination } from '@/components/ui/pagination';
+import { ArrowLeft } from 'lucide-react';
 import { warehouseEntries, warehouses, materials } from '@/modules/reports/mock/warehouseReportData';
 import { toast } from 'sonner';
 
@@ -79,7 +79,6 @@ export default function WarehouseReport() {
   };
 
   const handleExportPdf = () => {
-    // Open print window (user can Save as PDF)
     const w = window.open('', '_blank');
     if (!w) return toast.error('Không thể mở cửa sổ in');
     const html = document.getElementById('warehouse-report-root')?.innerHTML || '';
@@ -95,9 +94,19 @@ export default function WarehouseReport() {
     <div id="warehouse-report-root" className="p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold">Báo cáo kho</h1>
-            <p className="text-sm text-slate-500">Nhập / Xuất / Chuyển / Tồn / Xuất dầu</p>
+          <div className="flex items-center gap-4">
+            {/* Nút Quay lại trang chủ */}
+            <Button 
+              variant="outline" 
+              className="h-11 shadow-sm gap-2" 
+              onClick={() => window.location.href = '/'}
+            >
+              <ArrowLeft className="w-4 h-4" /> Quay lại
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold">Báo cáo kho</h1>
+              <p className="text-sm text-slate-500">Nhập / Xuất / Chuyển / Tồn / Xuất dầu</p>
+            </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={handleExportExcel}>Export Excel</Button>
@@ -107,7 +116,7 @@ export default function WarehouseReport() {
         </div>
 
         <Card>
-          <CardContent>
+          <CardContent className="pt-6">
             <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
               <div className="flex flex-wrap gap-3">
                 <div>
@@ -121,41 +130,29 @@ export default function WarehouseReport() {
                 <div>
                   <Label htmlFor="warehouse">Kho</Label>
                   <Select value={warehouse} onValueChange={setWarehouse}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tất cả</SelectItem>
-                      {warehouses.map((w) => (
-                        <SelectItem key={w} value={w}>{w}</SelectItem>
-                      ))}
+                      {warehouses.map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label htmlFor="material">Vật liệu</Label>
                   <Select value={material} onValueChange={setMaterial}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">Tất cả</SelectItem>
-                      {materials.map((m) => (
-                        <SelectItem key={m} value={m}>{m}</SelectItem>
-                      ))}
+                      {materials.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
                 <div>
                   <Label htmlFor="type">Loại</Label>
                   <Select value={typeFilter} onValueChange={setTypeFilter}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectTrigger className="w-[120px]"><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {types.map((t) => (
-                        <SelectItem key={t} value={t}>{t === 'all' ? 'Tất cả' : t}</SelectItem>
-                      ))}
+                      {types.map((t) => <SelectItem key={t} value={t}>{t === 'all' ? 'Tất cả' : t}</SelectItem>)}
                     </SelectContent>
                   </Select>
                 </div>
@@ -164,13 +161,9 @@ export default function WarehouseReport() {
               <div className="flex items-center gap-2">
                 <Input placeholder="Tìm kiếm..." value={search} onChange={(e) => setSearch(e.target.value)} />
                 <Select value={String(pageSize)} onValueChange={(v) => { setPageSize(Number(v)); setPage(1); }}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger className="w-[80px]"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    {PAGE_SIZE_OPTIONS.map((s) => (
-                      <SelectItem key={s} value={String(s)}>{s}</SelectItem>
-                    ))}
+                    {PAGE_SIZE_OPTIONS.map((s) => <SelectItem key={s} value={String(s)}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
@@ -180,41 +173,24 @@ export default function WarehouseReport() {
 
         <div className="grid gap-6 lg:grid-cols-[1fr_0.9fr]">
           <Card>
-            <CardHeader>
-              <CardTitle>Dữ liệu</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Dữ liệu</CardTitle></CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Ngày</TableHead>
-                      <TableHead>Loại</TableHead>
-                      <TableHead>Kho</TableHead>
-                      <TableHead>Vật liệu</TableHead>
-                      <TableHead>Số lượng</TableHead>
-                      <TableHead>Đơn giá</TableHead>
-                      <TableHead>Giá trị</TableHead>
-                      <TableHead>Tham chiếu</TableHead>
+                      <TableHead>Ngày</TableHead><TableHead>Loại</TableHead><TableHead>Kho</TableHead><TableHead>Vật liệu</TableHead><TableHead>Số lượng</TableHead><TableHead>Đơn giá</TableHead><TableHead>Giá trị</TableHead><TableHead>Tham chiếu</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {pageItems.map((r) => (
                       <TableRow key={r.id}>
-                        <TableCell>{r.date}</TableCell>
-                        <TableCell>{r.type}</TableCell>
-                        <TableCell>{r.warehouse}</TableCell>
-                        <TableCell>{r.material}</TableCell>
-                        <TableCell>{r.quantity}</TableCell>
-                        <TableCell>{r.unitPrice}</TableCell>
-                        <TableCell>{r.totalValue}</TableCell>
-                        <TableCell>{r.reference}</TableCell>
+                        <TableCell>{r.date}</TableCell><TableCell>{r.type}</TableCell><TableCell>{r.warehouse}</TableCell><TableCell>{r.material}</TableCell><TableCell>{r.quantity}</TableCell><TableCell>{r.unitPrice}</TableCell><TableCell>{r.totalValue}</TableCell><TableCell>{r.reference}</TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
               </div>
-
               <div className="flex items-center justify-between mt-4">
                 <div className="text-sm text-slate-600">Tổng số bản ghi: {filtered.length}</div>
                 <div className="flex items-center gap-4">
@@ -222,25 +198,18 @@ export default function WarehouseReport() {
                   <div className="text-sm">Tổng giá trị: <strong>{totals.totalValue}</strong></div>
                 </div>
               </div>
-
               <div className="mt-4 flex items-center justify-between">
                 <div>
                   <Button disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>Prev</Button>
                   <span className="mx-2">{page} / {pageCount}</span>
                   <Button disabled={page >= pageCount} onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>Next</Button>
                 </div>
-                <div>
-                  <span className="text-sm">Hiển thị mỗi trang: {pageSize}</span>
-                </div>
               </div>
-
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Thống kê theo vật liệu</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Thống kê theo vật liệu</CardTitle></CardHeader>
             <CardContent>
               <div style={{ height: 320 }}>
                 <ResponsiveContainer width="100%" height="100%">
@@ -256,7 +225,6 @@ export default function WarehouseReport() {
             </CardContent>
           </Card>
         </div>
-
       </div>
     </div>
   );

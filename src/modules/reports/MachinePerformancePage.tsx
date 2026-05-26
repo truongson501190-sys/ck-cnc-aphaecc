@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit3, Trash2, TrendingUp } from 'lucide-react';
+import { Search, Plus, Edit3, Trash2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
 import type { MachinePerformanceEntry } from '@/types/reports';
@@ -133,21 +133,28 @@ export function MachinePerformancePage() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Hiệu suất máy</h1>
-            <p className="text-sm text-slate-600 mt-2">Quản lý hiệu suất, thời gian chạy và chất lượng máy CNC.</p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="flex items-start gap-4">
+            <Button 
+              variant="outline" 
+              className="h-11 shadow-sm gap-2" 
+              onClick={() => window.location.href = '/'}
+            >
+              <ArrowLeft className="w-4 h-4" /> Quay lại
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Hiệu Suất Máy</h1>
+              <p className="text-sm text-slate-600 mt-2">Quản lý hiệu suất, thời gian chạy và chất lượng máy CNC.</p>
+            </div>
           </div>
-          <Button onClick={openNewDialog} className="inline-flex items-center gap-2">
+          <Button onClick={openNewDialog} className="h-11 inline-flex items-center gap-2">
             <Plus className="w-4 h-4" /> Thêm báo cáo
           </Button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
           <Card>
-            <CardHeader>
-              <CardTitle>Tổng quan</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Tổng quan</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               <div className="flex justify-between"><span>Báo cáo</span><span>{entries.length}</span></div>
               <div className="flex justify-between"><span>Uptime trung bình</span><span>{Math.round(entries.reduce((a, b) => a + b.uptime, 0) / Math.max(entries.length, 1))}%</span></div>
@@ -155,9 +162,7 @@ export function MachinePerformancePage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Tìm kiếm</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Tìm kiếm</CardTitle></CardHeader>
             <CardContent>
               <div className="relative">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -166,14 +171,10 @@ export function MachinePerformancePage() {
             </CardContent>
           </Card>
           <Card>
-            <CardHeader>
-              <CardTitle>Máy</CardTitle>
-            </CardHeader>
+            <CardHeader><CardTitle>Máy</CardTitle></CardHeader>
             <CardContent>
               <Select value={machineFilter} onValueChange={setMachineFilter}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="Tất cả">Tất cả</SelectItem>
                   <SelectItem value="Máy CNC 1">Máy CNC 1</SelectItem>
@@ -186,9 +187,7 @@ export function MachinePerformancePage() {
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Bảng hiệu suất máy</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Bảng hiệu suất máy</CardTitle></CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
               <Table>
@@ -206,9 +205,7 @@ export function MachinePerformancePage() {
                 <TableBody>
                   {pageItems.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-10 text-slate-500">
-                        Không có báo cáo nào.
-                      </TableCell>
+                      <TableCell colSpan={7} className="text-center py-10 text-slate-500">Không có báo cáo nào.</TableCell>
                     </TableRow>
                   ) : (
                     pageItems.map((entry) => (
@@ -220,12 +217,8 @@ export function MachinePerformancePage() {
                         <TableCell>{entry.output}</TableCell>
                         <TableCell>{entry.qualityRate}%</TableCell>
                         <TableCell className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(entry)}>
-                            <Edit3 className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(entry.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(entry)}><Edit3 className="w-4 h-4" /></Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(entry.id)}><Trash2 className="w-4 h-4" /></Button>
                         </TableCell>
                       </TableRow>
                     ))
@@ -247,17 +240,13 @@ export function MachinePerformancePage() {
 
       <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
         <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{selectedEntry ? 'Chỉnh sửa báo cáo máy' : 'Thêm báo cáo máy mới'}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{selectedEntry ? 'Chỉnh sửa báo cáo máy' : 'Thêm báo cáo máy mới'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="machine">Máy</Label>
                 <Select id="machine" value={formData.machine} onValueChange={(value) => setFormData({ ...formData, machine: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Máy CNC 1">Máy CNC 1</SelectItem>
                     <SelectItem value="Máy CNC 2">Máy CNC 2</SelectItem>

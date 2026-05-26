@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit3, Trash2, BarChart3 } from 'lucide-react';
+import { Search, Plus, Edit3, Trash2, BarChart3, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
 import type { ReportTemplate } from '@/types/reports';
@@ -99,12 +99,21 @@ export function MachiningReportsPage() {
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h1 className="text-3xl font-bold text-slate-900">Báo cáo gia công</h1>
-            <p className="text-sm text-slate-600 mt-2">Phân tích hiệu suất gia công, tỷ lệ đạt và năng suất máy.</p>
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="flex items-start gap-4">
+            <Button 
+              variant="outline" 
+              className="h-11 shadow-sm gap-2" 
+              onClick={() => window.location.href = '/'}
+            >
+              <ArrowLeft className="w-4 h-4" /> Quay lại
+            </Button>
+            <div>
+              <h1 className="text-3xl font-bold text-slate-900">Báo cáo gia công</h1>
+              <p className="text-sm text-slate-600 mt-2">Phân tích hiệu suất gia công, tỷ lệ đạt và năng suất máy.</p>
+            </div>
           </div>
-          <Button onClick={handleOpenNew} className="inline-flex items-center gap-2">
+          <Button onClick={handleOpenNew} className="h-11 inline-flex items-center gap-2">
             <Plus className="w-4 h-4" /> Tạo mẫu
           </Button>
         </div>
