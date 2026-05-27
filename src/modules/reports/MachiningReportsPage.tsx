@@ -1,248 +1,715 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+
+import {
+  ArrowLeft,
+  BarChart3,
+  Drill,
+  DollarSign,
+  FileWarning,
+  Search,
+} from 'lucide-react';
+
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Edit3, Trash2, BarChart3, ArrowLeft } from 'lucide-react';
-import { toast } from 'sonner';
-import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
-import type { ReportTemplate } from '@/types/reports';
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from '@/components/ui/tabs';
 
-const STORAGE_KEY = 'machiningReportTemplates';
+interface ToolEntry {
+  tenDao: string;
+  slCap: number;
+  slSuDung: number;
+  hong: number;
+  donVi: string;
+  donGia: number;
+  thanhTien: number;
+}
 
-const defaultTemplates: ReportTemplate[] = [
-  {
-    id: 'template-machining-1',
-    name: 'Gia công theo tuần',
-    description: 'Báo cáo theo tuần cho hiệu suất và tỷ lệ đạt.',
-    createdAt: new Date().toISOString(),
-    filterSettings: { period: '7_days', machine: 'Tất cả' },
-  },
-];
+interface ProductionLog {
+  id: string;
+
+  ngay: string;
+
+  may: string;
+
+  maDuAn: string;
+
+  tenDuAn: string;
+
+  banVeSo: string;
+
+  tenChiTiet: string;
+
+  noiDung: string;
+
+  sanLuong: number;
+
+  gioGa: number;
+
+  gioChay: number;
+
+  nguoiVanHanh: string;
+
+  tienGa: number;
+
+  tienChay: number;
+
+  tongTien: number;
+
+  toolEntries: ToolEntry[];
+
+  status: 'pending' | 'approved' | 'rejected';
+}
+
+const STORAGE_KEY = 'PRODUCTION_LOGS_DATA';
 
 export function MachiningReportsPage() {
-  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  const [reports, setReports] = useState<ProductionLog[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedTemplate, setSelectedTemplate] = useState<ReportTemplate | null>(null);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState<Omit<ReportTemplate, 'id' | 'createdAt'>>({
-    name: '',
-    description: '',
-    filterSettings: { period: '30_days', machine: 'Tất cả' },
-  });
 
   useEffect(() => {
-    const saved = loadArrayFromStorage<ReportTemplate>(STORAGE_KEY);
-    setTemplates(saved.length ? saved : defaultTemplates);
+    loadReports();
+
+    const reload = () => {
+      loadReports();
+    };
+
+    window.addEventListener('storage', reload);
+    window.addEventListener('app-data-synced', reload);
+
+    return () => {
+      window.removeEventListener('storage', reload);
+      window.removeEventListener('app-data-synced', reload);
+    };
   }, []);
 
-  const saveTemplates = (next: ReportTemplate[]) => {
-    saveArrayToStorage(STORAGE_KEY, next);
-    setTemplates(next);
+  const loadReports = () => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+
+      if (!raw) {
+        setReports([]);
+        return;
+      }
+
+      const parsed: ProductionLog[] = JSON.parse(raw);
+
+      // CHỈ LẤY ĐÃ DUYỆT
+      const approved = parsed.filter(
+        (item) => item.status === 'approved'
+      );
+
+      setReports(approved);
+    } catch (error) {
+      console.error(error);
+      setReports([]);
+    }
   };
 
-  const filtered = useMemo(() => {
-    return templates.filter((template) =>
-      !searchTerm ||
-      template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      template.description.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredReports = useMemo(() => {
+    return reports.filter((item) => {
+      const keyword = searchTerm.toLowerCase();
+
+      return (
+        item.maDuAn.toLowerCase().includes(keyword) ||
+        item.tenDuAn.toLowerCase().includes(keyword) ||
+        item.may.toLowerCase().includes(keyword) ||
+        item.nguoiVanHanh.toLowerCase().includes(keyword)
+      );
+    });
+  }, [reports, searchTerm]);
+
+  // ======================
+  // TOOL REPORTS
+  // ======================
+
+  const toolReports = useMemo(() => {
+    return filteredReports.flatMap((report) =>
+      report.toolEntries.map((tool) => ({
+        ngay: report.ngay,
+        may: report.may,
+        maDuAn: report.maDuAn,
+        tenDao: tool.tenDao,
+        slCap: tool.slCap,
+        slSuDung: tool.slSuDung,
+        hong: tool.hong,
+        donVi: tool.donVi,
+        donGia: tool.donGia,
+        thanhTien: tool.thanhTien,
+        nguoiVanHanh: report.nguoiVanHanh,
+      }))
     );
-  }, [templates, searchTerm]);
+  }, [filteredReports]);
 
-  const handleOpenNew = () => {
-    setSelectedTemplate(null);
-    setFormData({ name: '', description: '', filterSettings: { period: '30_days', machine: 'Tất cả' } });
-    setIsDialogOpen(true);
-  };
+  // ======================
+  // TOOL DAMAGE REPORTS
+  // ======================
 
-  const handleEdit = (template: ReportTemplate) => {
-    setSelectedTemplate(template);
-    setFormData({ name: template.name, description: template.description || '', filterSettings: template.filterSettings });
-    setIsDialogOpen(true);
-  };
+  const toolDamageReports = useMemo(() => {
+    return toolReports
+      .filter((item) => item.hong > 0)
+      .map((item) => ({
+        ...item,
+        thietHai: item.hong * item.donGia,
+      }));
+  }, [toolReports]);
 
-  const handleDelete = (id: string) => {
-    if (confirm('Xóa mẫu báo cáo này?')) {
-      saveTemplates(templates.filter((item) => item.id !== id));
-      toast.success('Đã xóa mẫu báo cáo');
-    }
-  };
+  // ======================
+  // TOTALS
+  // ======================
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!formData.name.trim()) {
-      toast.error('Tên mẫu không được để trống');
-      return;
-    }
-    const next: ReportTemplate = {
-      id: selectedTemplate?.id ?? buildLocalId('template-machining'),
-      name: formData.name,
-      description: formData.description,
-      createdAt: selectedTemplate?.createdAt ?? new Date().toISOString(),
-      filterSettings: formData.filterSettings,
-    };
-    if (selectedTemplate) {
-      saveTemplates(templates.map((item) => (item.id === selectedTemplate.id ? next : item)));
-      toast.success('Cập nhật mẫu báo cáo thành công');
-    } else {
-      saveTemplates([next, ...templates]);
-      toast.success('Tạo mẫu báo cáo thành công');
-    }
-    setIsDialogOpen(false);
+  const totalProduction = filteredReports.reduce(
+    (sum, item) => sum + item.sanLuong,
+    0
+  );
+
+  const totalRunCost = filteredReports.reduce(
+    (sum, item) => sum + item.tienChay,
+    0
+  );
+
+  const totalSetupCost = filteredReports.reduce(
+    (sum, item) => sum + item.tienGa,
+    0
+  );
+
+  const totalToolCost = toolReports.reduce(
+    (sum, item) => sum + item.thanhTien,
+    0
+  );
+
+  const totalDamageCost = toolDamageReports.reduce(
+    (sum, item) => sum + item.thietHai,
+    0
+  );
+
+  const totalCost =
+    totalRunCost +
+    totalSetupCost +
+    totalToolCost +
+    totalDamageCost;
+
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString('vi-VN') + ' đ';
   };
 
   return (
     <div className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+      <div className="max-w-[1600px] mx-auto space-y-6">
+
+        {/* HEADER */}
+
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-4">
-            <Button 
-              variant="outline" 
-              className="h-11 shadow-sm gap-2" 
-              onClick={() => window.location.href = '/'}
-            >
-              <ArrowLeft className="w-4 h-4" /> Quay lại
-            </Button>
+
+            <Link to="/">
+              <Button
+                variant="outline"
+                className="h-11 w-11 p-0"
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+            </Link>
+
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Báo cáo gia công</h1>
-              <p className="text-sm text-slate-600 mt-2">Phân tích hiệu suất gia công, tỷ lệ đạt và năng suất máy.</p>
+              <h1 className="text-3xl font-bold text-slate-900">
+                Báo cáo gia công
+              </h1>
+
+              <p className="text-sm text-slate-600 mt-2">
+                Tổng hợp dữ liệu sản xuất sau phê duyệt.
+              </p>
             </div>
           </div>
-          <Button onClick={handleOpenNew} className="h-11 inline-flex items-center gap-2">
-            <Plus className="w-4 h-4" /> Tạo mẫu
-          </Button>
+
+          <Badge className="h-10 px-4 text-sm">
+            {filteredReports.length} báo cáo
+          </Badge>
         </div>
 
+        {/* KPI */}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+
+          <Card>
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">
+                Tổng sản lượng
+              </div>
+
+              <div className="text-2xl font-bold mt-2">
+                {totalProduction}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">
+                Tiền chạy máy
+              </div>
+
+              <div className="text-2xl font-bold mt-2 text-blue-600">
+                {formatCurrency(totalRunCost)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">
+                Tiền gá
+              </div>
+
+              <div className="text-2xl font-bold mt-2 text-amber-600">
+                {formatCurrency(totalSetupCost)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">
+                Chi phí dao cụ
+              </div>
+
+              <div className="text-2xl font-bold mt-2 text-emerald-600">
+                {formatCurrency(totalToolCost)}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-5">
+              <div className="text-sm text-slate-500">
+                Tổng chi phí
+              </div>
+
+              <div className="text-2xl font-bold mt-2 text-red-600">
+                {formatCurrency(totalCost)}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* SEARCH */}
+
         <Card>
-          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <CardTitle>Mẫu báo cáo</CardTitle>
-            <div className="relative max-w-lg">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <CardContent className="p-4">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+
               <Input
                 className="pl-10"
-                placeholder="Tìm mẫu báo cáo"
+                placeholder="Tìm máy, dự án, người vận hành..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) =>
+                  setSearchTerm(e.target.value)
+                }
               />
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Tên mẫu</TableHead>
-                    <TableHead>Mô tả</TableHead>
-                    <TableHead>Thời gian</TableHead>
-                    <TableHead>Hành động</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filtered.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-10 text-slate-500">
-                        Không tìm thấy mẫu.
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    filtered.map((template) => (
-                      <TableRow key={template.id}>
-                        <TableCell>{template.name}</TableCell>
-                        <TableCell>{template.description || 'Không có mô tả'}</TableCell>
-                        <TableCell>{new Date(template.createdAt).toLocaleDateString('vi-VN')}</TableCell>
-                        <TableCell className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(template)}>
-                            <Edit3 className="w-4 h-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(template.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><BarChart3 className="w-5 h-5" /> Tổng quan báo cáo</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <div className="text-sm text-slate-500">Số mẫu</div>
-              <div className="text-2xl font-semibold">{templates.length}</div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <div className="text-sm text-slate-500">Bộ lọc điển hình</div>
-              <div className="mt-2 text-slate-900">Máy: Tất cả · 30 ngày</div>
-            </div>
-            <div className="rounded-lg border border-slate-200 bg-white p-4">
-              <div className="text-sm text-slate-500">Năng suất trung bình</div>
-              <div className="mt-2 text-2xl font-semibold">82%</div>
-            </div>
-          </CardContent>
-        </Card>
+        {/* TABS */}
+
+        <Tabs defaultValue="production">
+
+          <TabsList className="grid w-full grid-cols-4">
+
+            <TabsTrigger value="production">
+              <BarChart3 className="w-4 h-4 mr-2" />
+              Tổng hợp sản xuất
+            </TabsTrigger>
+
+            <TabsTrigger value="tools">
+              <Drill className="w-4 h-4 mr-2" />
+              Dao cụ sử dụng
+            </TabsTrigger>
+
+            <TabsTrigger value="damage">
+              <FileWarning className="w-4 h-4 mr-2" />
+              Hao hụt dao cụ
+            </TabsTrigger>
+
+            <TabsTrigger value="cost">
+              <DollarSign className="w-4 h-4 mr-2" />
+              Chi phí gia công
+            </TabsTrigger>
+
+          </TabsList>
+
+          {/* ========================= */}
+          {/* TỔNG HỢP */}
+          {/* ========================= */}
+
+          <TabsContent value="production">
+
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Tổng hợp sản xuất
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="overflow-x-auto">
+
+                <table className="w-full text-sm border">
+                  <thead className="bg-slate-100">
+                    <tr>
+                      <th className="border p-2">Ngày</th>
+                      <th className="border p-2">Máy</th>
+                      <th className="border p-2">Dự án</th>
+                      <th className="border p-2">Bản vẽ</th>
+                      <th className="border p-2">Tên chi tiết</th>
+                      <th className="border p-2">Nội dung</th>
+                      <th className="border p-2">SL</th>
+                      <th className="border p-2">Giờ gá</th>
+                      <th className="border p-2">Giờ chạy</th>
+                      <th className="border p-2">Người vận hành</th>
+                      <th className="border p-2">Tiền gá</th>
+                      <th className="border p-2">Tiền chạy</th>
+                      <th className="border p-2">Tổng</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+
+                    {filteredReports.map((item) => (
+                      <tr
+                        key={item.id}
+                        className="hover:bg-slate-50"
+                      >
+                        <td className="border p-2">
+                          {item.ngay}
+                        </td>
+
+                        <td className="border p-2">
+                          {item.may}
+                        </td>
+
+                        <td className="border p-2">
+                          <div className="font-semibold">
+                            {item.maDuAn}
+                          </div>
+
+                          <div className="text-xs text-slate-500">
+                            {item.tenDuAn}
+                          </div>
+                        </td>
+
+                        <td className="border p-2">
+                          {item.banVeSo}
+                        </td>
+
+                        <td className="border p-2">
+                          {item.tenChiTiet}
+                        </td>
+
+                        <td className="border p-2 max-w-[250px]">
+                          {item.noiDung}
+                        </td>
+
+                        <td className="border p-2 text-center">
+                          {item.sanLuong}
+                        </td>
+
+                        <td className="border p-2 text-center">
+                          {item.gioGa}
+                        </td>
+
+                        <td className="border p-2 text-center">
+                          {item.gioChay}
+                        </td>
+
+                        <td className="border p-2">
+                          {item.nguoiVanHanh}
+                        </td>
+
+                        <td className="border p-2 text-right text-amber-600 font-medium">
+                          {formatCurrency(item.tienGa)}
+                        </td>
+
+                        <td className="border p-2 text-right text-blue-600 font-medium">
+                          {formatCurrency(item.tienChay)}
+                        </td>
+
+                        <td className="border p-2 text-right text-red-600 font-bold">
+                          {formatCurrency(item.tongTien)}
+                        </td>
+                      </tr>
+                    ))}
+
+                  </tbody>
+                </table>
+
+              </CardContent>
+            </Card>
+
+          </TabsContent>
+
+          {/* ========================= */}
+          {/* DAO CỤ */}
+          {/* ========================= */}
+
+          <TabsContent value="tools">
+
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Dao cụ sử dụng
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="overflow-x-auto">
+
+                <table className="w-full text-sm border">
+                  <thead className="bg-slate-100">
+                    <tr>
+                      <th className="border p-2">Ngày</th>
+                      <th className="border p-2">Máy</th>
+                      <th className="border p-2">Dự án</th>
+                      <th className="border p-2">Dao cụ</th>
+                      <th className="border p-2">SL cấp</th>
+                      <th className="border p-2">SL sử dụng</th>
+                      <th className="border p-2">Hỏng</th>
+                      <th className="border p-2">ĐVT</th>
+                      <th className="border p-2">Đơn giá</th>
+                      <th className="border p-2">Thành tiền</th>
+                      <th className="border p-2">Người vận hành</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+
+                    {toolReports.map((tool, index) => (
+                      <tr key={index}>
+                        <td className="border p-2">{tool.ngay}</td>
+
+                        <td className="border p-2">{tool.may}</td>
+
+                        <td className="border p-2">{tool.maDuAn}</td>
+
+                        <td className="border p-2 font-medium">
+                          {tool.tenDao}
+                        </td>
+
+                        <td className="border p-2 text-center">
+                          {tool.slCap}
+                        </td>
+
+                        <td className="border p-2 text-center">
+                          {tool.slSuDung}
+                        </td>
+
+                        <td className="border p-2 text-center text-red-600 font-bold">
+                          {tool.hong}
+                        </td>
+
+                        <td className="border p-2">
+                          {tool.donVi}
+                        </td>
+
+                        <td className="border p-2 text-right">
+                          {formatCurrency(tool.donGia)}
+                        </td>
+
+                        <td className="border p-2 text-right text-blue-600 font-semibold">
+                          {formatCurrency(tool.thanhTien)}
+                        </td>
+
+                        <td className="border p-2">
+                          {tool.nguoiVanHanh}
+                        </td>
+                      </tr>
+                    ))}
+
+                  </tbody>
+                </table>
+
+              </CardContent>
+            </Card>
+
+          </TabsContent>
+
+          {/* ========================= */}
+          {/* HAO HỤT */}
+          {/* ========================= */}
+
+          <TabsContent value="damage">
+
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Hao hụt dao cụ
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="overflow-x-auto">
+
+                <table className="w-full text-sm border">
+                  <thead className="bg-slate-100">
+                    <tr>
+                      <th className="border p-2">Ngày</th>
+                      <th className="border p-2">Máy</th>
+                      <th className="border p-2">Dự án</th>
+                      <th className="border p-2">Dao cụ</th>
+                      <th className="border p-2">SL hỏng</th>
+                      <th className="border p-2">Đơn giá</th>
+                      <th className="border p-2">Thiệt hại</th>
+                      <th className="border p-2">Người vận hành</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+
+                    {toolDamageReports.map((tool, index) => (
+                      <tr key={index}>
+                        <td className="border p-2">{tool.ngay}</td>
+
+                        <td className="border p-2">{tool.may}</td>
+
+                        <td className="border p-2">{tool.maDuAn}</td>
+
+                        <td className="border p-2">
+                          {tool.tenDao}
+                        </td>
+
+                        <td className="border p-2 text-center text-red-600 font-bold">
+                          {tool.hong}
+                        </td>
+
+                        <td className="border p-2 text-right">
+                          {formatCurrency(tool.donGia)}
+                        </td>
+
+                        <td className="border p-2 text-right text-red-600 font-bold">
+                          {formatCurrency(tool.thietHai)}
+                        </td>
+
+                        <td className="border p-2">
+                          {tool.nguoiVanHanh}
+                        </td>
+                      </tr>
+                    ))}
+
+                  </tbody>
+                </table>
+
+              </CardContent>
+            </Card>
+
+          </TabsContent>
+
+          {/* ========================= */}
+          {/* CHI PHÍ */}
+          {/* ========================= */}
+
+          <TabsContent value="cost">
+
+            <Card>
+              <CardHeader>
+                <CardTitle>
+                  Chi phí gia công
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="overflow-x-auto">
+
+                <table className="w-full text-sm border">
+                  <thead className="bg-slate-100">
+                    <tr>
+                      <th className="border p-2">Ngày</th>
+                      <th className="border p-2">Máy</th>
+                      <th className="border p-2">Dự án</th>
+                      <th className="border p-2">Chi phí chạy</th>
+                      <th className="border p-2">Chi phí gá</th>
+                      <th className="border p-2">Chi phí dao</th>
+                      <th className="border p-2">Hao hụt dao</th>
+                      <th className="border p-2">Tổng chi phí</th>
+                    </tr>
+                  </thead>
+
+                  <tbody>
+
+                    {filteredReports.map((item) => {
+
+                      const toolCost =
+                        item.toolEntries.reduce(
+                          (sum, tool) =>
+                            sum + tool.thanhTien,
+                          0
+                        );
+
+                      const damageCost =
+                        item.toolEntries.reduce(
+                          (sum, tool) =>
+                            sum +
+                            tool.hong *
+                              tool.donGia,
+                          0
+                        );
+
+                      const total =
+                        item.tienChay +
+                        item.tienGa +
+                        toolCost +
+                        damageCost;
+
+                      return (
+                        <tr key={item.id}>
+                          <td className="border p-2">
+                            {item.ngay}
+                          </td>
+
+                          <td className="border p-2">
+                            {item.may}
+                          </td>
+
+                          <td className="border p-2">
+                            {item.maDuAn}
+                          </td>
+
+                          <td className="border p-2 text-right text-blue-600">
+                            {formatCurrency(item.tienChay)}
+                          </td>
+
+                          <td className="border p-2 text-right text-amber-600">
+                            {formatCurrency(item.tienGa)}
+                          </td>
+
+                          <td className="border p-2 text-right text-emerald-600">
+                            {formatCurrency(toolCost)}
+                          </td>
+
+                          <td className="border p-2 text-right text-red-600">
+                            {formatCurrency(damageCost)}
+                          </td>
+
+                          <td className="border p-2 text-right text-red-700 font-bold">
+                            {formatCurrency(total)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+
+                  </tbody>
+                </table>
+
+              </CardContent>
+            </Card>
+
+          </TabsContent>
+
+        </Tabs>
+
       </div>
-
-      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-        <DialogContent className="max-w-3xl">
-          <DialogHeader>
-            <DialogTitle>{selectedTemplate ? 'Chỉnh sửa mẫu báo cáo' : 'Tạo mẫu báo cáo mới'}</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Tên mẫu</Label>
-              <Input id="name" value={formData.name} onChange={(e) => setFormData({ ...formData, name: e.target.value })} />
-            </div>
-            <div>
-              <Label htmlFor="description">Mô tả</Label>
-              <Textarea id="description" rows={3} value={formData.description} onChange={(e) => setFormData({ ...formData, description: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="period">Chu kỳ</Label>
-                <Select id="period" value={(formData.filterSettings.period as string) ?? '30_days'} onValueChange={(value) => setFormData({ ...formData, filterSettings: { ...formData.filterSettings, period: value } })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="7_days">7 ngày</SelectItem>
-                    <SelectItem value="30_days">30 ngày</SelectItem>
-                    <SelectItem value="90_days">90 ngày</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="machine">Máy</Label>
-                <Select id="machine" value={(formData.filterSettings.machine as string) ?? 'Tất cả'} onValueChange={(value) => setFormData({ ...formData, filterSettings: { ...formData.filterSettings, machine: value } })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Tất cả">Tất cả</SelectItem>
-                    <SelectItem value="Máy CNC 1">Máy CNC 1</SelectItem>
-                    <SelectItem value="Máy CNC 2">Máy CNC 2</SelectItem>
-                    <SelectItem value="Máy mài">Máy mài</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button type="submit">Lưu</Button>
-              <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>Hủy</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

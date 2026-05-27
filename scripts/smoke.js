@@ -26,29 +26,6 @@ const { chromium } = require('playwright');
     // Also ensure a sample transfer/export exists
   }
 
-  // Prepare sample data
-  const sampleTransfer = [{
-    soPhieu: 'CKTEST1',
-    ngayChuyen: new Date().toISOString(),
-    nguoiChuyen: 'Nguyễn Văn Admin',
-    khoXuat: 'Kho A',
-    khoNhap: 'Kho B',
-    items: [{ tenChungLoai: 'Test Item', donVi: 'pcs', soLuong: 2, donGia: 1000, thanhTien: 2000 }],
-    tongTien: 2000,
-    createdAt: new Date().toISOString()
-  }];
-
-  const sampleExport = [{
-    soPhieu: 'XKTEST1',
-    ngayXuat: new Date().toISOString(),
-    nguoiXuat: 'Nguyễn Văn Admin',
-    khoXuat: 'Kho A',
-    nguoiNhan: 'Nguyễn Văn B',
-    items: [{ tenChungLoai: 'Export Item', donVi: 'pcs', soLuong: 3, donGia: 500, thanhTien: 1500 }],
-    tongTien: 1500,
-    createdAt: new Date().toISOString()
-  }];
-
   // Inject localStorage items
   await context.addInitScript({ content: `localStorage.setItem('warehouseTransfers', '${JSON.stringify(sampleTransfer).replace(/'/g, "\\'")}'); localStorage.setItem('warehouseExports', '${JSON.stringify(sampleExport).replace(/'/g, "\\'")}');` });
 

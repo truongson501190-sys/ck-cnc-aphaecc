@@ -203,27 +203,113 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
       // -------------------------------------------------------------------------
       // XỬ LÝ ĐẨY DỮ LIỆU SANG DANH SÁCH CHỜ DUYỆT (PENDING APPROVAL LIST)
       // -------------------------------------------------------------------------
-      const newApprovalLog = {
-        id: "LOG-" + Date.now(),
-        ngay: formData.ngayThang,
-        maDuAn: formData.duAn,
-        tenDuAn: formData.tenDuAn,
-        tenDao: validToolEntries[0]?.tenDao || "Chưa chọn dao",
-        donVi: validToolEntries[0]?.donVi || "Cái",
-        nguoiThucHien: user?.fullName || user?.name || formData.nguoiVanHanh || "Nhân viên vận hành",
-        tinhTrang: formData.noiDungGiaCong || `Vận hành máy: ${formData.maySanXuat}. Hoàn thành: ${formData.soLuongHoanThanh} sản phẩm.`,
-        status: 'pending' as const // Đưa trạng thái về Chờ Duyệt
-      };
+      const selectedMachine = machines.find(
+  (m) =>
+    (m.name || m.tenMay || m.id) === formData.maySanXuat
+);
 
-      const rawApprovalData = localStorage.getItem('PRODUCTION_LOGS_DATA');
-      let currentApprovalList = [];
-      if (rawApprovalData) {
-        try {
-          currentApprovalList = JSON.parse(rawApprovalData);
-        } catch {
-          currentApprovalList = [];
-        }
-      }
+// Lấy đơn giá ca máy
+const machineShiftPrice =
+  Number(selectedMachine?.giaCaNgay) || 0;
+
+// Tổng giờ chạy
+const totalRunHours =
+  formData.workTimeEntries.reduce(
+    (sum, item) => sum + Number(item.hours || 0),
+    0
+  );
+
+// Tổng giờ gá
+const totalSetupHours =
+  formData.setupTimeEntries.reduce(
+    (sum, item) => sum + Number(item.hours || 0),
+    0
+  );
+
+// Thành tiền chạy
+const runAmount =
+  totalRunHours * (machineShiftPrice / 8);
+
+// Thành tiền gá
+const setupAmount =
+  totalSetupHours * ((machineShiftPrice / 8) / 2);
+
+// Tổng tiền
+const totalAmount =
+  runAmount + setupAmount;
+
+const newApprovalLog = {
+  id: "LOG-" + Date.now(),
+
+  ngay: formData.ngayThang,
+
+  may: formData.maySanXuat,
+
+  maDuAn: formData.duAn,
+
+  tenDuAn: formData.tenDuAn,
+
+  banVeSo: formData.banVeSo,
+
+  tenChiTiet: formData.tenChiTiet,
+
+  noiDung: formData.noiDungGiaCong,
+
+  sanLuong: formData.soLuongHoanThanh,
+
+  gioGa: totalSetupHours,
+
+  gioChay: totalRunHours,
+
+  nguoiVanHanh:
+    user?.fullName ||
+    user?.name ||
+    formData.nguoiVanHanh,
+
+  donGiaCa:
+    machineShiftPrice,
+
+  tienGa:
+    setupAmount,
+
+  tienChay:
+    runAmount,
+
+  tongTien:
+    totalAmount,
+
+  toolEntries:
+    validToolEntries.map((tool) => {
+      // Lấy giá dao từ chủng loại
+      const matchedCategory =
+        categoryTypes.find(
+          (cat) =>
+            cat.tenLoai === tool.tenDao
+        );
+
+      const donGia =
+        Number(matchedCategory?.gia) || 0;
+
+      return {
+        tenDao: tool.tenDao,
+
+        slCap: tool.slCap,
+
+        slSuDung: tool.slSuDung,
+
+        hong: tool.hong,
+
+        donVi: tool.donVi,
+
+        donGia,
+
+        thanhTien:
+          tool.slSuDung * donGia,
+      };
+    }),
+
+  status: 'pending' as const
+};
 
       // Thêm mới vào cuối mảng, không làm mất dữ liệu cũ của chú
       const updatedApprovalList = [...currentApprovalList, newApprovalLog];

@@ -75,28 +75,6 @@ function startStaticServer(dir, port) {
   const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
 
-  const sampleTransfer = [{
-    soPhieu: 'CKTEST1',
-    ngayChuyen: new Date().toISOString(),
-    nguoiChuyen: 'Nguyễn Văn Admin',
-    khoXuat: 'Kho A',
-    khoNhap: 'Kho B',
-    items: [{ tenChungLoai: 'Test Item', donVi: 'pcs', soLuong: 2, donGia: 1000, thanhTien: 2000 }],
-    tongTien: 2000,
-    createdAt: new Date().toISOString()
-  }];
-
-  const sampleExport = [{
-    soPhieu: 'XKTEST1',
-    ngayXuat: new Date().toISOString(),
-    nguoiXuat: 'Nguyễn Văn Admin',
-    khoXuat: 'Kho A',
-    nguoiNhan: 'Nguyễn Văn B',
-    items: [{ tenChungLoai: 'Export Item', donVi: 'pcs', soLuong: 3, donGia: 500, thanhTien: 1500 }],
-    tongTien: 1500,
-    createdAt: new Date().toISOString()
-  }];
-
   // Seed sample data and a valid session so the app shows protected lists
   const now = Date.now();
   const expiry = now + 1000 * 60 * 60; // 1 hour
