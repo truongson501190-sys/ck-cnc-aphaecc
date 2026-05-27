@@ -13,8 +13,6 @@ import {
   UserCircle,
 } from 'lucide-react';
 
-import { Sidebar } from '@/components/Sidebar';
-import { MobileSidebar } from '@/components/MobileSidebar';
 // CHÈN THÊM DÒNG NÀY ĐỂ GỌI NÚT QUAY LẠI TIẾNG VIỆT
 import NutQuayLai from '@/components/NutQuayLai';
 
@@ -34,42 +32,27 @@ export default function Index() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-100 flex">
-      
-      {/* Desktop Sidebar */}
-      <div className="hidden md:block">
-        <Sidebar />
+    <>
+      {/* Header */}
+      <div className="mb-5 mt-0">
+        <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
+          Hệ Thống ERP/WMS CNC
+        </h1>
+
+        <div className="flex gap-2 mt-2 flex-wrap">
+          <Badge variant="secondary">
+            ERP/WMS
+          </Badge>
+
+          <Badge variant={user.role === 'admin' ? 'default' : 'outline'}>
+            {user.role === 'admin'
+              ? 'Quản trị viên'
+              : 'Người dùng'}
+          </Badge>
+        </div>
       </div>
 
-      {/* Mobile Sidebar */}
-      <div className="md:hidden">
-        <MobileSidebar />
-      </div>
-
-      {/* Main Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="p-3 md:p-6">
-
-          {/* Header */}
-          <div className="mb-5 mt-12 md:mt-0">
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
-              Hệ Thống ERP/WMS CNC
-            </h1>
-
-            <div className="flex gap-2 mt-2 flex-wrap">
-              <Badge variant="secondary">
-                ERP/WMS
-              </Badge>
-
-              <Badge variant={user.role === 'admin' ? 'default' : 'outline'}>
-                {user.role === 'admin'
-                  ? 'Quản trị viên'
-                  : 'Người dùng'}
-              </Badge>
-            </div>
-          </div>
-
-          <div className="space-y-5">
+      <div className="space-y-5">
 
 {/* ================= SẢN XUẤT ================= */}
             <Card className="shadow-sm border-l-4 border-orange-500 rounded-xl max-w-5xl mx-auto">
@@ -401,12 +384,10 @@ export default function Index() {
             </Card>
 
           </div>
-        </div>
-      </div>
       
       {/* NÚT QUAY LẠI THÔNG MINH ĐÃ ĐƯỢC CHÈN Ở ĐÂY CHÚ NHÉ */}
       <NutQuayLai />
 
-    </div>
+    </>
   );
 }
