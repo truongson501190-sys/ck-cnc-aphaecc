@@ -56,7 +56,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userRecordsStr = localStorage.getItem('userRecords');
         const usersStr = localStorage.getItem('users');
         
-        if (!userRecordsStr || !usersStr) {
+        // LUÔN RESET VỀ DỮ LIỆU MẶC ĐỊNH NẾU CÓ LỖI!
+        console.log('📦 Đảm bảo dữ liệu mặc định...');
+        const forceReset = true; // Đặt true để reset về mặc định
+        
+        if (!userRecordsStr || !usersStr || forceReset) {
           console.log('📦 Initializing localStorage with default data...');
           
           const defaultUsers = [
