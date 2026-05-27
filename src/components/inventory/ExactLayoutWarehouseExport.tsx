@@ -43,7 +43,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
   const [formData, setFormData] = useState({
     ngayXuat: new Date().toISOString().split('T')[0],
     duAn: '',
-    chungLoai: '',
+    tenChungLoai: '',
     soLuong: '',
     donVi: '',
     donGia: '',
@@ -54,7 +54,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     ghiChu: ''
   });
 
-  const [extraItems, setExtraItems] = useState<Array<{ id: string; chungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }>>([]);
+  const [extraItems, setExtraItems] = useState<Array<{ id: string; tenChungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }>>([]);
 
   useEffect(() => {
     loadData();
@@ -100,7 +100,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
         if (Array.isArray(parsedProjects)) {
           setProjects(parsedProjects.map(p => ({
             id: p.id,
-            tenKhachHang: p.tenDuAn,
+            tenDuAn: p.tenDuAn,
             maDuAn: p.maDuAn,
             status: 'active' as const,
             createdAt: new Date().toISOString()
@@ -198,14 +198,14 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     setCategories(updatedCategories);
     localStorage.setItem('categoryTypes', JSON.stringify(updatedCategories));
     
-    setFormData(prev => ({ ...prev, chungLoai: categoryToAdd.id, donVi: categoryToAdd.donVi, donGia: categoryToAdd.gia.toString() }));
+    setFormData(prev => ({ ...prev, chungLoai: categoryToAdd.id, donVi: categoryToAdd.donVi, donGia: (categoryToAdd.gia || categoryToAdd.gia?.toString())?.toString?.() || '0' }));
     setIsAddCategoryOpen(false);
     setNewCategory({ tenChungLoai: '', donVi: '', gia: '' });
     toast.success('Đã thêm chủng loại mới');
   };
 
   const addRow = () => {
-    setExtraItems([...extraItems, { id: Date.now().toString(), chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' }]);
+    setExtraItems([...extraItems, { id: Date.now().toString(), tenChungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' }]);
   };
 
   const removeRow = (id: string) => {
@@ -229,8 +229,9 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
         if (field === 'chungLoai') {
           const selectedCategory = findCategoryByValue(value);
           if (selectedCategory) {
-            updated.donVi = selectedCategory.donVi;
-            updated.donGia = selectedCategory.gia.toString();
+            updated.tenChungLoai = selectedCategory.tenChungLoai || '';
+            updated.donVi = selectedCategory.donVi || '';
+            updated.donGia = (selectedCategory.gia || selectedCategory.gia?.toString())?.toString?.() || '0'  ;
           }
         }
         if (field === 'soLuong') {
@@ -251,8 +252,9 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     if (field === 'chungLoai') {
       const selectedCategory = findCategoryByValue(value);
       if (selectedCategory) {
-        newData.donVi = selectedCategory.donVi;
-        newData.donGia = selectedCategory.gia.toString();
+        newData.tenChungLoai = selectedCategory.tenChungLoai || '';
+        newData.donVi = selectedCategory.donVi || '';
+        newData.donGia = (selectedCategory.gia || selectedCategory.gia?.toString())?.toString?.() || '0'  ;
       }
     }
     
@@ -278,7 +280,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!formData.chungLoai || !formData.soLuong || !formData.khoXuat || !formData.duAn || !formData.nguoiNhan) {
+    if (!formData.tenChungLoai || !formData.soLuong || !formData.khoXuat || !formData.duAn || !formData.nguoiNhan) {
       toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
       return;
     }
@@ -309,11 +311,11 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
       return;
     }
 
-    const selectedCategory = findCategoryByValue(formData.chungLoai);
+    const selectedCategory = findCategoryByValue(formData.tenChungLoai);
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
       type: 'export',
       itemId: Date.now().toString(),
-      itemName: selectedCategory?.tenChungLoai || formData.chungLoai,
+      itemName: selectedCategory?.tenChungLoai || formData.tenChungLoai,  
       quantity: parseFloat(formData.soLuong),
       unit: formData.donVi,
       price: parseFloat(formData.donGia) || 0,
@@ -362,8 +364,8 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                 </SelectTrigger>
                 <SelectContent>
                   {projects.map((p) => (
-                    <SelectItem key={p.id} value={p.maDuAn}>
-                      {p.maDuAn} - {p.tenKhachHang}
+                    <SelectItem key={p.id} value={p.maDuAn || ''}>
+                      {p.maDuAn || ''} - {p.tenKhachHang || ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -440,8 +442,8 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                     <td className="p-2 text-center text-gray-500">1</td>
                     <td className="p-2">
                       <Combobox
-                        value={formData.chungLoai}
-                        onValueChange={(value) => handleInputChange('chungLoai', value)}
+                        value={formData.tenChungLoai}
+                        onValueChange={(value) => handleInputChange('tenChungLoai', value)} 
                         placeholder="Tìm kiếm và chọn chủng loại..."
                         options={categories.map((c) => {
                           const currentStock = getCurrentStock(c.id);
@@ -468,7 +470,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                       <div className="font-semibold text-red-600">{Number(formData.thanhTien).toLocaleString('vi-VN')}</div>
                     </td>
                     <td className="p-2 text-center">
-                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => setFormData({ ...formData, chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' })}>X</Button>
+                      <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => setFormData({ ...formData, tenChungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' })}>X</Button>
                     </td>
                   </tr>
                   {extraItems.map((row, idx) => (
@@ -476,16 +478,16 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                       <td className="p-2 text-center text-gray-500">{idx + 2}</td>
                       <td className="p-2">
                         <Combobox
-                          value={row.chungLoai}
-                          onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}
+                          value={row.tenChungLoai}
+                          onValueChange={(value) => updateRow(row.id, 'tenChungLoai', value)} 
                           placeholder="Tìm kiếm và chọn chủng loại..."
                           options={categories.map((c) => {
                             const currentStock = getCurrentStock(c.id);
-                            const stockLabel = `Tồn: ${currentStock.toLocaleString('vi-VN')}`;
+                            const stockLabel = `Tồn: ${currentStock.toLocaleString('vi-VN') || ''} ${c.minimumStock || ''}`;
                             const lowStockLabel = currentStock <= (c.minimumStock || 0) ? ' - Sắp hết' : '';
                             return {
-                              label: `${c.tenLoai || c.tenChungLoai || c.maLoai}${c.maLoai ? ` (${c.maLoai})` : ''} - ${stockLabel}${lowStockLabel}`,
-                              value: c.id
+                              label: `${c.tenLoai || c.tenChungLoai || c.maLoai || ''}${c.maLoai ? ` (${c.maLoai || ''})` : ''} - ${stockLabel}${lowStockLabel}`,
+                              value: c.id || ''
                             };
                           })}
                           allowCustom={false}
