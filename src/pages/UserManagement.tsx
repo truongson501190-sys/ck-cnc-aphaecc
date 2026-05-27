@@ -63,6 +63,30 @@ interface UserProfile {
   status: 'active' | 'locked';
 }
 
+const DEPARTMENTS = [
+  'Ban Quản Trị Hệ Thống',
+  'Tổ CNC',
+  'Tổ Cơ Khí',
+  'Tổ Đầu',
+  'Kho Tổng',
+  'Kho Cơ Khí',
+  'Kho CNC',
+  'Kho Đầu',
+  'QC',
+  'Bảo Trì'
+];
+
+const ROLE_GROUPS = [
+  'Admin',
+  'Quản Lý Kho',
+  'Thợ CNC',
+  'Thợ Cơ Khí',
+  'Thợ Đầu',
+  'Nhân Viên Kho',
+  'Kỹ Thuật QC',
+  'Kỹ Thuật Bảo Trì'
+];
+
 export function UserManagement() {
   const navigate = useNavigate();
 
@@ -83,7 +107,8 @@ export function UserManagement() {
     msnv: '',
     fullName: '',
     department: 'Tổ CNC',
-    roleGroup: 'Thợ CNC'
+    roleGroup: 'Thợ CNC',
+    password: ''
   });
 
   useEffect(() => {
@@ -137,10 +162,11 @@ export function UserManagement() {
   const handleSaveUser = () => {
     if (
       !userForm.msnv.trim() ||
-      !userForm.fullName.trim()
+      !userForm.fullName.trim() ||
+      !userForm.password.trim()
     ) {
       toast.error(
-        'Vui lòng nhập đầy đủ thông tin'
+        'Vui lòng nhập đầy đủ thông tin (MSNV, Họ tên, Mật khẩu)'
       );
       return;
     }
@@ -174,9 +200,55 @@ export function UserManagement() {
       JSON.stringify(updated)
     );
 
+    const role = userForm.roleGroup === 'Admin' ? 'admin' : 'user';
+    const position = userForm.roleGroup;
+
+    const newFullUser = {
+      msnv: formattedMSNV,
+      fullName: userForm.fullName.trim(),
+      department: userForm.department,
+      position: position,
+      role: role,
+      status: 'active',
+      permissions: {
+        'kho-tong': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
+        'kho-co-khi': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
+        'kho-cnc': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
+        'kho-dau': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
+        'bao-cao-tong-hop': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
+        'bao-cao-gia-cong': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
+        'bao-tri': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
+        qc: { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const newUserRecord = {
+      id: formattedMSNV + '-' + Date.now(),
+      msnv: formattedMSNV,
+      fullName: userForm.fullName.trim(),
+      department: userForm.department,
+      position: position,
+      role: role,
+      status: true,
+      passwordHash: userForm.password.trim(),
+      createdAt: new Date().toISOString()
+    };
+
+    const existingUsersStr = localStorage.getItem('users');
+    const existingUsers = existingUsersStr ? JSON.parse(existingUsersStr) : [];
+    existingUsers.push(newFullUser);
+    localStorage.setItem('users', JSON.stringify(existingUsers));
+
+    const existingUserRecordsStr = localStorage.getItem('userRecords');
+    const existingUserRecords = existingUserRecordsStr ? JSON.parse(existingUserRecordsStr) : [];
+    existingUserRecords.push(newUserRecord);
+    localStorage.setItem('userRecords', JSON.stringify(existingUserRecords));
+
     setIsAddUserOpen(false);
 
-    toast.success('Đã thêm nhân viên');
+    toast.success('Đã thêm nhân viên và cấp mật khẩu thành công!');
   };
 
   const handleUpdateUser = () => {
@@ -202,6 +274,44 @@ export function UserManagement() {
       'wms_users',
       JSON.stringify(updated)
     );
+
+    const role = userForm.roleGroup === 'Admin' ? 'admin' : 'user';
+    const position = userForm.roleGroup;
+
+    const existingUsersStr = localStorage.getItem('users');
+    if (existingUsersStr) {
+      const existingUsers = JSON.parse(existingUsersStr);
+      const updatedUsers = existingUsers.map((u: any) =>
+        u.msnv === selectedUser.msnv
+          ? {
+              ...u,
+              fullName: userForm.fullName.trim(),
+              department: userForm.department,
+              position: position,
+              role: role,
+              updatedAt: new Date().toISOString()
+            }
+          : u
+      );
+      localStorage.setItem('users', JSON.stringify(updatedUsers));
+    }
+
+    const existingUserRecordsStr = localStorage.getItem('userRecords');
+    if (existingUserRecordsStr) {
+      const existingUserRecords = JSON.parse(existingUserRecordsStr);
+      const updatedUserRecords = existingUserRecords.map((r: any) =>
+        r.msnv === selectedUser.msnv
+          ? {
+              ...r,
+              fullName: userForm.fullName.trim(),
+              department: userForm.department,
+              position: position,
+              role: role
+            }
+          : r
+      );
+      localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+    }
 
     setIsEditUserOpen(false);
 
@@ -332,7 +442,8 @@ export function UserManagement() {
                 msnv: '',
                 fullName: '',
                 department: 'Tổ CNC',
-                roleGroup: 'Thợ CNC'
+                roleGroup: 'Thợ CNC',
+                password: ''
               });
 
               setIsAddUserOpen(true);
@@ -503,7 +614,8 @@ export function UserManagement() {
                             msnv: u.msnv,
                             fullName: u.fullName,
                             department: u.department,
-                            roleGroup: u.roleGroup
+                            roleGroup: u.roleGroup,
+                            password: ''
                           });
 
                           setIsEditUserOpen(true);
@@ -605,6 +717,79 @@ export function UserManagement() {
               />
             </div>
 
+            <div className="space-y-1.5">
+              <Label>
+                Bộ phận / Tổ đội
+              </Label>
+
+              <Select
+                value={userForm.department}
+                onValueChange={(value) =>
+                  setUserForm({
+                    ...userForm,
+                    department: value
+                  })
+                }
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEPARTMENTS.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Nhóm chức danh
+              </Label>
+
+              <Select
+                value={userForm.roleGroup}
+                onValueChange={(value) =>
+                  setUserForm({
+                    ...userForm,
+                    roleGroup: value
+                  })
+                }
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_GROUPS.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Mật khẩu đăng nhập
+              </Label>
+
+              <Input
+                type="password"
+                placeholder="Nhập mật khẩu"
+                value={userForm.password}
+                onChange={(e) =>
+                  setUserForm({
+                    ...userForm,
+                    password: e.target.value
+                  })
+                }
+                className="h-9"
+              />
+            </div>
+
           </div>
 
           <div className="flex justify-end gap-2 mt-4 text-xs">
@@ -679,6 +864,60 @@ export function UserManagement() {
                 className="h-9"
               />
 
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Bộ phận / Tổ đội
+              </Label>
+
+              <Select
+                value={userForm.department}
+                onValueChange={(value) =>
+                  setUserForm({
+                    ...userForm,
+                    department: value
+                  })
+                }
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {DEPARTMENTS.map((dept) => (
+                    <SelectItem key={dept} value={dept}>
+                      {dept}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>
+                Nhóm chức danh
+              </Label>
+
+              <Select
+                value={userForm.roleGroup}
+                onValueChange={(value) =>
+                  setUserForm({
+                    ...userForm,
+                    roleGroup: value
+                  })
+                }
+              >
+                <SelectTrigger className="h-9">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ROLE_GROUPS.map((role) => (
+                    <SelectItem key={role} value={role}>
+                      {role}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
           </div>
@@ -759,11 +998,25 @@ export function UserManagement() {
 
             <Button
               onClick={() => {
-                if (!newPassword.trim()) {
+                if (!newPassword.trim() || !selectedUser) {
                   toast.error(
                     'Vui lòng nhập mật khẩu'
                   );
                   return;
+                }
+
+                const existingUserRecordsStr = localStorage.getItem('userRecords');
+                if (existingUserRecordsStr) {
+                  const existingUserRecords = JSON.parse(existingUserRecordsStr);
+                  const updatedUserRecords = existingUserRecords.map((r: any) =>
+                    r.msnv === selectedUser.msnv
+                      ? {
+                          ...r,
+                          passwordHash: newPassword.trim()
+                        }
+                      : r
+                  );
+                  localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
                 }
 
                 setIsPasswordOpen(false);

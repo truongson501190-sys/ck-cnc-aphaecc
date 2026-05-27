@@ -51,41 +51,7 @@ const STORAGE_KEY = 'transactionHistoryEntries';
 const PAGE_SIZE = 10;
 
 const defaultTransactions: TransactionHistoryEntry[] = [
-  {
-    id: 'tx-001',
-    reference: 'NK-2026-001',
-    itemCode: 'VT-001',
-    itemName: 'Thép SCM440',
-    type: 'import',
-    quantity: 120,
-    unit: 'Kg',
-    warehouseFrom: 'Nhà cung cấp A',
-    warehouseTo: 'Kho nguyên liệu',
-    project: 'Dự án CNC 01',
-    machine: 'Máy CNC 01',
-    status: 'completed',
-    transactionDate: '2026-05-20',
-    createdBy: 'Nguyễn Văn A',
-    notes: 'Nhập kho đầu tháng',
-  },
-  {
-    id: 'tx-002',
-    reference: 'XK-2026-003',
-    itemCode: 'VT-005',
-    itemName: 'Dao phay hợp kim',
-    type: 'export',
-    quantity: 10,
-    unit: 'Cái',
-    warehouseFrom: 'Kho dụng cụ',
-    warehouseTo: 'Xưởng CNC',
-    project: 'Dự án CNC 02',
-    machine: 'Máy CNC 02',
-    status: 'draft',
-    transactionDate: '2026-05-25',
-    createdBy: 'Trần Văn B',
-    notes: 'Xuất cho ca đêm',
-  },
-];
+  
 
 export function TransactionHistory() {
   const navigate = useNavigate();

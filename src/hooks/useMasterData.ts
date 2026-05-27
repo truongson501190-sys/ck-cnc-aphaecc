@@ -38,35 +38,7 @@ export const useMasterData = () => {
   useEffect(() => {
     // Initialize default master data
     const defaultMasterData: MasterData = {
-      machines: [
-        { id: '1', name: 'CNC-001', type: 'CNC' },
-        { id: '2', name: 'CNC-002', type: 'CNC' },
-        { id: '3', name: 'MILL-001', type: 'Milling' },
-        { id: '4', name: 'LATHE-001', type: 'Lathe' }
-      ],
-      tools: [
-        { id: '1', name: 'Dao phay', unit: 'cái' },
-        { id: '2', name: 'Dao tiện', unit: 'cái' },
-        { id: '3', name: 'Mũi khoan', unit: 'cái' },
-        { id: '4', name: 'Dao cắt', unit: 'cái' }
-      ],
-      operators: [
-        'Nguyễn Văn A',
-        'Trần Văn B', 
-        'Lê Văn C',
-        'Phạm Văn D'
-      ],
-      inspectors: [
-        'Nguyễn Thị X',
-        'Trần Thị Y',
-        'Lê Thị Z'
-      ],
-      projects: [
-        { code: 'AL-001', name: 'Dự án A', customer: 'Công ty ABC' },
-        { code: 'AL-002', name: 'Dự án B', customer: 'Công ty XYZ' },
-        { code: 'AL-003', name: 'Dự án C', customer: 'Công ty DEF' }
-      ]
-    };
+          };
 
     // Load from localStorage or use defaults
     const savedData = localStorage.getItem('masterData');

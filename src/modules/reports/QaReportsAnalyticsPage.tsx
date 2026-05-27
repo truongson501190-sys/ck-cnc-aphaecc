@@ -16,28 +16,7 @@ const STORAGE_KEY = 'qaReportEntries';
 const PAGE_SIZE = 8;
 
 const defaultEntries: QaReportEntry[] = [
-  {
-    id: 'qa-1',
-    inspectionDate: new Date().toISOString().slice(0, 10),
-    orderNumber: 'HD-2026-001',
-    inspectionType: 'Kiểm tra đầu vào',
-    result: 'passed',
-    defectCount: 0,
-    inspector: 'Lê Thị C',
-    notes: 'Sản phẩm đạt tiêu chuẩn đầu vào.',
-  },
-  {
-    id: 'qa-2',
-    inspectionDate: new Date().toISOString().slice(0, 10),
-    orderNumber: 'HD-2026-014',
-    inspectionType: 'Kiểm tra giữa quá trình',
-    result: 'failed',
-    defectCount: 3,
-    inspector: 'Nguyễn Văn D',
-    notes: 'Phát hiện nhiều vết xước, cần điều chỉnh dao.',
-  },
-];
-
+ 
 export function QaReportsAnalyticsPage() {
   const [entries, setEntries] = useState<QaReportEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<QaReportEntry | null>(null);
