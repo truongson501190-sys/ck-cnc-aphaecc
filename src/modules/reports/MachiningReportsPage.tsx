@@ -56,15 +56,38 @@ interface ProductionLog {
 
   nguoiVanHanh: string;
 
+  // Đơn giá ca máy
+  donGiaCa: number;
+
+  // Thành tiền
   tienGa: number;
 
   tienChay: number;
 
   tongTien: number;
 
-  toolEntries: ToolEntry[];
+  // DAO CỤ
+  toolEntries: {
+    tenDao: string;
 
-  status: 'pending' | 'approved' | 'rejected';
+    slCap: number;
+
+    slSuDung: number;
+
+    hong: number;
+
+    donVi: string;
+
+    donGia: number;
+
+    thanhTien: number;
+  }[];
+
+  // PHÊ DUYỆT
+  status:
+    | 'pending'
+    | 'approved'
+    | 'rejected';
 }
 
 const STORAGE_KEY = 'PRODUCTION_LOGS_DATA';

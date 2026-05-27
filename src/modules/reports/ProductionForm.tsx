@@ -599,142 +599,289 @@ const newApprovalLog = {
           </div>
 
           {/* Quantity and Material */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
             <div>
-              <Label htmlFor="soLuongHoanThanh">Số Lượng Hoàn Thành</Label>
+              <Label htmlFor="soLuongHoanThanh">
+                Số Lượng Hoàn Thành
+              </Label>
+
               <Input
                 id="soLuongHoanThanh"
                 type="number"
+                step="0.001"
                 value={formData.soLuongHoanThanh}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('soLuongHoanThanh', parseInt(e.target.value) || 0)}
+                onChange={(
+                  e: React.ChangeEvent<HTMLInputElement>
+                ) =>
+                  handleInputChange(
+                    'soLuongHoanThanh',
+                    parseFloat(e.target.value) || 0
+                  )
+                }
                 min="0"
               />
             </div>
+
             <div>
-              <Label htmlFor="vatLieu">Vật Liệu</Label>
+              <Label htmlFor="vatLieu">
+                Vật Liệu
+              </Label>
+
               <Input
                 id="vatLieu"
                 value={formData.vatLieu}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('vatLieu', e.target.value)}
+                onChange={(
+                  e: React.ChangeEvent<HTMLInputElement>
+                ) =>
+                  handleInputChange(
+                    'vatLieu',
+                    e.target.value
+                  )
+                }
                 placeholder="Loại vật liệu"
               />
             </div>
+
             <div>
-              <Label htmlFor="nguyenCongSo">Nguyên Công Số</Label>
+              <Label htmlFor="nguyenCongSo">
+                Nguyên Công Số
+              </Label>
+
               <Input
                 id="nguyenCongSo"
                 value={formData.nguyenCongSo}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('nguyenCongSo', e.target.value)}
+                onChange={(
+                  e: React.ChangeEvent<HTMLInputElement>
+                ) =>
+                  handleInputChange(
+                    'nguyenCongSo',
+                    e.target.value
+                  )
+                }
                 placeholder="Số nguyên công"
               />
             </div>
+
           </div>
 
           {/* Tool Information Section */}
-          <Card className="bg-gray-50 border-gray-200">
-            <CardHeader className="pb-3">
-              <div className="flex justify-between items-center">
-                <CardTitle className="text-lg font-semibold text-gray-600">Thông tin Dao Cụ</CardTitle>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={addToolEntry}
-                  disabled={formData.toolEntries.length >= 10}
-                  className="flex items-center gap-2"
-                >
-                  <Plus size={16} />
-                  Thêm dao cụ ({formData.toolEntries.length}/10)
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {formData.toolEntries.map((entry, index) => (
-                <div key={index} className="p-4 border rounded-lg bg-white">
-                  <div className="flex items-center mb-2">
-                    <Label className="font-semibold text-gray-600">Dao cụ {index + 1}</Label>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div className="md:col-span-2">
-                      <Label>Tên Dao</Label>
-                      <Select 
-                        value={entry.tenDao} 
-                        onValueChange={(value: string) => updateToolEntry(index, 'tenDao', value)}
+         <Card className="bg-gray-50 border-gray-200">
+
+  <CardHeader className="pb-3">
+    <div className="flex justify-between items-center">
+
+      <CardTitle className="text-lg font-semibold text-gray-600">
+        Thông tin Dao Cụ
+      </CardTitle>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={addToolEntry}
+        disabled={formData.toolEntries.length >= 10}
+        className="flex items-center gap-2"
+      >
+        <Plus size={16} />
+
+        Thêm dao cụ
+        ({formData.toolEntries.length}/10)
+      </Button>
+
+    </div>
+  </CardHeader>
+
+  <CardContent className="space-y-4">
+
+    {formData.toolEntries.map((entry, index) => (
+
+      <div
+        key={index}
+        className="p-4 border rounded-lg bg-white"
+      >
+
+        <div className="flex items-center mb-2">
+          <Label className="font-semibold text-gray-600">
+            Dao cụ {index + 1}
+          </Label>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+
+          {/* TÊN DAO */}
+
+          <div className="md:col-span-2">
+
+            <Label>Tên Dao</Label>
+
+            <Select
+              value={entry.tenDao}
+              onValueChange={(value: string) =>
+                updateToolEntry(
+                  index,
+                  'tenDao',
+                  value
+                )
+              }
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Chọn dao" />
+              </SelectTrigger>
+
+              <SelectContent>
+
+                {categoryTypes.length > 0
+                  ? categoryTypes.map((category) => (
+                      <SelectItem
+                        key={category.id}
+                        value={category.tenLoai}
                       >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Chọn dao" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {categoryTypes.length > 0 
-                            ? categoryTypes.map((category) => (
-                                <SelectItem key={category.id} value={category.tenLoai}>
-                                  {category.tenLoai}
-                                </SelectItem>
-                              ))
-                            : masterData.tools.map((tool) => (
-                                <SelectItem key={tool.id} value={tool.name}>
-                                  {tool.name}
-                                </SelectItem>
-                              ))
-                          }
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label>SL Cấp</Label>
-                      <Input
-                        type="number"
-                        value={entry.slCap}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'slCap', parseInt(e.target.value) || 0)}
-                        min="0"
-                      />
-                    </div>
-                    <div>
-                      <Label>SL Sử Dụng</Label>
-                      <Input
-                        type="number"
-                        value={entry.slSuDung}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'slSuDung', parseInt(e.target.value) || 0)}
-                        min="0"
-                      />
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                    <div>
-                      <Label>SL Hỏng</Label>
-                      <Input
-                        type="number"
-                        value={entry.hong}
-                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'hong', parseInt(e.target.value) || 0)}
-                        min="0"
-                      />
-                    </div>
-                    <div>
-                      <Label>Đơn Vị</Label>
-                      <Input
-                        value={entry.donVi}
-                        readOnly
-                        className="bg-gray-100"
-                        placeholder="Tự động điền theo tên dao"
-                      />
-                    </div>
-                    <div className="flex items-end">
-                      {formData.toolEntries.length > 1 && (
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="sm"
-                          onClick={() => removeToolEntry(index)}
-                        >
-                          Xóa
-                        </Button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                        {category.tenLoai}
+                      </SelectItem>
+                    ))
+                  : masterData.tools.map((tool) => (
+                      <SelectItem
+                        key={tool.id}
+                        value={tool.name}
+                      >
+                        {tool.name}
+                      </SelectItem>
+                    ))}
+
+              </SelectContent>
+            </Select>
+
+          </div>
+
+          {/* SL CẤP */}
+
+          <div>
+
+            <Label>SL Cấp</Label>
+
+            <Input
+              type="number"
+              step="0.001"
+              value={entry.slCap}
+              onChange={(
+                e: React.ChangeEvent<HTMLInputElement>
+              ) =>
+                updateToolEntry(
+                  index,
+                  'slCap',
+                  e.target.value === ''
+                    ? ''
+                    : parseFloat(e.target.value)
+                )
+              }
+              min="0"
+              placeholder="Nhập SL cấp"
+            />
+
+          </div>
+
+          {/* SL SỬ DỤNG */}
+
+          <div>
+
+            <Label>SL Sử Dụng</Label>
+
+            <Input
+              type="number"
+              step="0.001"
+              value={entry.slSuDung}
+              onChange={(
+                e: React.ChangeEvent<HTMLInputElement>
+              ) =>
+                updateToolEntry(
+                  index,
+                  'slSuDung',
+                  e.target.value === ''
+                    ? ''
+                    : parseFloat(e.target.value)
+                )
+              }
+              min="0"
+              placeholder="Nhập SL sử dụng"
+            />
+
+          </div>
+
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+
+          {/* SL HỎNG */}
+
+          <div>
+
+            <Label>SL Hỏng</Label>
+
+            <Input
+              type="number"
+              step="0.001"
+              value={entry.hong}
+              onChange={(
+                e: React.ChangeEvent<HTMLInputElement>
+              ) =>
+                updateToolEntry(
+                  index,
+                  'hong',
+                  e.target.value === ''
+                    ? ''
+                    : parseFloat(e.target.value)
+                )
+              }
+              min="0"
+              placeholder="Nhập SL hỏng"
+            />
+
+          </div>
+
+          {/* ĐƠN VỊ */}
+
+          <div>
+
+            <Label>Đơn Vị</Label>
+
+            <Input
+              value={entry.donVi}
+              readOnly
+              className="bg-gray-100"
+              placeholder="Tự động điền theo tên dao"
+            />
+
+          </div>
+
+          {/* XÓA */}
+
+          <div className="flex items-end">
+
+            {formData.toolEntries.length > 1 && (
+              <Button
+                type="button"
+                variant="destructive"
+                size="sm"
+                onClick={() =>
+                  removeToolEntry(index)
+                }
+              >
+                Xóa
+              </Button>
+            )}
+
+          </div>
+
+        </div>
+
+      </div>
+
+    ))}
+
+  </CardContent>
+
+</Card>
 
           <OptimizedTimeInput onTimeChange={handleTimeChange} />
 
