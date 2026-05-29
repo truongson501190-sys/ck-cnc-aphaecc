@@ -33,17 +33,7 @@ export function PendingApprovalList() {
       } else {
         // Nếu bộ nhớ máy hoàn toàn trống, tạo 1 bản ghi mẫu đồng bộ đúng mã dự án chú đang chạy
         const defaultData: ProductionLog[] = [
-          {
-            id: "LOG-001",
-            ngay: new Date().toISOString().split('T')[0],
-            maDuAn: "AL-5225",
-            tenDuAn: "Dự án Khuôn CNC Hàng Không",
-            tenDao: "Dao Phay Ngón D12",
-            donVi: "Cái",
-            nguoiThucHien: "Nguyễn Văn Sơn",
-            tinhTrang: "Chạy máy ổn định, đạt kích thước gá phôi",
-            status: 'pending'
-          }
+          
         ];
         setProductionLogs(defaultData);
         localStorage.setItem('PRODUCTION_LOGS_DATA', JSON.stringify(defaultData));

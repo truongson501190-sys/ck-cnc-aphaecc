@@ -37,14 +37,14 @@ export function Sidebar() {
         {user && (
           <div className="flex items-center gap-2.5 p-2 bg-slate-50 rounded-xl border border-slate-100">
             <div className="w-8 h-8 rounded-full bg-blue-500 flex items-center justify-center text-white text-xs font-semibold shadow-sm shrink-0">
-              {(user?.name || user?.username || 'U').charAt(0).toUpperCase()}
+              {(user?.fullName || user?.name || 'U').charAt(0).toUpperCase()}
             </div>
             <div className="flex flex-col min-w-0 flex-1 justify-center">
               <div className="flex items-center gap-1">
-                <span className="text-xs font-medium text-slate-800 truncate">{user?.name || user?.username || 'Đang tải...'}</span>
+                <span className="text-xs font-medium text-slate-800 truncate">{user?.fullName || user?.name || 'Đang tải...'}</span>
               </div>
               <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
-                <span className="text-blue-600">Msnv: {user?.Mnv || user?.mnv || '---'}</span>
+                <span className="text-blue-600">Msnv: {user?.msnv || '---'}</span>
                 <span className="text-slate-300">|</span>
                 <span>{user?.department || 'Tổ CNC'}</span>
               </div>

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -15,8 +16,8 @@ import type { QaReportEntry } from '@/types/reports';
 const STORAGE_KEY = 'qaReportEntries';
 const PAGE_SIZE = 8;
 
-const defaultEntries: QaReportEntry[] = [
- 
+const defaultEntries: QaReportEntry[] = [];
+
 export function QaReportsAnalyticsPage() {
   const [entries, setEntries] = useState<QaReportEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<QaReportEntry | null>(null);
@@ -111,7 +112,7 @@ export function QaReportsAnalyticsPage() {
   };
 
   const badgeVariant = (result: QaReportEntry['result']) => {
-    return result === 'passed' ? 'success' : 'destructive';
+    return result === 'passed' ? 'default' : 'destructive';
   };
 
   return (
@@ -249,7 +250,7 @@ export function QaReportsAnalyticsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="inspectionType">Loại kiểm tra</Label>
-                <Select id="inspectionType" value={formData.inspectionType} onValueChange={(value) => setFormData({ ...formData, inspectionType: value })}>
+                <Select value={formData.inspectionType} onValueChange={(value) => setFormData({ ...formData, inspectionType: value })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
@@ -262,7 +263,7 @@ export function QaReportsAnalyticsPage() {
               </div>
               <div>
                 <Label htmlFor="result">Kết quả</Label>
-                <Select id="result" value={formData.result} onValueChange={(value) => setFormData({ ...formData, result: value as QaReportEntry['result'] })}>
+                <Select value={formData.result} onValueChange={(value) => setFormData({ ...formData, result: value as QaReportEntry['result'] })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

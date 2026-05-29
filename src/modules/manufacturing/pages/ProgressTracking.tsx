@@ -17,32 +17,7 @@ import type { ProgressUpdateEntry } from '@/types/manufacturing';
 const STORAGE_KEY = 'progressUpdateEntries';
 const PAGE_SIZE = 8;
 
-const defaultUpdates: ProgressUpdateEntry[] = [
-  {
-    id: 'progress-1',
-    orderNumber: 'HD-2026-001',
-    productCode: 'SP-100',
-    productName: 'Chi tiết bạc CNC',
-    machine: 'Máy CNC 1',
-    operator: 'Nguyễn Văn A',
-    progressPercent: 60,
-    status: 'on_track',
-    updatedAt: new Date().toISOString().slice(0, 10),
-    comment: 'Hoạt động ổn định, dự kiến hoàn thành sớm.',
-  },
-  {
-    id: 'progress-2',
-    orderNumber: 'HD-2026-010',
-    productCode: 'SP-300',
-    productName: 'Vỏ máy móc',
-    machine: 'Máy CNC 2',
-    operator: 'Trần Thị B',
-    progressPercent: 35,
-    status: 'delayed',
-    updatedAt: new Date().toISOString().slice(0, 10),
-    comment: 'Chờ vật tư đầu vào.',
-  },
-];
+const defaultUpdates: ProgressUpdateEntry[] = [];
 
 export function ProgressTracking() {
   const navigate = useNavigate();
@@ -203,7 +178,7 @@ export function ProgressTracking() {
               <CardTitle className="text-lg">Trạng thái</CardTitle>
             </CardHeader>
             <CardContent>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <Select value={statusFilter} onValueChange={(value) => setStatusFilter(value as typeof statusFilter)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -321,7 +296,7 @@ export function ProgressTracking() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="status">Trạng thái</Label>
-                <Select id="status" value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as ProgressUpdateEntry['status'] })}>
+                <Select value={formData.status} onValueChange={(value) => setFormData({ ...formData, status: value as ProgressUpdateEntry['status'] })}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>

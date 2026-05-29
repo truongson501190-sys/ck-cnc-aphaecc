@@ -38,7 +38,12 @@ export const useMasterData = () => {
   useEffect(() => {
     // Initialize default master data
     const defaultMasterData: MasterData = {
-          };
+      machines: [],
+      tools: [],
+      operators: [],
+      inspectors: [],
+      projects: [],
+    };
 
     // Load from localStorage or use defaults
     const savedData = localStorage.getItem('masterData');

@@ -50,7 +50,7 @@ import type { TransactionHistoryEntry } from '@/types/warehouse';
 const STORAGE_KEY = 'transactionHistoryEntries';
 const PAGE_SIZE = 10;
 
-const defaultTransactions: TransactionHistoryEntry[] = [
+const defaultTransactions: TransactionHistoryEntry[] = []
   
 
 export function TransactionHistory() {

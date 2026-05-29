@@ -330,13 +330,6 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
         adminOnly: true,
       },
       {
-        id: 'materials',
-        label: 'Vật tư',
-        icon: Boxes,
-        path: ERP_ROUTE.masterData.materials,
-        adminOnly: true,
-      },
-      {
         id: 'locations',
         label: 'Kho',
         icon: MapPin,
@@ -355,13 +348,6 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
         label: 'Dự án',
         icon: ClipboardList,
         path: ERP_ROUTE.masterData.projects,
-        adminOnly: true,
-      },
-      {
-        id: 'employees',
-        label: 'Nhân viên',
-        icon: Users,
-        path: ERP_ROUTE.masterData.employees,
         adminOnly: true,
       },
     ],
