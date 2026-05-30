@@ -1,70 +1,114 @@
+// src/types/user.ts
+
+// src/types/user.ts
+
+export interface UserPermissions {
+  [key: string]: boolean; // Phẳng: { nhap_kho: true, xuat_kho: false, ... }
+}
+
 export interface User {
-  msnv: string; // Mã số nhân viên - dùng để đăng nhập
+  msnv: string;
   fullName: string;
-  // optional alias used across components
-  name?: string;
-  // compatibility aliases (legacy components expect these fields)
+  name?: string; // Thêm field name
   hoTen?: string;
   chucDanh?: string;
   boPhan?: string;
   matKhau?: string;
   vaiTro?: string;
   trangThai?: string;
+  department: string;
+  roleGroup: string;
+  role?: 'user' | 'manager' | 'admin';
+  permissions?: UserPermissions;
   email?: string;
   phone?: string;
   address?: string;
   avatarUrl?: string;
   username?: string;
   lastLogin?: string | Date;
-  department: 'Tổ CNC' | 'Tổ Cơ khí' | 'Kho' | 'Admin' | 'Khác' | 'Quản trị';
-  position: string; // Chức danh
-  role: 'user' | 'manager' | 'admin';
-  status: string;
-  permissions: UserPermissions;
-  createdAt: string;
-  updatedAt: string;
+  position?: string;
+  status?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
-export interface UserPermissions {
-  'kho-tong': ModulePermission;
-  'kho-co-khi': ModulePermission;
-  'kho-cnc': ModulePermission;
-  'kho-dau': ModulePermission;
-  'bao-cao-tong-hop': ModulePermission;
-  'bao-cao-gia-cong': ModulePermission;
-  'bao-tri': ModulePermission;
-  qc: ModulePermission;
+export interface UserProfile {
+  msnv: string;
+  fullName: string;
+  department: string;
+  roleGroup: string;
 }
 
-export interface ModulePermission {
-  view: boolean;
-  add: boolean;
-  edit: boolean;
-  delete: boolean;
-  approve: boolean;
-  export: boolean;
-}
-
+// ======================
+// PERMISSIONS
+// ======================
 export const DEFAULT_PERMISSIONS: UserPermissions = {
-  'kho-tong': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-  'kho-co-khi': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-  'kho-cnc': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-  'kho-dau': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-  'bao-cao-tong-hop': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-  'bao-cao-gia-cong': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-  'bao-tri': { view: false, add: false, edit: false, delete: false, approve: false, export: false },
-  qc: { view: false, add: false, edit: false, delete: false, approve: false, export: false },
+  // WMS - Warehouse Management
+  nhap_kho: false,
+  xuat_kho: false,
+  chuyen_kho: false,
+  xuat_dau: false,
+  kiem_ke_kho: false,
+  ton_kho: false,
+  the_kho: false,
+  lich_su_giao_dich: false,
+  // Manufacturing
+  ke_hoach_san_xuat: false,
+  nhat_ky_gia_cong: false,
+  nhat_ky_qc: false,
+  nhat_ky_bao_tri: false,
+  theo_doi_tien_do: false,
+  // Reports
+  dashboard_tong_hop: false,
+  bao_cao_kho: false,
+  bao_cao_gia_cong: false,
+  bao_cao_qc: false,
+  bao_cao_bao_tri: false,
+  hieu_suat_may: false,
+  cho_duyet: false,
+  // Master Data
+  chung_loai: false,
+  kho: false,
+  may_moc: false,
+  du_an: false,
+  // System (Admin only)
+  quan_ly_nguoi_dung: false,
+  phan_quyen: false,
+  audit_log: false,
+  backup_restore: false,
+  cai_dat_he_thong: false,
 };
 
 export const ADMIN_PERMISSIONS: UserPermissions = {
-  'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-  'kho-co-khi': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-  'kho-cnc': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-  'kho-dau': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-  'bao-cao-tong-hop': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-  'bao-cao-gia-cong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-  'bao-tri': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-  qc: { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+  nhap_kho: true,
+  xuat_kho: true,
+  chuyen_kho: true,
+  xuat_dau: true,
+  kiem_ke_kho: true,
+  ton_kho: true,
+  the_kho: true,
+  lich_su_giao_dich: true,
+  ke_hoach_san_xuat: true,
+  nhat_ky_gia_cong: true,
+  nhat_ky_qc: true,
+  nhat_ky_bao_tri: true,
+  theo_doi_tien_do: true,
+  dashboard_tong_hop: true,
+  bao_cao_kho: true,
+  bao_cao_gia_cong: true,
+  bao_cao_qc: true,
+  bao_cao_bao_tri: true,
+  hieu_suat_may: true,
+  cho_duyet: true,
+  chung_loai: true,
+  kho: true,
+  may_moc: true,
+  du_an: true,
+  quan_ly_nguoi_dung: true,
+  phan_quyen: true,
+  audit_log: true,
+  backup_restore: true,
+  cai_dat_he_thong: true,
 };
 
 export interface UserLog {
@@ -72,7 +116,6 @@ export interface UserLog {
   adminMsnv: string;
   targetMsnv: string;
   action: string;
-  /** Audit payload; stored as JSON (may include nested user objects) */
   changes: unknown;
   timestamp: string;
 }

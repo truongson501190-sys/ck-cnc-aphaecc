@@ -61,7 +61,7 @@ export function Sidebar() {
         }).map((group) => {
           const isMainMenu = group.id === 'main';
           const mainMenuItem = isMainMenu ? group.items[0] : null;
-          const visibleItems = group.items.filter((item) => isNavItemVisible(item, user) && item.action !== 'logout');
+          const visibleItems = group.items.filter((item) => isNavItemVisible(item, user as any) && item.action !== 'logout');
 
           if (visibleItems.length === 0 && !isMainMenu) return null;
 

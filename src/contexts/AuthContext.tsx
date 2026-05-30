@@ -1,6 +1,7 @@
 import React, { createContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { supabase } from '@/supabase';
 import type { User } from '@/types/user';
+import { DEFAULT_PERMISSIONS } from '@/types/user';
 import { dataSync } from '@/lib/dataSync';
 
 type UserRecord = {
@@ -72,14 +73,35 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               role: 'admin',
               status: 'active',
               permissions: {
-                'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                'kho-co-khi': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                'kho-cnc': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                'kho-dau': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                'bao-cao-tong-hop': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                'bao-cao-gia-cong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                'bao-tri': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                qc: { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                nhap_kho: true,
+                xuat_kho: true,
+                chuyen_kho: true,
+                xuat_dau: true,
+                kiem_ke_kho: true,
+                ton_kho: true,
+                the_kho: true,
+                lich_su_giao_dich: true,
+                ke_hoach_san_xuat: true,
+                nhat_ky_gia_cong: true,
+                nhat_ky_qc: true,
+                nhat_ky_bao_tri: true,
+                theo_doi_tien_do: true,
+                dashboard_tong_hop: true,
+                bao_cao_kho: true,
+                bao_cao_gia_cong: true,
+                bao_cao_qc: true,
+                bao_cao_bao_tri: true,
+                hieu_suat_may: true,
+                cho_duyet: true,
+                chung_loai: true,
+                kho: true,
+                may_moc: true,
+                du_an: true,
+                quan_ly_nguoi_dung: true,
+                phan_quyen: true,
+                audit_log: true,
+                backup_restore: true,
+                cai_dat_he_thong: true,
               },
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
@@ -103,10 +125,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           localStorage.setItem('users', JSON.stringify(defaultUsers));
           localStorage.setItem('userRecords', JSON.stringify(defaultUserRecords));
           
-          console.log('✅ Default data initialized');
+          // 🔑 SEED PERMISSIONS CHO TẤT CẢ USERS
+          defaultUsers.forEach(user => {
+            localStorage.setItem(
+              `user_permissions_${user.msnv}`,
+              JSON.stringify(user.permissions || DEFAULT_PERMISSIONS)
+            );
+          });
+          
+          console.log('✅ Default data initialized with permissions');
         } else {
-          // If storage exists, ensure 1118 exists
+          // If storage exists, ensure 1118 exists and has permissions
           const userRecords = parseJsonArray<UserRecord>(userRecordsStr);
+          const users = parseJsonArray<User>(usersStr);
+          
+          // Seed permissions cho tất cả existing users
+          users.forEach(user => {
+            const existingPerms = localStorage.getItem(`user_permissions_${user.msnv}`);
+            if (!existingPerms) {
+              localStorage.setItem(
+                `user_permissions_${user.msnv}`,
+                JSON.stringify(user.permissions || DEFAULT_PERMISSIONS)
+              );
+              console.log('📋 Seeded permissions for:', user.msnv);
+            }
+          });
           if (!userRecords.find((r) => r.msnv === '1118')) {
             console.log('📦 Adding missing admin user to local storage...');
             const adminRecord: UserRecord = {
@@ -133,19 +176,77 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 role: 'admin',
                 status: 'active',
                 permissions: {
-                  'kho-tong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                  'kho-co-khi': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                  'kho-cnc': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                  'kho-dau': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                  'bao-cao-tong-hop': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                  'bao-cao-gia-cong': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                  'bao-tri': { view: true, add: true, edit: true, delete: true, approve: true, export: true },
-                  qc: { view: true, add: true, edit: true, delete: true, approve: true, export: true },
+                  nhap_kho: true,
+                  xuat_kho: true,
+                  chuyen_kho: true,
+                  xuat_dau: true,
+                  kiem_ke_kho: true,
+                  ton_kho: true,
+                  the_kho: true,
+                  lich_su_giao_dich: true,
+                  ke_hoach_san_xuat: true,
+                  nhat_ky_gia_cong: true,
+                  nhat_ky_qc: true,
+                  nhat_ky_bao_tri: true,
+                  theo_doi_tien_do: true,
+                  dashboard_tong_hop: true,
+                  bao_cao_kho: true,
+                  bao_cao_gia_cong: true,
+                  bao_cao_qc: true,
+                  bao_cao_bao_tri: true,
+                  hieu_suat_may: true,
+                  cho_duyet: true,
+                  chung_loai: true,
+                  kho: true,
+                  may_moc: true,
+                  du_an: true,
+                  quan_ly_nguoi_dung: true,
+                  phan_quyen: true,
+                  audit_log: true,
+                  backup_restore: true,
+                  cai_dat_he_thong: true,
                 },
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
               });
               localStorage.setItem('users', JSON.stringify(users));
+              
+              // 🔑 Seed admin permissions
+              localStorage.setItem(
+                'user_permissions_1118',
+                JSON.stringify({
+                  nhap_kho: true,
+                  xuat_kho: true,
+                  chuyen_kho: true,
+                  xuat_dau: true,
+                  kiem_ke_kho: true,
+                  ton_kho: true,
+                  the_kho: true,
+                  lich_su_giao_dich: true,
+                  ke_hoach_san_xuat: true,
+                  nhat_ky_gia_cong: true,
+                  nhat_ky_qc: true,
+                  nhat_ky_bao_tri: true,
+                  theo_doi_tien_do: true,
+                  dashboard_tong_hop: true,
+                  bao_cao_kho: true,
+                  bao_cao_gia_cong: true,
+                  bao_cao_qc: true,
+                  bao_cao_bao_tri: true,
+                  hieu_suat_may: true,
+                  cho_duyet: true,
+                  chung_loai: true,
+                  kho: true,
+                  may_moc: true,
+                  du_an: true,
+                  quan_ly_nguoi_dung: true,
+                  phan_quyen: true,
+                  audit_log: true,
+                  backup_restore: true,
+                  cai_dat_he_thong: true,
+                })
+              );
+              console.log('📋 Admin permissions seeded');
             }
           }
         }
@@ -154,6 +255,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const storedUser = localStorage.getItem('sessionUser');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
+          
+          // Refresh permissions từ localStorage nếu có
+          const userPermissionsStr = localStorage.getItem(`user_permissions_${parsedUser.msnv}`);
+          if (userPermissionsStr) {
+            try {
+              const permissions = JSON.parse(userPermissionsStr);
+              parsedUser.permissions = permissions;
+              console.log('📋 Refreshed permissions for user:', parsedUser.msnv);
+            } catch (e) {
+              console.warn('⚠️ Failed to refresh permissions');
+            }
+          }
+          
           setUser(parsedUser);
           console.log('✅ User loaded from localStorage:', parsedUser.msnv);
           
@@ -172,6 +286,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const sessionUser = sessionStorage.getItem('sessionUser');
         if (sessionUser) {
           const parsedUser = JSON.parse(sessionUser);
+          
+          // Refresh permissions từ localStorage nếu có
+          const userPermissionsStr = localStorage.getItem(`user_permissions_${parsedUser.msnv}`);
+          if (userPermissionsStr) {
+            try {
+              const permissions = JSON.parse(userPermissionsStr);
+              parsedUser.permissions = permissions;
+              console.log('📋 Refreshed permissions for user:', parsedUser.msnv);
+            } catch (e) {
+              console.warn('⚠️ Failed to refresh permissions');
+            }
+          }
+          
           setUser(parsedUser);
           console.log('✅ User loaded from sessionStorage:', parsedUser.msnv);
           
@@ -235,11 +362,31 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             if (isPasswordCorrect) {
               const userData = users.find((u) => u.msnv === msnv);
               if (userData) {
-                setUser(userData);
+                // Load permissions từ localStorage (nếu có)
+                const userPermissionsStr = localStorage.getItem(`user_permissions_${msnv}`);
+                let permissions = { ...DEFAULT_PERMISSIONS };
+                
+                if (userPermissionsStr) {
+                  try {
+                    permissions = JSON.parse(userPermissionsStr);
+                    console.log('📋 User permissions loaded from localStorage:', Object.keys(permissions).filter(k => permissions[k]).length, 'permissions');
+                  } catch (e) {
+                    console.warn('⚠️ Failed to parse user permissions, using defaults');
+                  }
+                } else if (userData.role === 'admin') {
+                  // Admin mặc định toàn quyền
+                  Object.keys(permissions).forEach(key => {
+                    permissions[key] = true;
+                  });
+                  console.log('👑 Admin user - granting full permissions');
+                }
+                
+                const userWithPermissions = { ...userData, permissions };
+                setUser(userWithPermissions);
                 if (rememberMe) {
-                  localStorage.setItem('sessionUser', JSON.stringify(userData));
+                  localStorage.setItem('sessionUser', JSON.stringify(userWithPermissions));
                 } else {
-                  sessionStorage.setItem('sessionUser', JSON.stringify(userData));
+                  sessionStorage.setItem('sessionUser', JSON.stringify(userWithPermissions));
                 }
                 console.log('✅ Login successful via localStorage');
                 dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
@@ -305,11 +452,32 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
               if (!err2 && userData) {
                 // Map back to expected User type if needed (fullName vs full_name)
-                const normalizedUser: User = {
+                let normalizedUser: User = {
                   ...userData,
                   fullName: userData.full_name || userData.fullName,
                   msnv: userData.employee_code || userData.msnv
                 };
+                
+                // Load permissions từ localStorage
+                const userPermissionsStr = localStorage.getItem(`user_permissions_${msnv}`);
+                let permissions = { ...DEFAULT_PERMISSIONS };
+                
+                if (userPermissionsStr) {
+                  try {
+                    permissions = JSON.parse(userPermissionsStr);
+                    console.log('📋 User permissions loaded from localStorage:', Object.keys(permissions).filter(k => permissions[k]).length, 'permissions');
+                  } catch (e) {
+                    console.warn('⚠️ Failed to parse user permissions, using defaults');
+                  }
+                } else if (normalizedUser.role === 'admin') {
+                  // Admin mặc định toàn quyền
+                  Object.keys(permissions).forEach(key => {
+                    permissions[key] = true;
+                  });
+                  console.log('👑 Admin user - granting full permissions');
+                }
+                
+                normalizedUser = { ...normalizedUser, permissions };
 
                 setUser(normalizedUser);
                 if (rememberMe) {

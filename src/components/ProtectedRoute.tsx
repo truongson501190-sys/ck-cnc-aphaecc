@@ -45,7 +45,7 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Check module-based view permission
   if (requiredModule) {
-    const canView = !!user.permissions?.[requiredModule]?.view;
+    const canView = !!user.permissions?.[requiredModule];
     if (!canView) {
       console.log('❌ No module view permission:', {
         requiredModule,

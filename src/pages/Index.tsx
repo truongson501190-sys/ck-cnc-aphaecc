@@ -1,393 +1,103 @@
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
-
+import { DailyNews } from '@/components/DailyNews';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-
-import {
-  Package,
-  Factory,
-  LayoutDashboard,
-  Layers,
-  Settings,
-  UserCircle,
-} from 'lucide-react';
-
-// CHÈN THÊM DÒNG NÀY ĐỂ GỌI NÚT QUAY LẠI TIẾNG VIỆT
+import { Package, Factory, LayoutDashboard, Layers, Settings, UserCircle } from 'lucide-react';
 import NutQuayLai from '@/components/NutQuayLai';
-
 import { useAuth } from '@/hooks/useAuth';
 import { ERP_ROUTE } from '@/modules/erp/routes';
 
+// Cấu hình đầy đủ của chú
+const FEATURE_GROUPS = {
+  manufacturing: { label: 'Sản xuất (Manufacturing)', icon: Factory, color: 'orange', features: [
+    { key: 'ke_hoach_san_xuat', label: 'Kế hoạch sản xuất', route: ERP_ROUTE.manufacturing.plan },
+    { key: 'nhat_ky_gia_cong', label: 'Nhật ký gia công', route: ERP_ROUTE.manufacturing.machiningLog },
+    { key: 'nhat_ky_qc', label: 'Nhật ký QC', route: ERP_ROUTE.manufacturing.qcLog },
+    { key: 'nhat_ky_bao_tri', label: 'Nhật ký bảo trì', route: ERP_ROUTE.manufacturing.maintenanceLog },
+    { key: 'theo_doi_tien_do', label: 'Theo dõi tiến độ', route: ERP_ROUTE.manufacturing.progress },
+  ]},
+  warehouse: { label: 'Kho bãi (WMS)', icon: Package, color: 'green', features: [
+    { key: 'nhap_kho', label: 'Nhập kho', route: ERP_ROUTE.warehouse.import },
+    { key: 'xuat_kho', label: 'Xuất kho', route: ERP_ROUTE.warehouse.export },
+    { key: 'chuyen_kho', label: 'Chuyển kho', route: ERP_ROUTE.warehouse.transfer },
+    { key: 'xuat_dau', label: 'Xuất dầu', route: ERP_ROUTE.warehouse.oil },
+    { key: 'kiem_ke_kho', label: 'Kiểm kê kho', route: ERP_ROUTE.warehouse.inventoryCount },
+    { key: 'ton_kho', label: 'Tồn kho', route: ERP_ROUTE.reports.inventory },
+    { key: 'the_kho', label: 'Thẻ kho', route: ERP_ROUTE.warehouse.stockCard },
+    { key: 'lich_su_giao_dich', label: 'Lịch sử giao dịch', route: ERP_ROUTE.warehouse.transactionHistory },
+  ]},
+  reports: { label: 'Báo cáo & Dashboard', icon: LayoutDashboard, color: 'indigo', features: [
+    { key: 'dashboard_tong_hop', label: 'Dashboard tổng hợp', route: ERP_ROUTE.reports.summary },
+    { key: 'bao_cao_kho', label: 'Báo cáo kho', route: ERP_ROUTE.reports.warehouse },
+    { key: 'bao_cao_gia_cong', label: 'Báo cáo gia công', route: ERP_ROUTE.reports.machining },
+    { key: 'bao_cao_qc', label: 'Báo cáo QC', route: ERP_ROUTE.reports.qc },
+    { key: 'bao_cao_bao_tri', label: 'Báo cáo bảo trì', route: ERP_ROUTE.reports.maintenance },
+    { key: 'hieu_suat_may', label: 'Hiệu suất máy', route: ERP_ROUTE.reports.machinePerformance },
+    { key: 'cho_duyet', label: 'Chờ duyệt', route: ERP_ROUTE.reports.pendingApproval },
+  ]},
+  masterData: { label: 'Quản lý Danh mục', icon: Layers, color: 'yellow', features: [
+    { key: 'chung_loai', label: 'Chủng loại', route: ERP_ROUTE.masterData.categories },
+    { key: 'kho', label: 'Kho', route: ERP_ROUTE.masterData.locations },
+    { key: 'may_moc', label: 'Máy móc', route: ERP_ROUTE.masterData.machines },
+    { key: 'du_an', label: 'Dự án', route: ERP_ROUTE.masterData.projects },
+  ]},
+  system: { label: 'Hệ thống', icon: Settings, color: 'gray', features: [
+    { key: 'quan_ly_nguoi_dung', label: 'Quản lý người dùng', route: ERP_ROUTE.system.users },
+    { key: 'phan_quyen', label: 'Phân quyền', route: ERP_ROUTE.system.roles },
+    { key: 'audit_log', label: 'Audit Log', route: ERP_ROUTE.system.auditLog },
+    { key: 'backup_restore', label: 'Backup & Restore', route: ERP_ROUTE.system.backupRestore },
+    { key: 'cai_dat_he_thong', label: 'Cài đặt hệ thống', route: ERP_ROUTE.system.settings },
+  ]},
+};
+
+const COLOR_STYLES: any = {
+  orange: { border: 'border-orange-500', text: 'text-orange-600', bg: 'bg-orange-500', hover: 'hover:bg-orange-600' },
+  green: { border: 'border-green-500', text: 'text-green-600', bg: 'bg-green-500', hover: 'hover:bg-green-600' },
+  indigo: { border: 'border-indigo-500', text: 'text-indigo-600', bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600' },
+  yellow: { border: 'border-yellow-500', text: 'text-yellow-600', bg: 'bg-yellow-500', hover: 'hover:bg-yellow-600' },
+  gray: { border: 'border-gray-500', text: 'text-gray-600', bg: 'bg-gray-500', hover: 'hover:bg-gray-600' },
+};
+
 export default function Index() {
-  const { user, isAdmin, logout } = useAuth();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
 
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        Vui lòng đăng nhập
-      </div>
-    );
-  }
+  if (!user) return <div className="p-10">Vui lòng đăng nhập</div>;
+
+  const hasPermission = (key: string) => !!user.permissions?.[key];
 
   return (
-    <>
-      {/* Header */}
-      <div className="mb-5 mt-0">
-        <h1 className="text-2xl md:text-3xl font-bold text-slate-800">
-          Hệ Thống ERP/WMS CNC
-        </h1>
-
-        <div className="flex gap-2 mt-2 flex-wrap">
-          <Badge variant="secondary">
-            ERP/WMS
-          </Badge>
-
-          <Badge variant={user.role === 'admin' ? 'default' : 'outline'}>
-            {user.role === 'admin'
-              ? 'Quản trị viên'
-              : 'Người dùng'}
-          </Badge>
+    <div className="p-6 space-y-6">
+      <h1 className="text-3xl font-bold">Hệ Thống ERP/WMS CK-CNC</h1>
+      
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* CỘT TRÁI */}
+        <div className="lg:col-span-2 space-y-6">
+          {Object.entries(FEATURE_GROUPS).map(([key, group]: any) => {
+            const visible = group.features.filter((f: any) => hasPermission(f.key));
+            if (visible.length === 0) return null;
+            const style = COLOR_STYLES[group.color];
+            return (
+              <Card key={key} className={`border-l-4 ${style.border}`}>
+                <CardHeader className="py-3"><CardTitle className={`flex items-center gap-2 ${style.text}`}><group.icon size={20}/> {group.label}</CardTitle></CardHeader>
+                <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {visible.map((f: any) => <Button key={f.key} className={`${style.bg} ${style.hover} text-white`} onClick={() => navigate(f.route)}>{f.label}</Button>)}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+        
+        {/* CỘT PHẢI: CHỈ CÒN TIN TỨC */}
+        <div className="hidden lg:block">
+           <div className="sticky top-6">
+              <DailyNews />
+           </div>
         </div>
       </div>
-
-      <div className="space-y-5">
-
-{/* ================= SẢN XUẤT ================= */}
-            <Card className="shadow-sm border-l-4 border-orange-500 rounded-xl max-w-5xl mx-auto">
-
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="flex items-center gap-2 text-orange-600 text-base md:text-lg">
-                  <Factory className="w-5 h-5" />
-                  Sản xuất (Manufacturing)
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="pt-0 px-4 pb-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.plan)}
-                  >
-                    Kế hoạch sản xuất
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.machiningLog)}
-                  >
-                    Nhật ký gia công
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.qcLog)}
-                  >
-                    Nhật ký QC
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.maintenanceLog)}
-                  >
-                    Nhật ký bảo trì
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-orange-500 hover:bg-orange-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.manufacturing.progress)}
-                  >
-                    Theo dõi tiến độ
-                  </Button>
-
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ================= KHO BÃI ================= */}
-            <Card className="shadow-sm border-l-4 border-green-500 rounded-xl max-w-5xl mx-auto">
-              
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="flex items-center gap-2 text-green-600 text-base md:text-lg">
-                  <Package className="w-5 h-5" />
-                  Kho bãi (WMS)
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="pt-0 px-4 pb-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-green-500 hover:bg-green-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.warehouse.import)}
-                  >
-                    Nhập kho
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-green-500 hover:bg-green-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.warehouse.export)}
-                  >
-                    Xuất kho
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-green-500 hover:bg-green-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.warehouse.transfer)}
-                  >
-                    Chuyển kho
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-green-500 hover:bg-green-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.warehouse.oil)}
-                  >
-                    Xuất dầu
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-green-500 hover:bg-green-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.warehouse.inventoryCount)}
-                  >
-                    Kiểm kê kho
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-green-500 hover:bg-green-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.inventory)}
-                  >
-                    Tồn kho
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-green-500 hover:bg-green-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.warehouse.stockCard)}
-                  >
-                    Thẻ kho
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-green-500 hover:bg-green-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.warehouse.transactionHistory)}
-                  >
-                    Lịch sử giao dịch
-                  </Button>
-
-                </div>
-              </CardContent>
-            </Card>
-
-            
-            {/* ================= BÁO CÁO ================= */}
-            <Card className="shadow-sm border-l-4 border-indigo-500 rounded-xl max-w-5xl mx-auto">
-
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="flex items-center gap-2 text-indigo-600 text-base md:text-lg">
-                  <LayoutDashboard className="w-5 h-5" />
-                  Báo cáo & Dashboard
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="pt-0 px-4 pb-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-indigo-500 hover:bg-indigo-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.summary)}
-                  >
-                    Dashboard tổng hợp
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-indigo-500 hover:bg-indigo-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.warehouse)}
-                  >
-                    Báo cáo kho
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-indigo-500 hover:bg-indigo-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.machining)}
-                  >
-                    Báo cáo gia công
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-indigo-500 hover:bg-indigo-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.qc)}
-                  >
-                    Báo cáo QC
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-indigo-500 hover:bg-indigo-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.maintenance)}
-                  >
-                    Báo cáo bảo trì
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-indigo-500 hover:bg-indigo-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.machinePerformance)}
-                  >
-                    Hiệu suất máy
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-indigo-500 hover:bg-indigo-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.reports.pendingApproval)}
-                  >
-                    Chờ duyệt
-                  </Button>
-
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* ================= DANH MỤC ================= */}
-            {isAdmin && (
-              <Card className="shadow-sm border-l-4 border-yellow-500 rounded-xl max-w-5xl mx-auto">
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="flex items-center gap-2 text-yellow-600 text-base md:text-lg">
-                    <Layers className="w-5 h-5" /> 
-                    Quản lý Danh mục
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="pt-0 px-4 pb-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-yellow-500 hover:bg-yellow-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.masterData.categories)}
-                    >
-                      Chủng loại
-                    </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-yellow-500 hover:bg-yellow-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.masterData.locations)}
-                    >
-                      Kho
-                    </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-yellow-500 hover:bg-yellow-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.masterData.machines)}
-                    >
-                      Máy móc
-                    </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-yellow-500 hover:bg-yellow-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.masterData.projects)}
-                    >
-                      Dự án
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ================= HỆ THỐNG ================= */}
-            {isAdmin && (
-              <Card className="shadow-sm border-l-4 border-gray-500 rounded-xl max-w-5xl mx-auto">
-
-                <CardHeader className="pb-2 pt-4 px-4">
-                  <CardTitle className="flex items-center gap-2 text-gray-600 text-base md:text-lg">
-                    <Settings className="w-5 h-5" />
-                    Hệ thống
-                  </CardTitle>
-                </CardHeader>
-
-                <CardContent className="pt-0 px-4 pb-4">
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-gray-500 hover:bg-gray-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.system.users)}
-                    >
-                      Quản lý người dùng
-                    </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-gray-500 hover:bg-gray-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.system.roles)}
-                    >
-                      Phân quyền
-                    </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-gray-500 hover:bg-gray-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.system.auditLog)}
-                    >
-                      Audit Log
-                    </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-gray-500 hover:bg-gray-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.system.backupRestore)}
-                    >
-                      Backup & Restore
-                    </Button>
-
-                    <Button
-                      className="min-h-[42px] text-xs md:text-sm bg-gray-500 hover:bg-gray-600 text-white whitespace-normal break-words"
-                      onClick={() => navigate(ERP_ROUTE.system.settings)}
-                    >
-                      Cài đặt hệ thống
-                    </Button>
-
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* ================= TÀI KHOẢN ================= */}
-            <Card className="shadow-sm border-l-4 border-pink-500 rounded-xl max-w-5xl mx-auto">
-
-              <CardHeader className="pb-2 pt-4 px-4">
-                <CardTitle className="flex items-center gap-2 text-pink-600 text-base md:text-lg">
-                  <UserCircle className="w-5 h-5" />
-                  Tài khoản
-                </CardTitle>
-              </CardHeader>
-
-              <CardContent className="pt-0 px-4 pb-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-pink-500 hover:bg-pink-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.account.profile)}
-                  >
-                    Hồ sơ cá nhân
-                  </Button>
-
-                  <Button
-                    className="min-h-[42px] text-xs md:text-sm bg-pink-500 hover:bg-pink-600 text-white whitespace-normal break-words"
-                    onClick={() => navigate(ERP_ROUTE.account.changePassword)}
-                  >
-                    Đổi mật khẩu
-                  </Button>
-
-                  <Button
-                    variant="destructive"
-                    className="min-h-[42px] text-xs md:text-sm whitespace-normal break-words"
-                    onClick={logout}
-                  >
-                    Đăng xuất
-                  </Button>
-
-                </div>
-              </CardContent>
-            </Card>
-
-          </div>
-      
-      {/* NÚT QUAY LẠI THÔNG MINH ĐÃ ĐƯỢC CHÈN Ở ĐÂY CHÚ NHÉ */}
       <NutQuayLai />
-
-    </>
+    </div>
   );
 }

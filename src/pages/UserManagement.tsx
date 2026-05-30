@@ -203,6 +203,96 @@ export function UserManagement() {
     const role = userForm.roleGroup === 'Admin' ? 'admin' : 'user';
     const position = userForm.roleGroup;
 
+    // Hàm tạo permissions mặc định dựa trên roleGroup
+    const getDefaultPermissions = (roleGroup: string) => {
+      const emptyPermission = { view: false, add: false, edit: false, delete: false, approve: false, export: false };
+      const viewOnlyPermission = { view: true, add: false, edit: false, delete: false, approve: false, export: false };
+      const addEditPermission = { view: true, add: true, edit: true, delete: false, approve: false, export: true };
+      const fullPermission = { view: true, add: true, edit: true, delete: true, approve: true, export: true };
+
+      switch (roleGroup) {
+        case 'Admin':
+          return {
+            'kho-tong': fullPermission,
+            'kho-co-khi': fullPermission,
+            'kho-cnc': fullPermission,
+            'kho-dau': fullPermission,
+            'bao-cao-tong-hop': fullPermission,
+            'bao-cao-gia-cong': fullPermission,
+            'bao-tri': fullPermission,
+            qc: fullPermission,
+          };
+        case 'Quản Lý Kho':
+          return {
+            'kho-tong': fullPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': emptyPermission,
+            'bao-tri': emptyPermission,
+            qc: emptyPermission,
+          };
+        case 'Nhân Viên Kho':
+          return {
+            'kho-tong': addEditPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': emptyPermission,
+            'bao-tri': emptyPermission,
+            qc: emptyPermission,
+          };
+        case 'Thợ CNC':
+        case 'Thợ Cơ Khí':
+        case 'Thợ Đầu':
+          return {
+            'kho-tong': viewOnlyPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': addEditPermission,
+            'bao-tri': emptyPermission,
+            qc: addEditPermission,
+          };
+        case 'Kỹ Thuật QC':
+          return {
+            'kho-tong': viewOnlyPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': viewOnlyPermission,
+            'bao-tri': emptyPermission,
+            qc: fullPermission,
+          };
+        case 'Kỹ Thuật Bảo Trì':
+          return {
+            'kho-tong': viewOnlyPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': viewOnlyPermission,
+            'bao-tri': fullPermission,
+            qc: emptyPermission,
+          };
+        default:
+          return {
+            'kho-tong': emptyPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': emptyPermission,
+            'bao-tri': emptyPermission,
+            qc: emptyPermission,
+          };
+      }
+    };
+
     const newFullUser = {
       msnv: formattedMSNV,
       fullName: userForm.fullName.trim(),
@@ -210,16 +300,7 @@ export function UserManagement() {
       position: position,
       role: role,
       status: 'active',
-      permissions: {
-        'kho-tong': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
-        'kho-co-khi': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
-        'kho-cnc': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
-        'kho-dau': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
-        'bao-cao-tong-hop': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
-        'bao-cao-gia-cong': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
-        'bao-tri': { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
-        qc: { view: true, add: role === 'admin', edit: role === 'admin', delete: role === 'admin', approve: role === 'admin', export: true },
-      },
+      permissions: getDefaultPermissions(userForm.roleGroup),
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -278,6 +359,96 @@ export function UserManagement() {
     const role = userForm.roleGroup === 'Admin' ? 'admin' : 'user';
     const position = userForm.roleGroup;
 
+    // Hàm tạo permissions mặc định dựa trên roleGroup
+    const getDefaultPermissions = (roleGroup: string) => {
+      const emptyPermission = { view: false, add: false, edit: false, delete: false, approve: false, export: false };
+      const viewOnlyPermission = { view: true, add: false, edit: false, delete: false, approve: false, export: false };
+      const addEditPermission = { view: true, add: true, edit: true, delete: false, approve: false, export: true };
+      const fullPermission = { view: true, add: true, edit: true, delete: true, approve: true, export: true };
+
+      switch (roleGroup) {
+        case 'Admin':
+          return {
+            'kho-tong': fullPermission,
+            'kho-co-khi': fullPermission,
+            'kho-cnc': fullPermission,
+            'kho-dau': fullPermission,
+            'bao-cao-tong-hop': fullPermission,
+            'bao-cao-gia-cong': fullPermission,
+            'bao-tri': fullPermission,
+            qc: fullPermission,
+          };
+        case 'Quản Lý Kho':
+          return {
+            'kho-tong': fullPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': emptyPermission,
+            'bao-tri': emptyPermission,
+            qc: emptyPermission,
+          };
+        case 'Nhân Viên Kho':
+          return {
+            'kho-tong': addEditPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': emptyPermission,
+            'bao-tri': emptyPermission,
+            qc: emptyPermission,
+          };
+        case 'Thợ CNC':
+        case 'Thợ Cơ Khí':
+        case 'Thợ Đầu':
+          return {
+            'kho-tong': viewOnlyPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': addEditPermission,
+            'bao-tri': emptyPermission,
+            qc: addEditPermission,
+          };
+        case 'Kỹ Thuật QC':
+          return {
+            'kho-tong': viewOnlyPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': viewOnlyPermission,
+            'bao-tri': emptyPermission,
+            qc: fullPermission,
+          };
+        case 'Kỹ Thuật Bảo Trì':
+          return {
+            'kho-tong': viewOnlyPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': viewOnlyPermission,
+            'bao-tri': fullPermission,
+            qc: emptyPermission,
+          };
+        default:
+          return {
+            'kho-tong': emptyPermission,
+            'kho-co-khi': emptyPermission,
+            'kho-cnc': emptyPermission,
+            'kho-dau': emptyPermission,
+            'bao-cao-tong-hop': emptyPermission,
+            'bao-cao-gia-cong': emptyPermission,
+            'bao-tri': emptyPermission,
+            qc: emptyPermission,
+          };
+      }
+    };
+
     const existingUsersStr = localStorage.getItem('users');
     if (existingUsersStr) {
       const existingUsers = JSON.parse(existingUsersStr);
@@ -289,6 +460,7 @@ export function UserManagement() {
               department: userForm.department,
               position: position,
               role: role,
+              permissions: getDefaultPermissions(userForm.roleGroup),
               updatedAt: new Date().toISOString()
             }
           : u

@@ -24,11 +24,9 @@ import {
 import { ProductionPlan, ProgressTracking } from '@/modules/manufacturing';
 import {
   CategoriesPage,
-  MaterialsPage,
   WarehousesPage,
   MachinesPage,
   ProjectsPage,
-  EmployeesPage,
 } from '@/modules/master-data';
 import { PlaceholderPage } from '@/modules/erp/PlaceholderPage';
 import Roles from '@/modules/system/pages/Roles';
@@ -38,7 +36,7 @@ import SystemSettings from '@/modules/system/pages/SystemSettings';
 import Profile from '@/modules/account/pages/Profile';
 import ChangePassword from '@/modules/account/pages/ChangePassword';
 import { ErpBootstrap } from '@/shared/layout/ErpBootstrap';
-import { ERP_ROUTE, ERP_LEGACY_REDIRECTS } from '@/modules/erp/routes';
+import { ERP_ROUTE } from '@/modules/erp/routes';
 
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -58,8 +56,6 @@ const App: React.FC = () => (
               {/* Authentication — không cần Layout */}
               <Route path={ERP_ROUTE.login} element={<LoginPage />} />
               <Route path="/login" element={<Navigate to={ERP_ROUTE.login} replace />} />
-              <Route path={ERP_ROUTE.system.base} element={<Navigate to={ERP_ROUTE.login} replace />} />
-              <Route path={`${ERP_ROUTE.system.base}/*`} element={<Navigate to={ERP_ROUTE.login} replace />} />
               
               {/* Tất cả route khác — có Layout và Sidebar */}
               <Route path="/" element={<Layout />}>
@@ -90,14 +86,7 @@ const App: React.FC = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path={ERP_ROUTE.masterData.materials}
-                  element={
-                    <ProtectedRoute requiredRole="admin">
-                      <MaterialsPage />
-                    </ProtectedRoute>
-                  }
-                />
+
                 <Route
                   path={ERP_ROUTE.masterData.locations}
                   element={
@@ -122,20 +111,13 @@ const App: React.FC = () => (
                     </ProtectedRoute>
                   }
                 />
-                <Route
-                  path={ERP_ROUTE.masterData.employees}
-                  element={
-                    <ProtectedRoute requiredRole="admin">
-                      <EmployeesPage />
-                    </ProtectedRoute>
-                  }
-                />
+
 
                 {/* Warehouse Management System (WMS) */}
                 <Route
                   path={ERP_ROUTE.warehouse.import}
                   element={
-                    <ProtectedRoute requiredModule="kho-tong">
+                    <ProtectedRoute requiredModule="nhap_kho">
                       <NhapKho />
                     </ProtectedRoute>
                   }
@@ -143,7 +125,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.warehouse.export}
                   element={
-                    <ProtectedRoute requiredModule="kho-tong">
+                    <ProtectedRoute requiredModule="xuat_kho">
                       <XuatKho />
                     </ProtectedRoute>
                   }
@@ -151,7 +133,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.warehouse.transfer}
                   element={
-                    <ProtectedRoute requiredModule="kho-tong">
+                    <ProtectedRoute requiredModule="chuyen_kho">
                       <ChuyenKho />
                     </ProtectedRoute>
                   }
@@ -159,7 +141,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.warehouse.oil}
                   element={
-                    <ProtectedRoute requiredModule="kho-dau">
+                    <ProtectedRoute requiredModule="xuat_dau">
                       <XuatDau />
                     </ProtectedRoute>
                   }
@@ -167,7 +149,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.warehouse.inventoryCount}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="kiem_ke_kho">
                       <InventoryCount />
                     </ProtectedRoute>
                   }
@@ -175,7 +157,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.warehouse.stockCard}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="the_kho">
                       <StockCard />
                     </ProtectedRoute>
                   }
@@ -183,7 +165,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.warehouse.transactionHistory}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="lich_su_giao_dich">
                       <TransactionHistory />
                     </ProtectedRoute>
                   }
@@ -193,7 +175,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.manufacturing.machiningLog}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="nhat_ky_gia_cong">
                       <ProductionReportPage />
                     </ProtectedRoute>
                   }
@@ -201,7 +183,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.manufacturing.qcLog}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="nhat_ky_qc">
                       <QcReportPage />
                     </ProtectedRoute>
                   }
@@ -209,7 +191,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.manufacturing.maintenanceLog}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="nhat_ky_bao_tri">
                       <MaintenanceReport />
                     </ProtectedRoute>
                   }
@@ -217,7 +199,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.manufacturing.plan}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="ke_hoach_san_xuat">
                       <ProductionPlan />
                     </ProtectedRoute>
                   }
@@ -225,7 +207,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.manufacturing.progress}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="theo_doi_tien_do">
                       <ProgressTracking />
                     </ProtectedRoute>
                   }
@@ -235,7 +217,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.reports.summary}
                   element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
+                    <ProtectedRoute requiredModule="dashboard_tong_hop">
                       <DashboardSummary />
                     </ProtectedRoute>
                   }
@@ -243,7 +225,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.reports.inventory}
                   element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
+                    <ProtectedRoute requiredModule="ton_kho">
                       <InventoryPage />
                     </ProtectedRoute>
                   }
@@ -251,7 +233,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.reports.warehouse}
                   element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
+                    <ProtectedRoute requiredModule="bao_cao_kho">
                       <WarehouseReport />
                     </ProtectedRoute>
                   }
@@ -259,7 +241,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.reports.machining}
                   element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
+                    <ProtectedRoute requiredModule="bao_cao_gia_cong">
                       <MachiningReportsPage />
                     </ProtectedRoute>
                   }
@@ -267,7 +249,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.reports.qc}
                   element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
+                    <ProtectedRoute requiredModule="bao_cao_qc">
                       <QCReport />
                     </ProtectedRoute>
                   }
@@ -275,7 +257,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.reports.maintenance}
                   element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
+                    <ProtectedRoute requiredModule="bao_cao_bao_tri">
                       <PlaceholderPage
                         title="Báo cáo bảo trì"
                         description="Thống kê bảo trì, MTBF và chi phí phụ tùng (tổng hợp từ nhật ký bảo trì)."
@@ -286,7 +268,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.reports.machinePerformance}
                   element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
+                    <ProtectedRoute requiredModule="hieu_suat_may">
                       <MachinePerformancePage />
                     </ProtectedRoute>
                   }
@@ -296,7 +278,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.reports.pendingApproval}
                   element={
-                    <ProtectedRoute>
+                    <ProtectedRoute requiredModule="cho_duyet">
                       <PendingApprovalList />
                     </ProtectedRoute>
                   }
@@ -311,22 +293,7 @@ const App: React.FC = () => (
                 <Route path="/cho-duyet" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
                 <Route path="/reports/cho-duyet" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
 
-                <Route
-                  path={ERP_ROUTE.reports.costing}
-                  element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
-                      <PlaceholderPage title="Costing" description="Trang quản lý chi phí, giá thành và phân bổ đơn giá." />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path={ERP_ROUTE.reports.productionKpi}
-                  element={
-                    <ProtectedRoute requiredModule="bao-cao-tong-hop">
-                      <PlaceholderPage title="KPI sản xuất" description="Trang KPI sản xuất và hiệu suất đội nhóm." />
-                    </ProtectedRoute>
-                  }
-                />
+
 
                 {/* System & Account Security */}
                 <Route
@@ -378,10 +345,6 @@ const App: React.FC = () => (
                   }
                 />
 
-                {/* Điều hướng dự phòng Link cũ */}
-                {ERP_LEGACY_REDIRECTS.map((redirect) => (
-                  <Route key={redirect.from} path={redirect.from} element={<Navigate to={redirect.to} replace />} />
-                ))}
                 <Route path="*" element={<Navigate to={ERP_ROUTE.dashboard} replace />} />
               </Route>
             </Routes>
