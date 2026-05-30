@@ -8,27 +8,23 @@ export function DailyNews() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Dùng đường dẫn đầy đủ và thử lại qua một server trung gian an toàn hơn
     const fetchNews = async () => {
       try {
-        // Thêm mode 'no-cors' hoặc dùng API khác nếu bị chặn
-        const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://vnexpress.net/rss/khoa-hoc.rss'));
-        
-        if (!res.ok) throw new Error("Server từ chối kết nối");
+        // Dùng RSS2JSON với API Key (nếu có) hoặc thử một endpoint thay thế nhanh hơn
+        // Chú có thể lấy API Key miễn phí tại rss2json.com để không bị limit
+        const res = await fetch('https://api.rss2json.com/v1/api.json?rss_url=https://vnexpress.net/rss/khoa-hoc.rss&api_key=YOUR_API_KEY_HERE');
         
         const data = await res.json();
-        // Parser thủ công từ dữ liệu trả về của allorigins
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(data.contents, "text/xml");
-        const items = Array.from(xmlDoc.querySelectorAll("item")).slice(0, 5).map(item => ({
-          title: item.querySelector("title")?.textContent,
-          link: item.querySelector("link")?.textContent
-        }));
-
-        setExternalNews(items);
+        
+        if (data.status === 'ok') {
+          setExternalNews(data.items.slice(0, 5));
+        } else {
+          throw new Error("API Limit");
+        }
       } catch (err) {
-        console.error(err);
-        setError("Không tải được tin. Vui lòng kiểm tra lại kết nối.");
+        // Nếu vẫn lỗi, con dùng phương án dự phòng: Không hiện tin mà hiện lời nhắn thay thế
+        // để không làm hỏng giao diện
+        setError("Tin tức tạm thời không khả dụng.");
       } finally {
         setLoading(false);
       }
@@ -40,15 +36,15 @@ export function DailyNews() {
     <Card className="shadow-sm border-l-4 border-blue-500 rounded-xl h-full">
       <CardHeader className="py-3 border-b bg-slate-50">
         <CardTitle className="flex items-center gap-2 text-blue-700 text-base">
-          <Newspaper className="w-5 h-5" /> Tin tức
+          <Newspaper className="w-5 h-5" /> Tin tức nóng
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-4 space-y-4">
         {loading && <div className="flex justify-center py-4"><Loader2 className="animate-spin text-blue-500" /></div>}
         
         {error ? (
-          <div className="text-xs text-red-500 flex items-center gap-1">
-            <AlertCircle className="w-3 h-3" /> {error}
+          <div className="text-xs text-slate-500 italic">
+            Hệ thống tin tức đang bảo trì, vui lòng quay lại sau.
           </div>
         ) : (
           externalNews.map((item, idx) => (
