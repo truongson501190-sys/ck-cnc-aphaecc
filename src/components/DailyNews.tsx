@@ -112,22 +112,4 @@ export function DailyNews() {
     </Card>
   );
 }
-
-// Dữ liệu mẫu từ hình của bạn
-const mockNewsData: NewsItem[] = [
-  { title: 'Giám đốc Mastercard Việt Nam: Nhiều người Việt sống "thuần di động"', link: '#', pubDate: '2026-05-30' },
-  { title: 'Lý do một số web lậu bị triệt phá vẫn "sống lại"', link: '#', pubDate: '2026-05-30' },
-  { title: 'Nỗi lo "trả lương" cho AI tốn hơn cho người', link: '#', pubDate: '2026-05-29' },
-  { title: 'Phát hiện loài hải sâm có mô bắt tử', link: '#', pubDate: '2026-05-30' },
-  { title: 'Trung Quốc cấp "căn cước" cho robot hình người', link: '#', pubDate: '2026-05-30' },
-  { title: 'Tàu chạy bằng khí tự nhiên lớn nhất thế giới', link: '#', pubDate: '2026-05-29' },
-  { title: 'Tìm kiếm giải pháp số xây đô thị bền vững', link: '#', pubDate: '2026-05-30' },
-  { title: '"Bốn cùng" của doanh nghiệp để kết quả nghiên cứu ra khỏi phòng thí nghiệm', link: '#', pubDate: '2026-05-29' },
-  { title: 'Xu hướng phát triển robot công nghiệp tại Việt Nam', link: '#', pubDate: '2026-05-28' },
-  { title: 'Chuyển đổi số trong ngành cơ khí chế tạo', link: '#', pubDate: '2026-05-28' },
-  { title: 'Giải pháp nâng cao hiệu suất máy CNC', link: '#', pubDate: '2026-05-27' },
-  { title: 'Đào tạo nhân lực chất lượng cao cho ngành sản xuất', link: '#', pubDate: '2026-05-27' },
-  { title: 'Ứng dụng AI trong bảo trì dự đoán', link: '#', pubDate: '2026-05-26' },
-  { title: 'Tối ưu hóa quy trình sản xuất với IoT', link: '#', pubDate: '2026-05-26' },
-  { title: 'Xuất khẩu sản phẩm cơ khí tăng trưởng ấn tượng', link: '#', pubDate: '2026-05-25' },
-];
+;

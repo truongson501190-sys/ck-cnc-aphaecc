@@ -91,8 +91,8 @@ export default function Index() {
         </div>
         
         {/* CỘT PHẢI: CHỈ CÒN TIN TỨC */}
-        <div className="hidden lg:block">
-           <div className="sticky top-6">
+        <div className="hidden lg:block lg:col-span-1">
+        <div className="h-full">  {/* Thêm h-full */}
               <DailyNews />
            </div>
         </div>
