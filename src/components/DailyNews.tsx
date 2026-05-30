@@ -8,15 +8,27 @@ export function DailyNews() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Chuyển sang RSS chuyên mục Khoa học/Công nghệ của VnExpress để phù hợp với anh em kỹ thuật
+    // Dùng đường dẫn đầy đủ và thử lại qua một server trung gian an toàn hơn
     const fetchNews = async () => {
       try {
-        const res = await fetch('https://api.rss2json.com/v1/api.json?rss_url=https://vnexpress.net/rss/khoa-hoc.rss');
-        if (!res.ok) throw new Error("Không thể kết nối");
+        // Thêm mode 'no-cors' hoặc dùng API khác nếu bị chặn
+        const res = await fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://vnexpress.net/rss/khoa-hoc.rss'));
+        
+        if (!res.ok) throw new Error("Server từ chối kết nối");
+        
         const data = await res.json();
-        if (data.items) setExternalNews(data.items.slice(0, 5));
+        // Parser thủ công từ dữ liệu trả về của allorigins
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(data.contents, "text/xml");
+        const items = Array.from(xmlDoc.querySelectorAll("item")).slice(0, 5).map(item => ({
+          title: item.querySelector("title")?.textContent,
+          link: item.querySelector("link")?.textContent
+        }));
+
+        setExternalNews(items);
       } catch (err) {
-        setError("Không thể cập nhật tin tức nóng.");
+        console.error(err);
+        setError("Không tải được tin. Vui lòng kiểm tra lại kết nối.");
       } finally {
         setLoading(false);
       }
@@ -28,7 +40,7 @@ export function DailyNews() {
     <Card className="shadow-sm border-l-4 border-blue-500 rounded-xl h-full">
       <CardHeader className="py-3 border-b bg-slate-50">
         <CardTitle className="flex items-center gap-2 text-blue-700 text-base">
-          <Newspaper className="w-5 h-5" /> Tin tức 
+          <Newspaper className="w-5 h-5" /> Tin tức
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-4 space-y-4">
@@ -40,19 +52,10 @@ export function DailyNews() {
           </div>
         ) : (
           externalNews.map((item, idx) => (
-            <a 
-              key={idx} 
-              href={item.link} 
-              target="_blank" 
-              rel="noreferrer" 
-              className="block group"
-            >
+            <a key={idx} href={item.link} target="_blank" rel="noreferrer" className="block group">
               <h3 className="text-sm font-medium text-slate-800 group-hover:text-blue-600 transition-colors leading-snug">
                 {item.title}
               </h3>
-              <p className="text-[10px] text-slate-400 mt-1 uppercase tracking-wider">
-                {new Date(item.pubDate).toLocaleDateString('vi-VN')}
-              </p>
             </a>
           ))
         )}

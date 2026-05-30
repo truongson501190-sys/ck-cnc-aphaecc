@@ -19,28 +19,67 @@ const PAGE_SIZE = 8;
 
 const defaultPlans: ProductionPlanEntry[] = [
   {
-    id: 'plan-1',
-    project: 'Dự án A',
-    productCode: 'SP-100',
-    productName: 'Chi tiết bạc CNC',
-    quantityPlanned: 250,
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-    status: 'planned',
-    owner: 'Quản đốc',
-    notes: 'Kế hoạch theo lô sản xuất tháng',
+    id: '1',
+
+    jobNo: 'AL-5540',
+
+    project: 'Nov-PCNC',
+
+    machine: 'BF160HC',
+
+    drawingNo: '2209899',
+
+    description: 'Machine House N2',
+
+    startDate: '2026-04-11',
+
+    finishDate: '2026-04-24',
+
+    actualStart: '2026-04-11',
+
+    actualFinish: '2026-04-24',
+
+    hours: 133,
+
+    days: 13.3,
+
+    progress: 100,
+
+    status: 'completed',
+
+    note: '',
   },
+
   {
-    id: 'plan-2',
-    project: 'Dự án B',
-    productCode: 'SP-200',
-    productName: 'Vỏ động cơ',
-    quantityPlanned: 80,
-    startDate: new Date().toISOString().slice(0, 10),
-    endDate: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
-    status: 'in_progress',
-    owner: 'Tổ trưởng CNC',
-    notes: 'Đang thực hiện, ưu tiên nhanh giao',
+    id: '2',
+
+    jobNo: 'AL-5541',
+
+    project: 'Seasonic-P.CNC',
+
+    machine: 'BF160HC',
+
+    drawingNo: '2219498',
+
+    description: 'Kingpost Upper Part',
+
+    startDate: '2026-05-15',
+
+    finishDate: '2026-05-26',
+
+    actualStart: '2026-05-05',
+
+    actualFinish: '',
+
+    hours: 50,
+
+    days: 5,
+
+    progress: 50,
+
+    status: 'running',
+
+    note: '',
   },
 ];
 
