@@ -100,12 +100,21 @@ export function Roles() {
   const loadData = () => {
     setIsLoading(true);
     try {
-      const savedUsers = localStorage.getItem('wms_users');
+      // Load từ `users` table thay vì `wms_users`
+      const savedUsers = localStorage.getItem('users');
       if (savedUsers) {
         const parsedUsers = JSON.parse(savedUsers);
-        setUserList(parsedUsers);
-        if (parsedUsers.length > 0 && !selectedUserMsnv) {
-          setSelectedUserMsnv(parsedUsers[0].msnv);
+        // Loại bỏ admin (1118) khỏi danh sách - admin tự động toàn quyền
+        const nonAdminUsers = parsedUsers.filter((u: any) => u.msnv !== '1118').map((u: any) => ({
+          msnv: u.msnv,
+          fullName: u.fullName,
+          department: u.department,
+          roleGroup: u.position || 'User'
+        }));
+        
+        setUserList(nonAdminUsers);
+        if (nonAdminUsers.length > 0 && !selectedUserMsnv) {
+          setSelectedUserMsnv(nonAdminUsers[0].msnv);
         }
       }
     } catch (error) {

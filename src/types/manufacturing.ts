@@ -14,7 +14,15 @@ export interface ProductionPlanEntry {
   actualStart?: string;
   actualFinish?: string;
 
+  qty: number;
+  qtyCompleted: number;
+  remaining: number;
+
   hours: number;
+  totalHours: number;
+
+  shift: string;
+
   days: number;
 
   progress: number;

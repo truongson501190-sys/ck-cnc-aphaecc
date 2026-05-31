@@ -59,9 +59,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         
         // LUÔN RESET VỀ DỮ LIỆU MẶC ĐỊNH NẾU CÓ LỖI!
         console.log('📦 Đảm bảo dữ liệu mặc định...');
-        const forceReset = true; // Đặt true để reset về mặc định
+        const forceReset = false;
         
-        if (!userRecordsStr || !usersStr || forceReset) {
+        if (!userRecordsStr || !usersStr) {
           console.log('📦 Initializing localStorage with default data...');
           
           const defaultUsers = [
@@ -328,7 +328,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = useCallback(
     async (msnv: string, password: string, rememberMe = false): Promise<boolean> => {
-      console.log('🔐 Login attempt for:', msnv);
+      const normalizedMsnv = msnv.trim().toUpperCase();
+      const normalizedPassword = password.trim();
+      console.log('🔐 Login attempt for:', normalizedMsnv);
       
       try {
         // Try LocalStorage fallback first (Offline reliable)
@@ -341,17 +343,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const userRecords = parseJsonArray<UserRecord>(userRecordsStr);
           const users = parseJsonArray<User>(usersStr);
           
-          const record = userRecords.find((r) => r.msnv === msnv && r.status === true);
+          const record = userRecords.find((r) => r.msnv === normalizedMsnv && r.status === true);
           
           if (record) {
             console.log('👤 User record found locally. Verifying password...');
             // Check password (handle both plain and base64)
             let isPasswordCorrect = false;
-            if (record.passwordHash === password) {
+            if (record.passwordHash === normalizedPassword) {
               isPasswordCorrect = true;
             } else {
               try {
-                if (atob(record.passwordHash) === password) {
+                if (atob(record.passwordHash) === normalizedPassword) {
                   isPasswordCorrect = true;
                 }
               } catch (e) {
@@ -360,10 +362,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             }
 
             if (isPasswordCorrect) {
-              const userData = users.find((u) => u.msnv === msnv);
+              const userData = users.find((u) => u.msnv === normalizedMsnv);
               if (userData) {
                 // Load permissions từ localStorage (nếu có)
-                const userPermissionsStr = localStorage.getItem(`user_permissions_${msnv}`);
+                const userPermissionsStr = localStorage.getItem(`user_permissions_${normalizedMsnv}`);
                 let permissions = { ...DEFAULT_PERMISSIONS };
                 
                 if (userPermissionsStr) {
@@ -406,12 +408,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // 2. Try Supabase if online or local failed
         if (supabase) {
-          console.log('🌐 Attempting Supabase login for:', msnv);
+          console.log('🌐 Attempting Supabase login for:', normalizedMsnv);
           // Get user record for auth - Use correct DB column names
           const { data: record, error: err1 } = await supabase
             .from('user_records')
             .select('*')
-            .eq('employee_code', msnv)
+            .eq('employee_code', normalizedMsnv)
             .eq('status', true)
             .single();
 
@@ -430,11 +432,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             const dbPasswordHash = record.password_hash || record.passwordHash;
             
             let isPasswordCorrect = false;
-            if (dbPasswordHash === password) {
+            if (dbPasswordHash === normalizedPassword) {
               isPasswordCorrect = true;
             } else {
               try {
-                if (atob(dbPasswordHash) === password) {
+                if (atob(dbPasswordHash) === normalizedPassword) {
                   isPasswordCorrect = true;
                 }
               } catch (e) {
@@ -447,7 +449,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               const { data: userData, error: err2 } = await supabase
                 .from('users')
                 .select('*')
-                .eq('employee_code', msnv)
+                .eq('employee_code', normalizedMsnv)
                 .single();
 
               if (!err2 && userData) {
@@ -459,7 +461,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 };
                 
                 // Load permissions từ localStorage
-                const userPermissionsStr = localStorage.getItem(`user_permissions_${msnv}`);
+                const userPermissionsStr = localStorage.getItem(`user_permissions_${normalizedMsnv}`);
                 let permissions = { ...DEFAULT_PERMISSIONS };
                 
                 if (userPermissionsStr) {
