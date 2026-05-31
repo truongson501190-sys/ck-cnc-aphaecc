@@ -818,22 +818,18 @@ return (
         <TableCell>
           <input
             type="checkbox"
+            className="w-3 h-3 scale-50 cursor-pointer align-middle"
             checked={selectedIds.includes(plan.id)}
             onChange={(e) => {
-              if (e.target.checked) {
-                setSelectedIds(prev => [
-                  ...prev,
-                  plan.id,
-                ]);
-              } else {
+                if (e.target.checked) {
+                setSelectedIds(prev => [...prev, plan.id]);
+                } else {
                 setSelectedIds(prev =>
-                  prev.filter(
-                    x => x !== plan.id
-                  )
+                    prev.filter(x => x !== plan.id)
                 );
-              }
+                }
             }}
-          />
+            />
         </TableCell>
 
         <TableCell>
