@@ -95,7 +95,7 @@ export class DataSyncService {
 
     try {
       const tables = [
-        { key: 'users', table: 'users' },
+        { key: 'wms_users', table: 'users' },
         { key: 'userRecords', table: 'user_records' },
         { key: 'systemUsers', table: 'user_records' },
         { key: 'categoryTypes', table: 'categories' },
@@ -147,7 +147,7 @@ export class DataSyncService {
 
     try {
       const tables = [
-        { key: 'users', table: 'users' },
+        { key: 'wms_users', table: 'users' },
         { key: 'userRecords', table: 'user_records' },
         { key: 'systemUsers', table: 'user_records' },
         { key: 'categoryTypes', table: 'categories' },
@@ -212,7 +212,7 @@ export class DataSyncService {
       originalSetItem.call(localStorage, key, value);
 
       const syncKeys = [
-        'users',
+        'wms_users',
         'userRecords',
         'categoryTypes',
         'machines',
