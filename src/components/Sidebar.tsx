@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ChevronLeft, Menu, LogOut } from 'lucide-react';
-import { ERP_NAVIGATION, isNavItemVisible } from '@/modules/erp/routes';
+import { ERP_NAVIGATION } from '@/modules/erp/routes';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermission } from '@/hooks/usePermission';
 
 // Định nghĩa kiểu dữ liệu Props nhận từ Layout tổng truyền xuống
 interface SidebarProps {
@@ -14,6 +15,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+  const { canView } = usePermission();
   
   // State quản lý ID của menu đang mở Accordion nội bộ
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -85,7 +87,12 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           }).map((group) => {
             const isMainMenu = group.id === 'main';
             const mainMenuItem = isMainMenu ? group.items[0] : null;
-            const visibleItems = group.items.filter((item) => isNavItemVisible(item, user as any) && item.action !== 'logout');
+            const visibleItems = group.items.filter((item) => {
+              if (item.action === 'logout') return false;
+              if (user?.role === 'admin') return true;
+              if (!item.permissionKey) return true;
+              return canView(item.permissionKey);
+            });
 
             if (visibleItems.length === 0 && !isMainMenu) return null;
 

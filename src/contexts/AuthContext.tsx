@@ -1,7 +1,5 @@
 import React, { createContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { supabase } from '@/supabase';
 import type { User } from '@/types/user';
-import { DEFAULT_PERMISSIONS } from '@/types/user';
 import { dataSync } from '@/lib/dataSync';
 
 type UserRecord = {
@@ -49,21 +47,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Consistent permission keys used across app
+  const PERMISSION_KEYS = [
+    'nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich',
+    'ke_hoach_san_xuat', 'nhat_ky_gia_cong', 'nhat_ky_qc', 'nhat_ky_bao_tri', 'theo_doi_tien_do',
+    'dashboard_tong_hop', 'bao_cao_kho', 'bao_cao_gia_cong', 'bao_cao_qc', 'bao_cao_bao_tri', 'hieu_suat_may', 'cho_duyet',
+    'chung_loai', 'kho', 'may_moc', 'du_an',
+    'quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong'
+  ];
+
   // Initialize auth state from storage on mount
   useEffect(() => {
     const initializeAuth = () => {
       try {
-        // ... existing seeding logic ...
+        // Ensure default data exists
         const userRecordsStr = localStorage.getItem('userRecords');
-        const usersStr = localStorage.getItem('users');
-        
-        // LUÔN RESET VỀ DỮ LIỆU MẶC ĐỊNH NẾU CÓ LỖI!
+        const usersStr = localStorage.getItem('wms_users');
+
         console.log('📦 Đảm bảo dữ liệu mặc định...');
-        const forceReset = false;
-        
+
         if (!userRecordsStr || !usersStr) {
           console.log('📦 Initializing localStorage with default data...');
-          
+
           const defaultUsers = [
             {
               msnv: '1118',
@@ -71,38 +76,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               department: 'Admin',
               position: 'Quản trị viên hệ thống',
               role: 'admin',
+              roleGroup: 'Admin',
               status: 'active',
-              permissions: {
-                nhap_kho: true,
-                xuat_kho: true,
-                chuyen_kho: true,
-                xuat_dau: true,
-                kiem_ke_kho: true,
-                ton_kho: true,
-                the_kho: true,
-                lich_su_giao_dich: true,
-                ke_hoach_san_xuat: true,
-                nhat_ky_gia_cong: true,
-                nhat_ky_qc: true,
-                nhat_ky_bao_tri: true,
-                theo_doi_tien_do: true,
-                dashboard_tong_hop: true,
-                bao_cao_kho: true,
-                bao_cao_gia_cong: true,
-                bao_cao_qc: true,
-                bao_cao_bao_tri: true,
-                hieu_suat_may: true,
-                cho_duyet: true,
-                chung_loai: true,
-                kho: true,
-                may_moc: true,
-                du_an: true,
-                quan_ly_nguoi_dung: true,
-                phan_quyen: true,
-                audit_log: true,
-                backup_restore: true,
-                cai_dat_he_thong: true,
-              },
               createdAt: new Date().toISOString(),
               updatedAt: new Date().toISOString()
             }
@@ -117,42 +92,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               position: 'Quản trị viên hệ thống',
               role: 'admin',
               status: true,
-              passwordHash: 'admin123', // plain text for initial local check
+              passwordHash: '1118',
               createdAt: new Date().toISOString()
             }
           ];
 
-          localStorage.setItem('users', JSON.stringify(defaultUsers));
+          localStorage.setItem('wms_users', JSON.stringify(defaultUsers));
           localStorage.setItem('userRecords', JSON.stringify(defaultUserRecords));
-          
-          // 🔑 SEED PERMISSIONS CHO TẤT CẢ USERS
-          defaultUsers.forEach(user => {
-            localStorage.setItem(
-              `user_permissions_${user.msnv}`,
-              JSON.stringify(user.permissions || DEFAULT_PERMISSIONS)
-            );
-          });
-          
-          console.log('✅ Default data initialized with permissions');
+
+          // Initialize permissions for admin
+          const adminPerms: Record<string, string> = {};
+          PERMISSION_KEYS.forEach(key => adminPerms[key] = 'full');
+          localStorage.setItem('wms_user_permissions_1118', JSON.stringify(adminPerms));
+
+          console.log('✅ Default data initialized');
         } else {
-          // If storage exists, ensure 1118 exists and has permissions
           const userRecords = parseJsonArray<UserRecord>(userRecordsStr);
           const users = parseJsonArray<User>(usersStr);
-          
-          // Seed permissions cho tất cả existing users
-          users.forEach(user => {
-            const existingPerms = localStorage.getItem(`user_permissions_${user.msnv}`);
-            if (!existingPerms) {
-              localStorage.setItem(
-                `user_permissions_${user.msnv}`,
-                JSON.stringify(user.permissions || DEFAULT_PERMISSIONS)
-              );
-              console.log('📋 Seeded permissions for:', user.msnv);
-            }
-          });
-          if (!userRecords.find((r) => r.msnv === '1118')) {
+
+          // Ensure admin exists and reset password to 1118
+          let adminRecord = userRecords.find((r) => r.msnv === '1118');
+          if (!adminRecord) {
             console.log('📦 Adding missing admin user to local storage...');
-            const adminRecord: UserRecord = {
+            adminRecord = {
               id: 'admin-' + Date.now(),
               msnv: '1118',
               fullName: 'Nguyễn Trường Sơn',
@@ -160,94 +122,34 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               position: 'Quản trị viên hệ thống',
               role: 'admin',
               status: true,
-              passwordHash: 'admin123',
+              passwordHash: '1118',
               createdAt: new Date().toISOString()
             };
             userRecords.push(adminRecord);
             localStorage.setItem('userRecords', JSON.stringify(userRecords));
-            
-            const users = parseJsonArray<User>(usersStr);
-            if (!users.find((u) => u.msnv === '1118')) {
-              users.push({
-                msnv: '1118',
-                fullName: 'Nguyễn Trường Sơn',
-                department: 'Admin',
-                position: 'Quản trị viên hệ thống',
-                role: 'admin',
-                status: 'active',
-                permissions: {
-                  nhap_kho: true,
-                  xuat_kho: true,
-                  chuyen_kho: true,
-                  xuat_dau: true,
-                  kiem_ke_kho: true,
-                  ton_kho: true,
-                  the_kho: true,
-                  lich_su_giao_dich: true,
-                  ke_hoach_san_xuat: true,
-                  nhat_ky_gia_cong: true,
-                  nhat_ky_qc: true,
-                  nhat_ky_bao_tri: true,
-                  theo_doi_tien_do: true,
-                  dashboard_tong_hop: true,
-                  bao_cao_kho: true,
-                  bao_cao_gia_cong: true,
-                  bao_cao_qc: true,
-                  bao_cao_bao_tri: true,
-                  hieu_suat_may: true,
-                  cho_duyet: true,
-                  chung_loai: true,
-                  kho: true,
-                  may_moc: true,
-                  du_an: true,
-                  quan_ly_nguoi_dung: true,
-                  phan_quyen: true,
-                  audit_log: true,
-                  backup_restore: true,
-                  cai_dat_he_thong: true,
-                },
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              });
-              localStorage.setItem('users', JSON.stringify(users));
-              
-              // 🔑 Seed admin permissions
-              localStorage.setItem(
-                'user_permissions_1118',
-                JSON.stringify({
-                  nhap_kho: true,
-                  xuat_kho: true,
-                  chuyen_kho: true,
-                  xuat_dau: true,
-                  kiem_ke_kho: true,
-                  ton_kho: true,
-                  the_kho: true,
-                  lich_su_giao_dich: true,
-                  ke_hoach_san_xuat: true,
-                  nhat_ky_gia_cong: true,
-                  nhat_ky_qc: true,
-                  nhat_ky_bao_tri: true,
-                  theo_doi_tien_do: true,
-                  dashboard_tong_hop: true,
-                  bao_cao_kho: true,
-                  bao_cao_gia_cong: true,
-                  bao_cao_qc: true,
-                  bao_cao_bao_tri: true,
-                  hieu_suat_may: true,
-                  cho_duyet: true,
-                  chung_loai: true,
-                  kho: true,
-                  may_moc: true,
-                  du_an: true,
-                  quan_ly_nguoi_dung: true,
-                  phan_quyen: true,
-                  audit_log: true,
-                  backup_restore: true,
-                  cai_dat_he_thong: true,
-                })
-              );
-              console.log('📋 Admin permissions seeded');
-            }
+          } else {
+            adminRecord.passwordHash = '1118';
+            localStorage.setItem('userRecords', JSON.stringify(userRecords));
+          }
+
+          if (!users.find((u) => u.msnv === '1118')) {
+            users.push({
+              msnv: '1118',
+              fullName: 'Nguyễn Trường Sơn',
+              department: 'Admin',
+              position: 'Quản trị viên hệ thống',
+              role: 'admin',
+              roleGroup: 'Admin',
+              status: 'active',
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
+            });
+            localStorage.setItem('wms_users', JSON.stringify(users));
+
+            // Initialize admin permissions
+            const adminPerms: Record<string, string> = {};
+            PERMISSION_KEYS.forEach(key => adminPerms[key] = 'full');
+            localStorage.setItem('wms_user_permissions_1118', JSON.stringify(adminPerms));
           }
         }
 
@@ -255,29 +157,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const storedUser = localStorage.getItem('sessionUser');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
-          
-          // Refresh permissions từ localStorage nếu có
-          const userPermissionsStr = localStorage.getItem(`user_permissions_${parsedUser.msnv}`);
-          if (userPermissionsStr) {
-            try {
-              const permissions = JSON.parse(userPermissionsStr);
-              parsedUser.permissions = permissions;
-              console.log('📋 Refreshed permissions for user:', parsedUser.msnv);
-            } catch (e) {
-              console.warn('⚠️ Failed to refresh permissions');
-            }
-          }
-          
           setUser(parsedUser);
           console.log('✅ User loaded from localStorage:', parsedUser.msnv);
-          
-          // Trigger sync on startup if logged in
+
           setTimeout(() => {
             dataSync.fullSync()
               .then(() => console.log('🚀 Initial sync completed'))
               .catch(err => console.error('Startup sync failed:', err));
           }, 1000);
-          
+
           setLoading(false);
           return;
         }
@@ -286,23 +174,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const sessionUser = sessionStorage.getItem('sessionUser');
         if (sessionUser) {
           const parsedUser = JSON.parse(sessionUser);
-          
-          // Refresh permissions từ localStorage nếu có
-          const userPermissionsStr = localStorage.getItem(`user_permissions_${parsedUser.msnv}`);
-          if (userPermissionsStr) {
-            try {
-              const permissions = JSON.parse(userPermissionsStr);
-              parsedUser.permissions = permissions;
-              console.log('📋 Refreshed permissions for user:', parsedUser.msnv);
-            } catch (e) {
-              console.warn('⚠️ Failed to refresh permissions');
-            }
-          }
-          
           setUser(parsedUser);
           console.log('✅ User loaded from sessionStorage:', parsedUser.msnv);
-          
-          // Trigger sync on startup if logged in
+
           setTimeout(() => {
             dataSync.fullSync()
               .then(() => console.log('🚀 Initial sync completed'))
@@ -328,183 +202,137 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = useCallback(
     async (msnv: string, password: string, rememberMe = false): Promise<boolean> => {
-      const normalizedMsnv = msnv.trim().toUpperCase();
+      const inputMsnv = msnv.trim().toLowerCase();
       const normalizedPassword = password.trim();
-      console.log('🔐 Login attempt for:', normalizedMsnv);
-      
+      console.log('🔐 Login attempt for:', inputMsnv);
+
       try {
-        // Try LocalStorage fallback first (Offline reliable)
+        // Try local storage first
+        const usersStr = localStorage.getItem('wms_users');
         const userRecordsStr = localStorage.getItem('userRecords');
-        const usersStr = localStorage.getItem('users');
-        
-        console.log('📦 Checking local storage for user...');
-        
-        if (userRecordsStr && usersStr) {
-          const userRecords = parseJsonArray<UserRecord>(userRecordsStr);
-          const users = parseJsonArray<User>(usersStr);
-          
-          const record = userRecords.find((r) => r.msnv === normalizedMsnv && r.status === true);
-          
-          if (record) {
-            console.log('👤 User record found locally. Verifying password...');
-            // Check password (handle both plain and base64)
-            let isPasswordCorrect = false;
-            if (record.passwordHash === normalizedPassword) {
-              isPasswordCorrect = true;
-            } else {
-              try {
-                if (atob(record.passwordHash) === normalizedPassword) {
-                  isPasswordCorrect = true;
-                }
-              } catch (e) {
-                // Not base64
-              }
-            }
 
-            if (isPasswordCorrect) {
-              const userData = users.find((u) => u.msnv === normalizedMsnv);
-              if (userData) {
-                // Load permissions từ localStorage (nếu có)
-                const userPermissionsStr = localStorage.getItem(`user_permissions_${normalizedMsnv}`);
-                let permissions = { ...DEFAULT_PERMISSIONS };
-                
-                if (userPermissionsStr) {
-                  try {
-                    permissions = JSON.parse(userPermissionsStr);
-                    console.log('📋 User permissions loaded from localStorage:', Object.keys(permissions).filter(k => permissions[k]).length, 'permissions');
-                  } catch (e) {
-                    console.warn('⚠️ Failed to parse user permissions, using defaults');
-                  }
-                } else if (userData.role === 'admin') {
-                  // Admin mặc định toàn quyền
-                  Object.keys(permissions).forEach(key => {
-                    permissions[key] = true;
-                  });
-                  console.log('👑 Admin user - granting full permissions');
-                }
-                
-                const userWithPermissions = { ...userData, permissions };
-                setUser(userWithPermissions);
-                if (rememberMe) {
-                  localStorage.setItem('sessionUser', JSON.stringify(userWithPermissions));
-                } else {
-                  sessionStorage.setItem('sessionUser', JSON.stringify(userWithPermissions));
-                }
-                console.log('✅ Login successful via localStorage');
-                dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
-                return true;
-              } else {
-                console.warn('⚠️ User record exists but full user data is missing locally');
-              }
-            } else {
-              console.warn('❌ Local password mismatch');
-            }
+        const users = parseJsonArray<User>(usersStr || '[]');
+        const userRecords = parseJsonArray<UserRecord>(userRecordsStr || '[]');
+
+        console.log("📦 Current data state:", {
+          usersCount: users.length,
+          userRecordsCount: userRecords.length,
+          allUserRecordsMsnv: userRecords.map(r => r.msnv),
+          allUsersMsnv: users.map(u => u.msnv)
+        });
+
+        // Find user in userRecords
+        let record = userRecords.find(
+          (r) => r.msnv.trim().toLowerCase() === inputMsnv && r.status === true
+        );
+
+        // If no record, try to create one from wms_users
+        if (!record) {
+          console.log("⚠️ User record not found, checking wms_users...");
+          const wmsUser = users.find(u => u.msnv.trim().toLowerCase() === inputMsnv);
+          if (wmsUser) {
+            console.log("➕ Creating user record from wms_user...");
+            record = {
+              id: wmsUser.msnv,
+              msnv: wmsUser.msnv,
+              fullName: wmsUser.fullName,
+              department: wmsUser.department,
+              position: wmsUser.position || '',
+              role: wmsUser.role || 'user',
+              status: true,
+              passwordHash: wmsUser.msnv, // Default password is MSNV
+              createdAt: new Date().toISOString()
+            };
+            userRecords.push(record);
+            localStorage.setItem('userRecords', JSON.stringify(userRecords));
           } else {
-            console.log('ℹ️ User not found in local storage');
+            console.log("❌ User not found in either place!");
+            return false;
           }
-        } else {
-          console.warn('⚠️ Local storage is empty (no userRecords or users)');
         }
 
-        // 2. Try Supabase if online or local failed
-        if (supabase) {
-          console.log('🌐 Attempting Supabase login for:', normalizedMsnv);
-          // Get user record for auth - Use correct DB column names
-          const { data: record, error: err1 } = await supabase
-            .from('user_records')
-            .select('*')
-            .eq('employee_code', normalizedMsnv)
-            .eq('status', true)
-            .single();
+        console.log("👤 Found user record:", record);
 
-          if (err1) {
-            if (err1.code === 'PGRST116') {
-              console.warn('ℹ️ User not found in Supabase user_records');
-            } else {
-              console.error('❌ Supabase auth error:', err1.message, err1.code);
-            }
-          }
+        // Check password
+        const correctPassword = (record.passwordHash || record.msnv).toString().trim();
+        console.log("🔑 Checking password...", {
+          inputPassword: normalizedPassword,
+          storedPasswordHash: correctPassword,
+          matches: correctPassword === normalizedPassword
+        });
 
-          if (!err1 && record) {
-            console.log('👤 User record found in Supabase. Verifying password...');
-            
-            // Map DB fields to local expectations for the password check logic
-            const dbPasswordHash = record.password_hash || record.passwordHash;
-            
-            let isPasswordCorrect = false;
-            if (dbPasswordHash === normalizedPassword) {
+        let isPasswordCorrect = false;
+        if (correctPassword === normalizedPassword) {
+          isPasswordCorrect = true;
+        } else {
+          try {
+            if (atob(correctPassword) === normalizedPassword) {
               isPasswordCorrect = true;
-            } else {
-              try {
-                if (atob(dbPasswordHash) === normalizedPassword) {
-                  isPasswordCorrect = true;
-                }
-              } catch (e) {
-                // Not base64
-              }
             }
-
-            if (isPasswordCorrect) {
-              // Get full user profile - Use correct DB column names
-              const { data: userData, error: err2 } = await supabase
-                .from('users')
-                .select('*')
-                .eq('employee_code', normalizedMsnv)
-                .single();
-
-              if (!err2 && userData) {
-                // Map back to expected User type if needed (fullName vs full_name)
-                let normalizedUser: User = {
-                  ...userData,
-                  fullName: userData.full_name || userData.fullName,
-                  msnv: userData.employee_code || userData.msnv
-                };
-                
-                // Load permissions từ localStorage
-                const userPermissionsStr = localStorage.getItem(`user_permissions_${normalizedMsnv}`);
-                let permissions = { ...DEFAULT_PERMISSIONS };
-                
-                if (userPermissionsStr) {
-                  try {
-                    permissions = JSON.parse(userPermissionsStr);
-                    console.log('📋 User permissions loaded from localStorage:', Object.keys(permissions).filter(k => permissions[k]).length, 'permissions');
-                  } catch (e) {
-                    console.warn('⚠️ Failed to parse user permissions, using defaults');
-                  }
-                } else if (normalizedUser.role === 'admin') {
-                  // Admin mặc định toàn quyền
-                  Object.keys(permissions).forEach(key => {
-                    permissions[key] = true;
-                  });
-                  console.log('👑 Admin user - granting full permissions');
-                }
-                
-                normalizedUser = { ...normalizedUser, permissions };
-
-                setUser(normalizedUser);
-                if (rememberMe) {
-                  localStorage.setItem('sessionUser', JSON.stringify(normalizedUser));
-                } else {
-                  sessionStorage.setItem('sessionUser', JSON.stringify(normalizedUser));
-                }
-                console.log('✅ Login successful via Supabase');
-                dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
-                return true;
-              } else {
-                console.error('❌ Failed to fetch user profile from Supabase:', err2?.message);
-              }
-            } else {
-              console.warn('❌ Supabase password mismatch');
-            }
+          } catch {
+            // Not base64 encoded, ignore
           }
-        } else {
-          console.warn('⚠️ Supabase client is not initialized (check your .env key)');
         }
 
-        console.error('❌ Login failed: Invalid MSNV or password');
-        return false;
-      } catch (err) {
-        console.error('💥 Login critical error:', err);
+        if (!isPasswordCorrect) {
+          console.log("❌ Password incorrect!");
+          return false;
+        }
+
+        // Find the user object from wms_users
+        let userData = users.find((u) => u.msnv.trim().toLowerCase() === inputMsnv);
+
+        // If not found, create from record
+        if (!userData) {
+          console.log("⚠️ User not found in wms_users, creating...");
+          userData = {
+            msnv: record.msnv,
+            fullName: record.fullName,
+            department: record.department,
+            roleGroup: record.role || 'User',
+            position: record.position,
+            role: record.role as 'user' | 'manager' | 'admin',
+            status: 'active',
+            createdAt: record.createdAt,
+            updatedAt: new Date().toISOString()
+          };
+          const updatedUsers = [...users, userData];
+          localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
+        } else {
+          // Ensure userData has all required fields
+          userData = {
+            ...userData,
+            roleGroup: userData.roleGroup || (record.role || 'User'),
+            role: userData.role || (record.role as 'user' | 'manager' | 'admin')
+          };
+        }
+
+        // Initialize permissions if they don't exist
+        const permsKey = `wms_user_permissions_${record.msnv}`;
+        const existingPerms = localStorage.getItem(permsKey);
+        if (!existingPerms) {
+          console.log("➕ Initializing user permissions...");
+          const initialPerms: Record<string, string> = {};
+          PERMISSION_KEYS.forEach(key => {
+            initialPerms[key] = record.role === 'admin' ? 'full' : 'none';
+          });
+          localStorage.setItem(permsKey, JSON.stringify(initialPerms));
+        }
+
+        console.log("✅ Login successful!", { userData });
+
+        setUser(userData);
+        if (rememberMe) {
+          localStorage.setItem('sessionUser', JSON.stringify(userData));
+        } else {
+          sessionStorage.setItem('sessionUser', JSON.stringify(userData));
+        }
+
+        dataSync.fullSync().catch(err => console.error('Post-login sync failed:', err));
+        return true;
+
+      } catch (error) {
+        console.error('💥 Login critical error:', error);
         return false;
       }
     },
@@ -515,12 +343,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser((currentUser) => {
       if (!currentUser) return currentUser;
       const nextUser = { ...currentUser, ...updatedUser };
-      const usersStr = localStorage.getItem('users');
+      const usersStr = localStorage.getItem('wms_users');
       if (usersStr) {
         try {
           const users = parseJsonArray<User>(usersStr);
           const updatedUsers = users.map((userRecord) => (userRecord.msnv === nextUser.msnv ? nextUser : userRecord));
-          localStorage.setItem('users', JSON.stringify(updatedUsers));
+          localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
         } catch {
           // ignore local update failures
         }
@@ -540,7 +368,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     localStorage.removeItem('sessionUser');
     sessionStorage.removeItem('sessionUser');
-    localStorage.removeItem('rememberedLogin');
+    localStorage.removeItem('rememberedUser');
   }, []);
 
   const value: AuthContextType = {

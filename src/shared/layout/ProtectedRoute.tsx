@@ -6,13 +6,12 @@ import {
 } from 'react-router-dom';
 
 import { useAuth } from '@/hooks/useAuth';
-
-import type { UserPermissions } from '@/types/user';
+import { usePermission } from '@/hooks/usePermission';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requiredRole?: 'admin' | 'manager' | 'user';
-  requiredModule?: keyof UserPermissions;
+  requiredModule?: string;
 }
 
 const checkRolePermission = (userRole: string | undefined, requiredRole: string): boolean => {
@@ -39,6 +38,8 @@ const ProtectedRoute: React.FC<
     isAuthenticated,
     user,
   } = useAuth();
+
+  const { canView } = usePermission();
 
   const location =
     useLocation();
@@ -80,11 +81,10 @@ const ProtectedRoute: React.FC<
   // CHECK MODULE PERMISSION
   // =========================
   if (requiredModule) {
-    const canView = !!user.permissions?.[requiredModule];
-    if (!canView) {
+    const hasAccess = canView(requiredModule);
+    if (!hasAccess) {
       console.log('❌ No module view permission:', {
         module: requiredModule,
-        permissions: user.permissions,
       });
       return <Navigate to="/" replace />;
     }

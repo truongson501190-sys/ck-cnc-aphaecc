@@ -1,9 +1,12 @@
+export type PermissionLevel = 'none' | 'view' | 'full';
+
 export interface RoleRecord {
   id: string;
   name: string;
   description?: string;
-  permissions: Record<string, boolean>;
+  permissions: Record<string, PermissionLevel>;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuditLogEntry {

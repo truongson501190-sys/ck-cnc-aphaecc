@@ -1,1133 +1,449 @@
-// Quản Lý Người Dùng
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-
-import {
-  Card,
-  CardContent,
-  CardHeader
-} from '@/components/ui/card';
-
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-
-import { Badge } from '@/components/ui/badge';
-
 import { Input } from '@/components/ui/input';
-
 import { Label } from '@/components/ui/label';
-
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
-
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle
-} from '@/components/ui/dialog';
-
-import { DEFAULT_PERMISSIONS, ADMIN_PERMISSIONS } from '@/types/user';
-
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow
-} from '@/components/ui/table';
-
-import {
-  Users,
-  Edit,
-  Plus,
-  RefreshCw,
-  Key,
-  Search,
-  Trash2,
-  ShieldAlert,
-  Home
-} from 'lucide-react';
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Search, UserPlus, Trash2, UserCheck, RefreshCw, Key, Edit, X } from 'lucide-react';
 import { toast } from 'sonner';
 
-interface UserProfile {
+const POSITIONS = [
+  'Quản lý xưởng', 'Tổ trưởng', 'Tổ phó', 'Nhân viên QC', 
+  'Nhân viên bảo trì', 'Thợ cơ khí', 'Thợ CNC', 'Nhân viên kho'
+];
+
+const DEPARTMENTS = ['Tổ CNC', 'Tổ Cơ Khí', 'Quản lý Chung'];
+
+interface UserRecord {
   msnv: string;
   fullName: string;
   department: string;
-  roleGroup: string;
-  status: 'active' | 'locked';
+  position: string;
+  password?: string;
+  status: 'active' | 'inactive';
 }
 
-const DEPARTMENTS = [
-  'Ban Quản Trị Hệ Thống',
-  'Tổ CNC',
-  'Tổ Cơ Khí',
-  'Tổ Đầu',
-  'Kho Tổng',
-  'Kho Cơ Khí',
-  'Kho CNC',
-  'Kho Đầu',
-  'QC',
-  'Bảo Trì'
-];
-
-const ROLE_GROUPS = [
-  'Admin',
-  'Quản Lý Kho',
-  'Thợ CNC',
-  'Thợ Cơ Khí',
-  'Thợ Đầu',
-  'Nhân Viên Kho',
-  'Kỹ Thuật QC',
-  'Kỹ Thuật Bảo Trì'
+const ALL_PERMISSIONS_KEYS = [
+  'nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich',
+  'ke_hoach_san_xuat', 'nhat_ky_gia_cong', 'nhat_ky_qc', 'nhat_ky_bao_tri', 'theo_doi_tien_do',
+  'dashboard_tong_hop', 'bao_cao_kho', 'bao_cao_gia_cong', 'bao_cao_qc', 'bao_cao_bao_tri', 'hieu_suat_may', 'cho_duyet',
+  'chung_loai', 'kho', 'may_moc', 'du_an', 'quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong'
 ];
 
 export function UserManagement() {
-  const navigate = useNavigate();
-
-  const [users, setUsers] = useState<UserProfile[]>([]);
-  const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
+  const [users, setUsers] = useState<UserRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
-  const [isPasswordOpen, setIsPasswordOpen] = useState(false);
-
-  const [selectedUser, setSelectedUser] =
-    useState<UserProfile | null>(null);
-
-  const [newPassword, setNewPassword] = useState('');
-
-  const [userForm, setUserForm] = useState({
-    msnv: '',
-    fullName: '',
-    department: 'Tổ CNC',
-    roleGroup: 'Thợ CNC',
-    password: ''
-  });
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Form State
+  const [msnv, setMsnv] = useState('');
+  const [fullName, setFullName] = useState('');
+  const [department, setDepartment] = useState('');
+  const [position, setPosition] = useState('');
+  const [password, setPassword] = useState('');
+  const [status, setStatus] = useState<'active' | 'inactive'>('active');
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => {
     loadUsers();
   }, []);
 
-  useEffect(() => {
-    let filtered = [...users];
-
-    if (searchTerm.trim()) {
-      filtered = filtered.filter(
-        (u) =>
-          u.msnv
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase()) ||
-          u.fullName
-            .toLowerCase()
-            .includes(searchTerm.toLowerCase())
-      );
-    }
-
-    setFilteredUsers(filtered);
-  }, [users, searchTerm]);
-
   const loadUsers = () => {
-    const savedUsers =
-      localStorage.getItem('wms_users');
-
-    if (savedUsers) {
-      setUsers(JSON.parse(savedUsers));
-    } else {
-      const systemAdmin: UserProfile[] = [
-        {
+    setIsLoading(true);
+    try {
+      const stored = localStorage.getItem('wms_users');
+      if (stored) {
+        setUsers(JSON.parse(stored));
+      } else {
+        const defaultAdmin: UserRecord[] = [{
           msnv: '1118',
-          fullName: 'Nguyễn Trường Sơn',
-          department: 'Ban Quản Trị Hệ Thống',
-          roleGroup: 'Admin',
+          fullName: 'Administrator',
+          department: 'Quản lý Chung',
+          position: 'Quản lý xưởng',
+          password: '1118',
           status: 'active'
-        }
-      ];
-
-      localStorage.setItem(
-        'wms_users',
-        JSON.stringify(systemAdmin)
-      );
-
-      setUsers(systemAdmin);
-    }
-  };
-
-  const handleSaveUser = () => {
-    if (
-      !userForm.msnv.trim() ||
-      !userForm.fullName.trim() ||
-      !userForm.password.trim()
-    ) {
-      toast.error(
-        'Vui lòng nhập đầy đủ thông tin (MSNV, Họ tên, Mật khẩu)'
-      );
-      return;
-    }
-
-    const formattedMSNV =
-      userForm.msnv.trim().toUpperCase();
-
-    const existed = users.some(
-      (u) => u.msnv === formattedMSNV
-    );
-
-    if (existed) {
-      toast.error('Mã nhân viên đã tồn tại');
-      return;
-    }
-
-    const newUser: UserProfile = {
-      msnv: formattedMSNV,
-      fullName: userForm.fullName.trim(),
-      department: userForm.department,
-      roleGroup: userForm.roleGroup,
-      status: 'active'
-    };
-
-    const updated = [...users, newUser];
-
-    setUsers(updated);
-
-    localStorage.setItem(
-      'wms_users',
-      JSON.stringify(updated)
-    );
-
-    const role = userForm.roleGroup === 'Admin' ? 'admin' : 'user';
-    const position = userForm.roleGroup;
-    const permissionsToSeed = role === 'admin' ? ADMIN_PERMISSIONS : DEFAULT_PERMISSIONS;
-
-    const newFullUser = {
-      msnv: formattedMSNV,
-      fullName: userForm.fullName.trim(),
-      department: userForm.department,
-      position: position,
-      role: role,
-      status: 'active',
-      permissions: permissionsToSeed,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    const newUserRecord = {
-      id: formattedMSNV + '-' + Date.now(),
-      msnv: formattedMSNV,
-      fullName: userForm.fullName.trim(),
-      department: userForm.department,
-      position: position,
-      role: role,
-      status: true,
-      passwordHash: userForm.password.trim(),
-      createdAt: new Date().toISOString()
-    };
-
-    const existingUsersStr = localStorage.getItem('users');
-    const existingUsers = existingUsersStr ? JSON.parse(existingUsersStr) : [];
-    existingUsers.push(newFullUser);
-    localStorage.setItem('users', JSON.stringify(existingUsers));
-
-    const existingUserRecordsStr = localStorage.getItem('userRecords');
-    const existingUserRecords = existingUserRecordsStr ? JSON.parse(existingUserRecordsStr) : [];
-    existingUserRecords.push(newUserRecord);
-    localStorage.setItem('userRecords', JSON.stringify(existingUserRecords));
-
-    // 🔑 SEED PERMISSIONS CHO USER MỚI
-    localStorage.setItem(
-      `user_permissions_${formattedMSNV}`,
-      JSON.stringify(permissionsToSeed)
-    );
-    console.log('📋 Seeded permissions for:', formattedMSNV);
-
-    setIsAddUserOpen(false);
-
-    toast.success('Đã thêm nhân viên và cấp mật khẩu thành công!');
-  };
-
-  const handleUpdateUser = () => {
-    if (!selectedUser) return;
-
-    const updated = users.map((u) =>
-      u.msnv === selectedUser.msnv
-        ? {
-            ...u,
-            fullName:
-              userForm.fullName.trim(),
-            department:
-              userForm.department,
-            roleGroup:
-              userForm.roleGroup
-          }
-        : u
-    );
-
-    setUsers(updated);
-
-    localStorage.setItem(
-      'wms_users',
-      JSON.stringify(updated)
-    );
-
-    const role = userForm.roleGroup === 'Admin' ? 'admin' : 'user';
-    const position = userForm.roleGroup;
-
-    // Hàm tạo permissions mặc định dựa trên roleGroup
-    const getDefaultPermissions = (roleGroup: string) => {
-      const emptyPermission = { view: false, add: false, edit: false, delete: false, approve: false, export: false };
-      const viewOnlyPermission = { view: true, add: false, edit: false, delete: false, approve: false, export: false };
-      const addEditPermission = { view: true, add: true, edit: true, delete: false, approve: false, export: true };
-      const fullPermission = { view: true, add: true, edit: true, delete: true, approve: true, export: true };
-
-      switch (roleGroup) {
-        case 'Admin':
-          return {
-            'kho-tong': fullPermission,
-            'kho-co-khi': fullPermission,
-            'kho-cnc': fullPermission,
-            'kho-dau': fullPermission,
-            'bao-cao-tong-hop': fullPermission,
-            'bao-cao-gia-cong': fullPermission,
-            'bao-tri': fullPermission,
-            qc: fullPermission,
-          };
-        case 'Quản Lý Kho':
-          return {
-            'kho-tong': fullPermission,
-            'kho-co-khi': emptyPermission,
-            'kho-cnc': emptyPermission,
-            'kho-dau': emptyPermission,
-            'bao-cao-tong-hop': emptyPermission,
-            'bao-cao-gia-cong': emptyPermission,
-            'bao-tri': emptyPermission,
-            qc: emptyPermission,
-          };
-        case 'Nhân Viên Kho':
-          return {
-            'kho-tong': addEditPermission,
-            'kho-co-khi': emptyPermission,
-            'kho-cnc': emptyPermission,
-            'kho-dau': emptyPermission,
-            'bao-cao-tong-hop': emptyPermission,
-            'bao-cao-gia-cong': emptyPermission,
-            'bao-tri': emptyPermission,
-            qc: emptyPermission,
-          };
-        case 'Thợ CNC':
-        case 'Thợ Cơ Khí':
-        case 'Thợ Đầu':
-          return {
-            'kho-tong': viewOnlyPermission,
-            'kho-co-khi': emptyPermission,
-            'kho-cnc': emptyPermission,
-            'kho-dau': emptyPermission,
-            'bao-cao-tong-hop': emptyPermission,
-            'bao-cao-gia-cong': addEditPermission,
-            'bao-tri': emptyPermission,
-            qc: addEditPermission,
-          };
-        case 'Kỹ Thuật QC':
-          return {
-            'kho-tong': viewOnlyPermission,
-            'kho-co-khi': emptyPermission,
-            'kho-cnc': emptyPermission,
-            'kho-dau': emptyPermission,
-            'bao-cao-tong-hop': emptyPermission,
-            'bao-cao-gia-cong': viewOnlyPermission,
-            'bao-tri': emptyPermission,
-            qc: fullPermission,
-          };
-        case 'Kỹ Thuật Bảo Trì':
-          return {
-            'kho-tong': viewOnlyPermission,
-            'kho-co-khi': emptyPermission,
-            'kho-cnc': emptyPermission,
-            'kho-dau': emptyPermission,
-            'bao-cao-tong-hop': emptyPermission,
-            'bao-cao-gia-cong': viewOnlyPermission,
-            'bao-tri': fullPermission,
-            qc: emptyPermission,
-          };
-        default:
-          return {
-            'kho-tong': emptyPermission,
-            'kho-co-khi': emptyPermission,
-            'kho-cnc': emptyPermission,
-            'kho-dau': emptyPermission,
-            'bao-cao-tong-hop': emptyPermission,
-            'bao-cao-gia-cong': emptyPermission,
-            'bao-tri': emptyPermission,
-            qc: emptyPermission,
-          };
+        }];
+        localStorage.setItem('wms_users', JSON.stringify(defaultAdmin));
+        setUsers(defaultAdmin);
+        
+        const adminPerms: Record<string, string> = {};
+        ALL_PERMISSIONS_KEYS.forEach(key => adminPerms[key] = 'full');
+        localStorage.setItem('wms_user_permissions_1118', JSON.stringify(adminPerms));
       }
-    };
+    } catch (e) {
+      toast.error('Lỗi tải danh sách người dùng.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    const existingUsersStr = localStorage.getItem('users');
-    if (existingUsersStr) {
-      const existingUsers = JSON.parse(existingUsersStr);
-      const updatedUsers = existingUsers.map((u: any) =>
-        u.msnv === selectedUser.msnv
-          ? {
-              ...u,
-              fullName: userForm.fullName.trim(),
-              department: userForm.department,
-              position: position,
-              role: role,
-              permissions: getDefaultPermissions(userForm.roleGroup),
-              updatedAt: new Date().toISOString()
-            }
-          : u
-      );
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
+  const handleSaveUser = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!msnv || !fullName || !department || !position) {
+      toast.error('Vui lòng điền đầy đủ thông tin nhân viên.');
+      return;
     }
 
-    const existingUserRecordsStr = localStorage.getItem('userRecords');
-    if (existingUserRecordsStr) {
-      const existingUserRecords = JSON.parse(existingUserRecordsStr);
-      const updatedUserRecords = existingUserRecords.map((r: any) =>
-        r.msnv === selectedUser.msnv
-          ? {
+    const trimmedMsnv = msnv.trim();
+
+    if (isEditing) {
+      // Update user in wms_users
+      const updatedUsers = users.map(u => {
+        if (u.msnv === trimmedMsnv) {
+          return { 
+            ...u, 
+            fullName: fullName.trim(), 
+            department, 
+            position,
+            status,
+            password: password.trim() !== '' ? password.trim() : u.password 
+          };
+        }
+        return u;
+      });
+      localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
+      setUsers(updatedUsers);
+      
+      // Update userRecords as well
+      const userRecordsStr = localStorage.getItem('userRecords');
+      if (userRecordsStr) {
+        const userRecords = JSON.parse(userRecordsStr);
+        const updatedUserRecords = userRecords.map((r: any) => {
+          if (r.msnv === trimmedMsnv) {
+            return {
               ...r,
-              fullName: userForm.fullName.trim(),
-              department: userForm.department,
-              position: position,
-              role: role
-            }
-          : r
-      );
-      localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+              fullName: fullName.trim(),
+              department,
+              position,
+              status: status === 'active',
+              passwordHash: password.trim() !== '' ? password.trim() : r.passwordHash
+            };
+          }
+          return r;
+        });
+        localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+      }
+      
+      toast.success(`Đã cập nhật thông tin nhân viên ${fullName.trim()} thành công.`);
+      resetForm();
+    } else {
+      // Add new user
+      if (users.some(u => u.msnv.toLowerCase() === trimmedMsnv.toLowerCase())) {
+        toast.error('Mã số nhân viên (MSNV) này đã tồn tại trên hệ thống!');
+        return;
+      }
+
+      const newUser: UserRecord = {
+        msnv: trimmedMsnv,
+        fullName: fullName.trim(),
+        department,
+        position,
+        password: password.trim() !== '' ? password.trim() : trimmedMsnv,
+        status: 'active'
+      };
+
+      const updatedUsers = [...users, newUser];
+      localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
+      
+      // Add to userRecords as well
+      const userRecordsStr = localStorage.getItem('userRecords');
+      const userRecords = userRecordsStr ? JSON.parse(userRecordsStr) : [];
+      userRecords.push({
+        id: trimmedMsnv,
+        msnv: trimmedMsnv,
+        fullName: fullName.trim(),
+        department,
+        position,
+        role: 'user',
+        status: true,
+        passwordHash: password.trim() !== '' ? password.trim() : trimmedMsnv,
+        createdAt: new Date().toISOString()
+      });
+      localStorage.setItem('userRecords', JSON.stringify(userRecords));
+      
+      // Initialize permissions
+      const initialPerms: Record<string, string> = {};
+      ALL_PERMISSIONS_KEYS.forEach(key => initialPerms[key] = 'none');
+      localStorage.setItem(`wms_user_permissions_${trimmedMsnv}`, JSON.stringify(initialPerms));
+
+      setUsers(updatedUsers);
+      toast.success(`Đã thêm thành công nhân viên ${newUser.fullName} vào hệ thống.`);
+      resetForm();
     }
-
-    setIsEditUserOpen(false);
-
-    toast.success(
-      'Đã cập nhật nhân viên'
-    );
   };
 
-  const toggleUserStatus = (
-    msnv: string
-  ) => {
-    if (msnv === '1118') {
-      toast.error(
-        'Không thể khóa Admin tổng'
-      );
-      return;
-    }
-
-    const updated: UserProfile[] =
-      users.map((u) =>
-        u.msnv === msnv
-          ? {
-              ...u,
-              status:
-                u.status === 'active'
-                  ? 'locked'
-                  : 'active'
-            }
-          : u
-      );
-
-    setUsers(updated);
-
-    localStorage.setItem(
-      'wms_users',
-      JSON.stringify(updated)
-    );
-
-    toast.success(
-      'Đã cập nhật trạng thái'
-    );
+  const handleEditClick = (user: UserRecord) => {
+    setIsEditing(true);
+    setMsnv(user.msnv);
+    setFullName(user.fullName);
+    setDepartment(user.department);
+    setPosition(user.position);
+    setStatus(user.status);
+    setPassword('');
   };
 
-  const handleDeleteUser = (
-    msnv: string
-  ) => {
-    if (msnv === '1118') {
-      toast.error(
-        'Không thể xóa Admin tổng'
+  const handleResetPassword = (targetMsnv: string, name: string) => {
+    if (confirm(`Bạn có chắc muốn đặt lại mật khẩu cho nhân viên [${name}] về mặc định (Mật khẩu mặc định trùng với MSNV: ${targetMsnv})?`)) {
+      const updatedUsers = users.map(u => 
+        u.msnv === targetMsnv ? { ...u, password: targetMsnv } : u
       );
-      return;
+      localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
+      setUsers(updatedUsers);
+      
+      // Also update userRecords
+      const userRecordsStr = localStorage.getItem('userRecords');
+      if (userRecordsStr) {
+        const userRecords = JSON.parse(userRecordsStr);
+        const updatedUserRecords = userRecords.map((r: any) => {
+          if (r.msnv === targetMsnv) {
+            return { ...r, passwordHash: targetMsnv };
+          }
+          return r;
+        });
+        localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+      }
+      
+      toast.success(`Đã reset mật khẩu của nhân viên ${name} về mặc định (${targetMsnv}) thành công!`);
     }
-
-    if (
-      !window.confirm(
-        `Bạn có chắc muốn xóa ${msnv}?`
-      )
-    ) {
-      return;
-    }
-
-    const updated = users.filter(
-      (u) => u.msnv !== msnv
-    );
-
-    setUsers(updated);
-
-    localStorage.setItem(
-      'wms_users',
-      JSON.stringify(updated)
-    );
-
-    toast.success(
-      'Đã xóa nhân viên'
-    );
   };
+
+  const handleDeleteUser = (targetMsnv: string) => {
+    if (targetMsnv === '1118') {
+      toast.error('Không thể xóa tài khoản Quản trị viên hệ thống (1118).');
+      return;
+    }
+    
+    if (confirm(`Bạn có chắc chắn muốn xóa hồ sơ và toàn bộ dữ liệu phân quyền của nhân viên có MSNV: ${targetMsnv}?`)) {
+      // Remove from wms_users
+      const updated = users.filter(u => u.msnv !== targetMsnv);
+      localStorage.setItem('wms_users', JSON.stringify(updated));
+      
+      // Remove from userRecords
+      const userRecordsStr = localStorage.getItem('userRecords');
+      if (userRecordsStr) {
+        const userRecords = JSON.parse(userRecordsStr);
+        const updatedUserRecords = userRecords.filter((r: any) => r.msnv !== targetMsnv);
+        localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+      }
+      
+      localStorage.removeItem(`wms_user_permissions_${targetMsnv}`);
+      setUsers(updated);
+      toast.success('Đã xóa tài khoản và thu hồi quyền truy cập thành công.');
+      if (isEditing && msnv === targetMsnv) resetForm();
+    }
+  };
+
+  const resetForm = () => {
+    setIsEditing(false);
+    setMsnv('');
+    setFullName('');
+    setDepartment('');
+    setPosition('');
+    setPassword('');
+    setStatus('active');
+  };
+
+  const filteredUsers = users.filter(u => 
+    u.msnv.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    u.fullName.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
-    <div className="p-6 space-y-6 max-w-7xl mx-auto">
-
-      {/* HEADER */}
-
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-4 rounded-xl border shadow-sm">
-
-        <div className="flex items-center gap-3">
-
-          {/* NÚT TRANG CHỦ */}
-
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => navigate('/')}
-            className="h-11 w-11"
-          >
-            <Home className="w-5 h-5" />
-          </Button>
-
-          <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-md">
-            <Users className="w-6 h-6" />
-          </div>
-
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Quản Lý Người Dùng
-            </h1>
-
-            <p className="text-sm text-gray-500">
-              Hồ sơ nhân sự toàn bộ xưởng CNC-CK Alpha ECC.
-            </p>
-          </div>
-
+    <div className="w-full space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-2">
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            <UserCheck className="w-5 h-5 text-indigo-600" /> Quản lý Hồ sơ Nhân sự hệ thống WMS
+          </h1>
+          <p className="text-xs text-slate-500">Thiết lập nhân viên xưởng, điều chỉnh chức vụ, đổi mật khẩu và quản lý quyền hạn.</p>
         </div>
-
-        <div className="flex items-center gap-2">
-
-          <Button
-            variant="outline"
-            onClick={loadUsers}
-            className="h-9 text-xs"
-          >
-            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-            Tải lại
-          </Button>
-
-          <Button
-            onClick={() => {
-              setUserForm({
-                msnv: '',
-                fullName: '',
-                department: 'Tổ CNC',
-                roleGroup: 'Thợ CNC',
-                password: ''
-              });
-
-              setIsAddUserOpen(true);
-            }}
-            className="bg-blue-600 text-white h-9 text-xs"
-          >
-            <Plus className="w-4 h-4 mr-1" />
-            Thêm nhân viên mới
-          </Button>
-
-        </div>
-
+        <Button variant="outline" size="sm" onClick={loadUsers} disabled={isLoading} className="h-9">
+          <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} /> Làm mới dữ liệu
+        </Button>
       </div>
 
-      {/* TABLE */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* Form nhập liệu */}
+        <Card className="lg:col-span-4 bg-white border-slate-200 shadow-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-sm font-bold flex items-center justify-between text-slate-800">
+              <span className="flex items-center gap-1.5">
+                <UserPlus className="w-4 h-4 text-indigo-600" /> 
+                {isEditing ? 'Cập nhật thông tin' : 'Thêm nhân sự mới'}
+              </span>
+              {isEditing && (
+                <Button type="button" variant="ghost" size="sm" onClick={resetForm} className="h-6 text-xs text-slate-400 hover:text-slate-600 px-1">
+                  <X className="w-3 h-3 mr-1" /> Hủy sửa
+                </Button>
+              )}
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {isEditing ? `Đang chỉnh sửa nhân viên mã số ${msnv}` : 'Thiết lập tài khoản đăng nhập trực tiếp cho nhân viên.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSaveUser} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="msnv" className="text-xs font-semibold text-slate-700">Mã số nhân viên (MSNV) *</Label>
+                <Input 
+                  id="msnv" 
+                  placeholder="Ví dụ: 1245" 
+                  value={msnv} 
+                  onChange={e => setMsnv(e.target.value)} 
+                  className="h-9 text-sm focus-visible:ring-indigo-500 border-slate-200 bg-slate-50 disabled:opacity-75 disabled:cursor-not-allowed font-mono font-bold" 
+                  disabled={isEditing} 
+                  required 
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="fullName" className="text-xs font-semibold text-slate-700">Họ và tên *</Label>
+                <Input id="fullName" placeholder="Nhập tên nhân viên" value={fullName} onChange={e => setFullName(e.target.value)} className="h-9 text-sm focus-visible:ring-indigo-500 border-slate-200" required />
+              </div>
+              
+              {/* Ô MẬT KHẨU MỚI THÊM */}
+              <div className="space-y-1.5">
+                <Label htmlFor="password" className="text-xs font-semibold text-slate-700">
+                  Mật khẩu {isEditing ? '(Bỏ trống nếu giữ nguyên)' : ''}
+                </Label>
+                <Input 
+                  id="password" 
+                  type="text" 
+                  placeholder={isEditing ? "Nhập mật khẩu mới tại đây" : "Bỏ trống sẽ tự động lấy MSNV"} 
+                  value={password} 
+                  onChange={e => setPassword(e.target.value)} 
+                  className="h-9 text-sm focus-visible:ring-indigo-500 border-slate-200 font-mono" 
+                />
+              </div>
 
-      <Card className="border shadow-sm">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Tổ / Bộ phận làm việc *</Label>
+                <Select value={department} onValueChange={setDepartment} required>
+                  <SelectTrigger className="h-9 text-sm border-slate-200 focus:ring-indigo-500">
+                    <SelectValue placeholder="Chọn tổ / bộ phận" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {DEPARTMENTS.map(d => <SelectItem key={d} value={d} className="text-sm">{d}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-slate-700">Chức vụ tác nghiệp *</Label>
+                <Select value={position} onValueChange={setPosition} required>
+                  <SelectTrigger className="h-9 text-sm border-slate-200 focus:ring-indigo-500">
+                    <SelectValue placeholder="Chọn chức vụ" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {POSITIONS.map(p => <SelectItem key={p} value={p} className="text-sm">{p}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              {isEditing && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-slate-700">Trạng thái *</Label>
+                  <Select value={status} onValueChange={(v: any) => setStatus(v)} required>
+                    <SelectTrigger className="h-9 text-sm border-slate-200 focus:ring-indigo-500">
+                      <SelectValue placeholder="Chọn trạng thái" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="active">Hoạt động</SelectItem>
+                      <SelectItem value="inactive">Tạm khóa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              <Button type="submit" className={`w-full h-9 text-white font-semibold shadow-sm text-sm mt-2 ${isEditing ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
+                {isEditing ? 'Xác nhận cập nhật' : 'Kích hoạt & Cấp tài khoản'}
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
 
-        <CardHeader className="p-4 bg-gray-50/50 border-b">
-
-          <div className="relative max-w-sm w-full">
-
-            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-
-            <Input
-              placeholder="Tìm nhanh theo Mã hoặc Tên..."
-              value={searchTerm}
-              onChange={(e) =>
-                setSearchTerm(e.target.value)
-              }
-              className="pl-9 bg-white h-9 text-xs"
-            />
-
+        {/* Danh sách nhân sự */}
+        <Card className="lg:col-span-8 bg-white border-slate-200 shadow-sm overflow-hidden">
+          <div className="p-3.5 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row items-center gap-2 justify-between">
+            <div className="relative w-full sm:max-w-xs">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+              <Input placeholder="Tìm kiếm nhanh nhân viên..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="pl-12 bg-white h-9 text-sm border-slate-200 focus-visible:ring-indigo-500" />
+            </div>
+            <span className="text-xs text-slate-500 font-medium shrink-0">Tổng số: <b>{filteredUsers.length}</b> tài khoản</span>
           </div>
-
-        </CardHeader>
-
-        <CardContent className="p-0">
-
-          <Table>
-
-            <TableHeader className="bg-gray-100/50">
-
-              <TableRow>
-
-                <TableHead className="text-xs">
-                  Mã Số NV
-                </TableHead>
-
-                <TableHead className="text-xs">
-                  Họ và Tên
-                </TableHead>
-
-                <TableHead className="text-xs">
-                  Bộ phận / Tổ đội
-                </TableHead>
-
-                <TableHead className="text-xs">
-                  Nhóm chức danh
-                </TableHead>
-
-                <TableHead className="text-xs text-center">
-                  Trạng thái
-                </TableHead>
-
-                <TableHead className="text-right text-xs p-4">
-                  Thao tác
-                </TableHead>
-
-              </TableRow>
-
-            </TableHeader>
-
-            <TableBody>
-
-              {filteredUsers.map((u) => {
-                const isSuperAdmin =
-                  u.msnv === '1118';
-
-                return (
-                  <TableRow
-                    key={u.msnv}
-                    className={
-                      isSuperAdmin
-                        ? 'bg-blue-50/40'
-                        : ''
-                    }
-                  >
-
-                    <TableCell className="font-mono font-bold text-blue-600 text-xs">
-                      {u.msnv}
-                    </TableCell>
-
-                    <TableCell className="font-semibold text-gray-900 text-xs flex items-center gap-1.5 py-3">
-
-                      {u.fullName}
-
-                      {isSuperAdmin && (
-                        <Badge className="bg-amber-500 text-white text-[9px]">
-                          Chủ sở hữu
-                        </Badge>
-                      )}
-
-                    </TableCell>
-
-                    <TableCell className="text-xs">
-
-                      <Badge variant="outline">
-                        {u.department}
-                      </Badge>
-
-                    </TableCell>
-
-                    <TableCell className="text-xs">
-
-                      <Badge
-                        className={
-                          isSuperAdmin
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-slate-100 text-slate-800'
-                        }
-                      >
-                        {u.roleGroup}
-                      </Badge>
-
-                    </TableCell>
-
-                    <TableCell className="text-center">
-
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() =>
-                          toggleUserStatus(
-                            u.msnv
-                          )
-                        }
-                        disabled={isSuperAdmin}
-                        className="p-0 h-auto disabled:opacity-100"
-                      >
-
-                        <Badge
-                          className={
-                            u.status === 'active'
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-red-100 text-red-700'
-                          }
-                        >
-                          {u.status === 'active'
-                            ? 'Đang hoạt động'
-                            : 'Đang khóa'}
-                        </Badge>
-
-                      </Button>
-
-                    </TableCell>
-
-                    <TableCell className="text-right p-2.5 space-x-1">
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-xs"
-                        onClick={() => {
-                          setSelectedUser(u);
-
-                          setUserForm({
-                            msnv: u.msnv,
-                            fullName: u.fullName,
-                            department: u.department,
-                            roleGroup: u.roleGroup,
-                            password: ''
-                          });
-
-                          setIsEditUserOpen(true);
-                        }}
-                      >
-                        <Edit className="w-3.5 h-3.5 mr-1 text-gray-500" />
-                        Sửa
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-8 text-amber-600 text-xs"
-                        onClick={() => {
-                          setSelectedUser(u);
-                          setNewPassword('');
-                          setIsPasswordOpen(true);
-                        }}
-                      >
-                        <Key className="w-3.5 h-3.5" />
-                      </Button>
-
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={isSuperAdmin}
-                        className="h-8 text-red-600 text-xs"
-                        onClick={() =>
-                          handleDeleteUser(u.msnv)
-                        }
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
-
-                    </TableCell>
-
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader className="bg-slate-50">
+                <TableRow className="border-slate-200">
+                  <TableHead className="w-[100px] font-bold text-slate-700 text-xs">MSNV</TableHead>
+                  <TableHead className="font-bold text-slate-700 text-xs">Họ và tên</TableHead>
+                  <TableHead className="font-bold text-slate-700 text-xs">Bộ phận</TableHead>
+                  <TableHead className="font-bold text-slate-700 text-xs">Chức vụ</TableHead>
+                  <TableHead className="font-bold text-slate-700 text-xs text-center">Trạng thái</TableHead>
+                  <TableHead className="w-[110px] text-center font-bold text-slate-700 text-xs">Hành động</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredUsers.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center py-8 text-xs text-slate-400">Không tìm thấy nhân viên phù hợp.</TableCell>
                   </TableRow>
-                );
-              })}
+                ) : (
+                  filteredUsers.map(u => (
+                    <TableRow key={u.msnv} className={`border-slate-100 ${isEditing && msnv === u.msnv ? 'bg-amber-50/40 hover:bg-amber-50/50' : 'hover:bg-slate-50/60'}`}>
+                      <TableCell className="font-mono font-bold text-xs text-slate-600">{u.msnv}</TableCell>
+                      <TableCell className="font-semibold text-sm text-slate-800">{u.fullName}</TableCell>
+                      <TableCell className="text-xs text-slate-600">{u.department}</TableCell>
+                      <TableCell className="text-xs text-slate-600">
+                        <Badge variant="outline" className="bg-slate-50 text-slate-700 font-medium border-slate-200">{u.position}</Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <Badge className={u.status === 'active' ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-200' : 'bg-slate-50 text-slate-700 hover:bg-slate-50 border border-slate-200'}>
+                          {u.status === 'active' ? 'Đang hoạt động' : 'Tạm khóa'}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleEditClick(u)}
+                            className="h-7 w-7 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md"
+                            title="Sửa thông tin nhân sự"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </Button>
 
-            </TableBody>
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleResetPassword(u.msnv, u.fullName)}
+                            disabled={u.msnv === '1118'}
+                            className="h-7 w-7 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md"
+                            title="Đặt lại mật khẩu gốc"
+                          >
+                            <Key className="w-3.5 h-3.5" />
+                          </Button>
 
-          </Table>
-
-        </CardContent>
-
-      </Card>
-
-      {/* DIALOG THÊM */}
-
-      <Dialog
-        open={isAddUserOpen}
-        onOpenChange={setIsAddUserOpen}
-      >
-
-        <DialogContent className="bg-white max-w-md p-6 rounded-xl">
-
-          <DialogHeader>
-            <DialogTitle className="font-bold text-gray-900">
-              Thêm hồ sơ nhân sự mới
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-
-            <div className="space-y-1.5">
-              <Label>
-                Mã số nhân viên
-              </Label>
-
-              <Input
-                placeholder="Ví dụ: CNC099"
-                value={userForm.msnv}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    msnv: e.target.value
-                  })
-                }
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>
-                Họ và tên
-              </Label>
-
-              <Input
-                placeholder="Nhập họ tên"
-                value={userForm.fullName}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    fullName: e.target.value
-                  })
-                }
-                className="h-9"
-              />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>
-                Bộ phận / Tổ đội
-              </Label>
-
-              <Select
-                value={userForm.department}
-                onValueChange={(value) =>
-                  setUserForm({
-                    ...userForm,
-                    department: value
-                  })
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEPARTMENTS.map((dept) => (
-                    <SelectItem key={dept} value={dept}>
-                      {dept}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>
-                Nhóm chức danh
-              </Label>
-
-              <Select
-                value={userForm.roleGroup}
-                onValueChange={(value) =>
-                  setUserForm({
-                    ...userForm,
-                    roleGroup: value
-                  })
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLE_GROUPS.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>
-                Mật khẩu đăng nhập
-              </Label>
-
-              <Input
-                type="password"
-                placeholder="Nhập mật khẩu"
-                value={userForm.password}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    password: e.target.value
-                  })
-                }
-                className="h-9"
-              />
-            </div>
-
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            onClick={() => handleDeleteUser(u.msnv)} 
+                            disabled={u.msnv === '1118'} 
+                            className="h-7 w-7 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
+                            title="Xóa nhân sự"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
           </div>
-
-          <div className="flex justify-end gap-2 mt-4 text-xs">
-
-            <Button
-              variant="outline"
-              onClick={() =>
-                setIsAddUserOpen(false)
-              }
-            >
-              Hủy
-            </Button>
-
-            <Button
-              onClick={handleSaveUser}
-              className="bg-blue-600 text-white"
-            >
-              Lưu hồ sơ
-            </Button>
-
-          </div>
-
-        </DialogContent>
-
-      </Dialog>
-
-      {/* DIALOG SỬA */}
-
-      <Dialog
-        open={isEditUserOpen}
-        onOpenChange={setIsEditUserOpen}
-      >
-
-        <DialogContent className="bg-white max-w-md p-6 rounded-xl">
-
-          <DialogHeader>
-            <DialogTitle className="font-bold text-gray-900">
-              Cập nhật hồ sơ nhân sự
-            </DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2 text-xs">
-
-            <div className="space-y-1.5">
-
-              <Label>
-                Mã số nhân viên
-              </Label>
-
-              <Input
-                value={userForm.msnv}
-                disabled
-                className="bg-gray-50 font-bold h-9"
-              />
-
-            </div>
-
-            <div className="space-y-1.5">
-
-              <Label>
-                Họ và tên
-              </Label>
-
-              <Input
-                value={userForm.fullName}
-                onChange={(e) =>
-                  setUserForm({
-                    ...userForm,
-                    fullName: e.target.value
-                  })
-                }
-                className="h-9"
-              />
-
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>
-                Bộ phận / Tổ đội
-              </Label>
-
-              <Select
-                value={userForm.department}
-                onValueChange={(value) =>
-                  setUserForm({
-                    ...userForm,
-                    department: value
-                  })
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {DEPARTMENTS.map((dept) => (
-                    <SelectItem key={dept} value={dept}>
-                      {dept}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>
-                Nhóm chức danh
-              </Label>
-
-              <Select
-                value={userForm.roleGroup}
-                onValueChange={(value) =>
-                  setUserForm({
-                    ...userForm,
-                    roleGroup: value
-                  })
-                }
-              >
-                <SelectTrigger className="h-9">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {ROLE_GROUPS.map((role) => (
-                    <SelectItem key={role} value={role}>
-                      {role}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-          </div>
-
-          <div className="flex justify-end gap-2 mt-4 text-xs">
-
-            <Button
-              variant="outline"
-              onClick={() =>
-                setIsEditUserOpen(false)
-              }
-            >
-              Hủy
-            </Button>
-
-            <Button
-              onClick={handleUpdateUser}
-              className="bg-blue-600 text-white"
-            >
-              Cập nhật
-            </Button>
-
-          </div>
-
-        </DialogContent>
-
-      </Dialog>
-
-      {/* DIALOG PASSWORD */}
-
-      <Dialog
-        open={isPasswordOpen}
-        onOpenChange={setIsPasswordOpen}
-      >
-
-        <DialogContent className="bg-white max-w-sm p-6 rounded-xl">
-
-          <DialogHeader>
-
-            <DialogTitle className="font-bold flex items-center gap-1.5 text-gray-900">
-
-              <ShieldAlert className="w-4 h-4 text-amber-500" />
-
-              Cấp mật khẩu đăng nhập
-
-            </DialogTitle>
-
-          </DialogHeader>
-
-          <div className="space-y-2 py-2 text-xs">
-
-            <Label>
-              Mật khẩu mới cho [{selectedUser?.msnv}]
-            </Label>
-
-            <Input
-              type="password"
-              placeholder="Nhập mật khẩu mới"
-              value={newPassword}
-              onChange={(e) =>
-                setNewPassword(e.target.value)
-              }
-              className="h-9"
-            />
-
-          </div>
-
-          <div className="flex justify-end gap-2 mt-4 text-xs">
-
-            <Button
-              variant="outline"
-              onClick={() =>
-                setIsPasswordOpen(false)
-              }
-            >
-              Đóng
-            </Button>
-
-            <Button
-              onClick={() => {
-                if (!newPassword.trim() || !selectedUser) {
-                  toast.error(
-                    'Vui lòng nhập mật khẩu'
-                  );
-                  return;
-                }
-
-                const existingUserRecordsStr = localStorage.getItem('userRecords');
-                if (existingUserRecordsStr) {
-                  const existingUserRecords = JSON.parse(existingUserRecordsStr);
-                  const updatedUserRecords = existingUserRecords.map((r: any) =>
-                    r.msnv === selectedUser.msnv
-                      ? {
-                          ...r,
-                          passwordHash: newPassword.trim()
-                        }
-                      : r
-                  );
-                  localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
-                }
-
-                setIsPasswordOpen(false);
-
-                toast.success(
-                  'Cấp mật khẩu mới thành công!'
-                );
-              }}
-              className="bg-amber-600 text-white"
-            >
-              Xác nhận
-            </Button>
-
-          </div>
-
-        </DialogContent>
-
-      </Dialog>
-
+        </Card>
+      </div>
     </div>
   );
 }

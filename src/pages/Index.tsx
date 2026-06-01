@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Package, Factory, LayoutDashboard, Layers, Settings, UserCircle } from 'lucide-react';
 import NutQuayLai from '@/components/NutQuayLai';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermission } from '@/hooks/usePermission';
 import { ERP_ROUTE } from '@/modules/erp/routes';
 
 // Cấu hình đầy đủ của chú
@@ -62,11 +63,12 @@ const COLOR_STYLES: any = {
 
 export default function Index() {
   const { user, logout } = useAuth();
+  const { canView, isAdmin } = usePermission();
   const navigate = useNavigate();
 
   if (!user) return <div className="p-10">Vui lòng đăng nhập</div>;
 
-  const hasPermission = (key: string) => !!user.permissions?.[key];
+  const hasPermission = (key: string) => isAdmin || canView(key);
 
   return (
     <div className="p-6 space-y-6">
