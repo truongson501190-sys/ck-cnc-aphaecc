@@ -1,6 +1,7 @@
 import React, { createContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import type { User } from '@/types/user';
 import { dataSync } from '@/lib/dataSync';
+import { supabase } from '@/supabase';
 
 type UserRecord = {
   id: string;
@@ -56,135 +57,124 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     'quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong'
   ];
 
+  // Hàm đảm bảo dữ liệu mặc định trên Supabase
+  const ensureDefaultData = useCallback(async () => {
+    try {
+      // Kiểm tra xem có admin không
+      const { data: existingUserRecords, error: fetchError } = await supabase
+        .from('userRecords')
+        .select('*')
+        .eq('msnv', '1118');
+
+      if (fetchError) throw fetchError;
+
+      if (!existingUserRecords || existingUserRecords.length === 0) {
+        // Tạo admin mặc định
+        const defaultUserRecord: UserRecord = {
+          id: '1',
+          msnv: '1118',
+          fullName: 'Nguyễn Trường Sơn',
+          department: 'Admin',
+          position: 'Quản trị viên hệ thống',
+          role: 'admin',
+          status: true,
+          passwordHash: '1118',
+          createdAt: new Date().toISOString()
+        };
+
+        const { error: insertError } = await supabase
+          .from('userRecords')
+          .upsert(defaultUserRecord);
+        if (insertError) throw insertError;
+
+        const defaultUser: User = {
+          msnv: '1118',
+          fullName: 'Nguyễn Trường Sơn',
+          department: 'Admin',
+          position: 'Quản trị viên hệ thống',
+          role: 'admin',
+          roleGroup: 'Admin',
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        };
+
+        const { error: insertUserError } = await supabase
+          .from('wms_users')
+          .upsert(defaultUser);
+        if (insertUserError) throw insertUserError;
+
+        console.log('✅ Đã tạo dữ liệu mặc định trên Supabase');
+      } else {
+        // Cập nhật mật khẩu admin về 1118
+        const { error: updateError } = await supabase
+          .from('userRecords')
+          .update({ passwordHash: '1118' })
+          .eq('msnv', '1118');
+        if (updateError) throw updateError;
+      }
+    } catch (error) {
+      console.error('Error ensuring default data:', error);
+    }
+  }, []);
+
   // Initialize auth state from storage on mount
   useEffect(() => {
-    const initializeAuth = () => {
+    const initializeAuth = async () => {
       try {
-        // Ensure default data exists
-        const userRecordsStr = localStorage.getItem('userRecords');
-        const usersStr = localStorage.getItem('wms_users');
-
-        console.log('📦 Đảm bảo dữ liệu mặc định...');
-
-        if (!userRecordsStr || !usersStr) {
-          console.log('📦 Initializing localStorage with default data...');
-
-          const defaultUsers = [
-            {
-              msnv: '1118',
-              fullName: 'Nguyễn Trường Sơn',
-              department: 'Admin',
-              position: 'Quản trị viên hệ thống',
-              role: 'admin',
-              roleGroup: 'Admin',
-              status: 'active',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            }
-          ];
-
-          const defaultUserRecords = [
-            {
-              id: '1',
-              msnv: '1118',
-              fullName: 'Nguyễn Trường Sơn',
-              department: 'Admin',
-              position: 'Quản trị viên hệ thống',
-              role: 'admin',
-              status: true,
-              passwordHash: '1118',
-              createdAt: new Date().toISOString()
-            }
-          ];
-
-          localStorage.setItem('wms_users', JSON.stringify(defaultUsers));
-          localStorage.setItem('userRecords', JSON.stringify(defaultUserRecords));
-
-          // Initialize permissions for admin
-          const adminPerms: Record<string, string> = {};
-          PERMISSION_KEYS.forEach(key => adminPerms[key] = 'full');
-          localStorage.setItem('wms_user_permissions_1118', JSON.stringify(adminPerms));
-
-          console.log('✅ Default data initialized');
-        } else {
-          const userRecords = parseJsonArray<UserRecord>(userRecordsStr);
-          const users = parseJsonArray<User>(usersStr);
-
-          // Ensure admin exists and reset password to 1118
-          let adminRecord = userRecords.find((r) => r.msnv === '1118');
-          if (!adminRecord) {
-            console.log('📦 Adding missing admin user to local storage...');
-            adminRecord = {
-              id: 'admin-' + Date.now(),
-              msnv: '1118',
-              fullName: 'Nguyễn Trường Sơn',
-              department: 'Admin',
-              position: 'Quản trị viên hệ thống',
-              role: 'admin',
-              status: true,
-              passwordHash: '1118',
-              createdAt: new Date().toISOString()
-            };
-            userRecords.push(adminRecord);
-            localStorage.setItem('userRecords', JSON.stringify(userRecords));
-          } else {
-            adminRecord.passwordHash = '1118';
-            localStorage.setItem('userRecords', JSON.stringify(userRecords));
-          }
-
-          if (!users.find((u) => u.msnv === '1118')) {
-            users.push({
-              msnv: '1118',
-              fullName: 'Nguyễn Trường Sơn',
-              department: 'Admin',
-              position: 'Quản trị viên hệ thống',
-              role: 'admin',
-              roleGroup: 'Admin',
-              status: 'active',
-              createdAt: new Date().toISOString(),
-              updatedAt: new Date().toISOString()
-            });
-            localStorage.setItem('wms_users', JSON.stringify(users));
-
-            // Initialize admin permissions
-            const adminPerms: Record<string, string> = {};
-            PERMISSION_KEYS.forEach(key => adminPerms[key] = 'full');
-            localStorage.setItem('wms_user_permissions_1118', JSON.stringify(adminPerms));
-          }
-        }
+        // Đảm bảo dữ liệu mặc định tồn tại trên Supabase
+        await ensureDefaultData();
 
         // Try localStorage first (persistent login)
         const storedUser = localStorage.getItem('sessionUser');
         if (storedUser) {
           const parsedUser = JSON.parse(storedUser);
-          setUser(parsedUser);
-          console.log('✅ User loaded from localStorage:', parsedUser.msnv);
+          // Kiểm tra xem user còn tồn tại và active không
+          const { data: record, error } = await supabase
+            .from('userRecords')
+            .select('*')
+            .eq('msnv', parsedUser.msnv)
+            .single();
 
-          setTimeout(() => {
-            dataSync.fullSync()
-              .then(() => console.log('🚀 Initial sync completed'))
-              .catch(err => console.error('Startup sync failed:', err));
-          }, 1000);
+          if (!error && record && record.status) {
+            setUser(parsedUser);
+            console.log('✅ User loaded from localStorage:', parsedUser.msnv);
 
-          setLoading(false);
-          return;
+            setTimeout(() => {
+              dataSync.fullSync()
+                .then(() => console.log('🚀 Initial sync completed'))
+                .catch(err => console.error('Startup sync failed:', err));
+            }, 1000);
+
+            setLoading(false);
+            return;
+          }
         }
 
         // Try sessionStorage (temporary login)
         const sessionUser = sessionStorage.getItem('sessionUser');
         if (sessionUser) {
           const parsedUser = JSON.parse(sessionUser);
-          setUser(parsedUser);
-          console.log('✅ User loaded from sessionStorage:', parsedUser.msnv);
+          // Kiểm tra xem user còn tồn tại và active không
+          const { data: record, error } = await supabase
+            .from('userRecords')
+            .select('*')
+            .eq('msnv', parsedUser.msnv)
+            .single();
 
-          setTimeout(() => {
-            dataSync.fullSync()
-              .then(() => console.log('🚀 Initial sync completed'))
-              .catch(err => console.error('Startup sync failed:', err));
-          }, 1000);
+          if (!error && record && record.status) {
+            setUser(parsedUser);
+            console.log('✅ User loaded from sessionStorage:', parsedUser.msnv);
 
-          setLoading(false);
-          return;
+            setTimeout(() => {
+              dataSync.fullSync()
+                .then(() => console.log('🚀 Initial sync completed'))
+                .catch(err => console.error('Startup sync failed:', err));
+            }, 1000);
+
+            setLoading(false);
+            return;
+          }
         }
 
         console.log('ℹ️ No stored user session found');
@@ -198,7 +188,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     initializeAuth();
-  }, []);
+  }, [ensureDefaultData]);
 
   const login = useCallback(
     async (msnv: string, password: string, rememberMe = false): Promise<boolean> => {
@@ -207,29 +197,33 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔐 Login attempt for:', inputMsnv);
 
       try {
-        // Try local storage first
-        const usersStr = localStorage.getItem('wms_users');
-        const userRecordsStr = localStorage.getItem('userRecords');
+        // Lấy dữ liệu từ Supabase
+        const { data: userRecords, error: userRecordsError } = await supabase
+          .from('userRecords')
+          .select('*');
+        if (userRecordsError) throw userRecordsError;
 
-        const users = parseJsonArray<User>(usersStr || '[]');
-        const userRecords = parseJsonArray<UserRecord>(userRecordsStr || '[]');
+        const { data: users, error: usersError } = await supabase
+          .from('wms_users')
+          .select('*');
+        if (usersError) throw usersError;
 
         console.log("📦 Current data state:", {
-          usersCount: users.length,
-          userRecordsCount: userRecords.length,
-          allUserRecordsMsnv: userRecords.map(r => r.msnv),
-          allUsersMsnv: users.map(u => u.msnv)
+          usersCount: users?.length || 0,
+          userRecordsCount: userRecords?.length || 0,
+          allUserRecordsMsnv: userRecords?.map(r => r.msnv) || [],
+          allUsersMsnv: users?.map(u => u.msnv) || []
         });
 
         // Find user in userRecords
-        let record = userRecords.find(
+        let record = userRecords?.find(
           (r) => r.msnv.trim().toLowerCase() === inputMsnv && r.status === true
         );
 
         // If no record, try to create one from wms_users
         if (!record) {
           console.log("⚠️ User record not found, checking wms_users...");
-          const wmsUser = users.find(u => u.msnv.trim().toLowerCase() === inputMsnv);
+          const wmsUser = users?.find(u => u.msnv.trim().toLowerCase() === inputMsnv);
           if (wmsUser) {
             console.log("➕ Creating user record from wms_user...");
             record = {
@@ -243,8 +237,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               passwordHash: wmsUser.msnv, // Default password is MSNV
               createdAt: new Date().toISOString()
             };
-            userRecords.push(record);
-            localStorage.setItem('userRecords', JSON.stringify(userRecords));
+            const { error: insertError } = await supabase
+              .from('userRecords')
+              .upsert(record);
+            if (insertError) throw insertError;
           } else {
             console.log("❌ User not found in either place!");
             return false;
@@ -280,7 +276,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
 
         // Find the user object from wms_users
-        let userData = users.find((u) => u.msnv.trim().toLowerCase() === inputMsnv);
+        let userData = users?.find((u) => u.msnv.trim().toLowerCase() === inputMsnv);
 
         // If not found, create from record
         if (!userData) {
@@ -296,8 +292,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             createdAt: record.createdAt,
             updatedAt: new Date().toISOString()
           };
-          const updatedUsers = [...users, userData];
-          localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
+          const { error: insertError } = await supabase
+            .from('wms_users')
+            .upsert(userData);
+          if (insertError) throw insertError;
         } else {
           // Ensure userData has all required fields
           userData = {
@@ -309,7 +307,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         // Initialize permissions if they don't exist
         const permsKey = `wms_user_permissions_${record.msnv}`;
-        const existingPerms = localStorage.getItem(permsKey);
+        const existingPerms = localStorage.getItem(permsKey); // Lưu quyền tạm ở localStorage
         if (!existingPerms) {
           console.log("➕ Initializing user permissions...");
           const initialPerms: Record<string, string> = {};
@@ -339,20 +337,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     []
   );
 
-  const updateProfile = useCallback((updatedUser: Partial<User>) => {
+  const updateProfile = useCallback(async (updatedUser: Partial<User>) => {
     setUser((currentUser) => {
       if (!currentUser) return currentUser;
       const nextUser = { ...currentUser, ...updatedUser };
-      const usersStr = localStorage.getItem('wms_users');
-      if (usersStr) {
+      
+      // Cập nhật trên Supabase
+      (async () => {
         try {
-          const users = parseJsonArray<User>(usersStr);
-          const updatedUsers = users.map((userRecord) => (userRecord.msnv === nextUser.msnv ? nextUser : userRecord));
-          localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
-        } catch {
-          // ignore local update failures
+          const { error } = await supabase
+            .from('wms_users')
+            .update(nextUser)
+            .eq('msnv', nextUser.msnv);
+          if (error) throw error;
+        } catch (error) {
+          console.error('Error updating profile:', error);
         }
-      }
+      })();
+
+      // Cập nhật trong session
       if (localStorage.getItem('sessionUser')) {
         localStorage.setItem('sessionUser', JSON.stringify(nextUser));
       }

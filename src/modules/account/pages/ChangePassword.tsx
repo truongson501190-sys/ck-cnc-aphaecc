@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/hooks/useAuth';
-import { loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+import { supabase } from '@/supabase';
 import { toast } from 'sonner';
 
 interface UserRecord {
@@ -62,8 +62,18 @@ export default function ChangePassword() {
       return;
     }
 
-    const allUsers = loadArrayFromStorage<UserRecord>('userRecords');
-    const currentRecord = allUsers.find((record) => record.msnv === user.msnv && record.status === true);
+    // Lấy user record từ Supabase
+    const { data: allUsers, error: fetchError } = await supabase
+      .from('userRecords')
+      .select('*');
+    
+    if (fetchError) {
+      console.error('Error fetching user records:', fetchError);
+      toast.error('Có lỗi xảy ra khi truy cập dữ liệu');
+      return;
+    }
+
+    const currentRecord = allUsers?.find((record) => record.msnv === user.msnv && record.status === true);
 
     if (!currentRecord) {
       toast.error('Không tìm thấy thông tin người dùng');
@@ -92,15 +102,22 @@ export default function ChangePassword() {
 
     setSubmitting(true);
     try {
-      const updated = allUsers.map((record) =>
-        record.msnv === user.msnv ? { ...record, passwordHash: newPassword } : record
-      );
-      saveArrayToStorage('userRecords', updated);
+      // Cập nhật vào Supabase
+      const { error: updateError } = await supabase
+        .from('userRecords')
+        .update({ passwordHash: newPassword })
+        .eq('msnv', user.msnv);
+      
+      if (updateError) {
+        throw updateError;
+      }
+
       toast.success('Đổi mật khẩu thành công');
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
+      console.error('Error updating password:', error);
       toast.error('Có lỗi xảy ra khi lưu mật khẩu mới');
     } finally {
       setSubmitting(false);

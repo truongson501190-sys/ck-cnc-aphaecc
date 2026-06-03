@@ -9,11 +9,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Edit, Trash2, Users, Eye, EyeOff } from 'lucide-react';
 import type { SystemUser } from '@/hooks/useSystemUsers';
-import { getSystemUsers } from '@/hooks/useSystemUsers';
-import { User } from '@/types/categories';
+import { useSystemUsers } from '@/hooks/useSystemUsers';
+import { supabase } from '@/supabase';
 
 export function UserManagement() {
-  const [users, setUsers] = useState<SystemUser[]>([]);
+  const { users, loadUsers, deleteUser, loading } = useSystemUsers();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<SystemUser | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -45,33 +45,7 @@ export function UserManagement() {
     { value: 'Khác', label: 'Khác' }
   ];
 
-  useEffect(() => {
-    loadUsers();
-    // Listen for storage changes from other tabs/windows
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'users') {
-        loadUsers();
-      }
-    };
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  const loadUsers = () => {
-    try {
-      const saved = getSystemUsers();
-      setUsers(saved);
-    } catch (error) {
-      console.error('Error loading users:', error);
-    }
-  };
-
-  const saveUsers = (updatedUsers: SystemUser[]) => {
-    setUsers(updatedUsers);
-    localStorage.setItem('users', JSON.stringify(updatedUsers));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.msnv || !formData.hoTen || !formData.chucDanh || !formData.boPhan || !formData.matKhau) {
@@ -80,20 +54,50 @@ export function UserManagement() {
     }
     
     if (editingUser) {
-      const updatedUsers = users.map(user =>
-        user.msnv === editingUser.msnv
-          ? {
-              ...user,
-              fullName: formData.hoTen,
-              department: formData.boPhan,
-              position: formData.chucDanh,
-              role: formData.vaiTro,
-              status: formData.trangThai,
-              updatedAt: new Date().toISOString()
-            }
-          : user
-      );
-      saveUsers(updatedUsers);
+      const updatedUser = {
+        ...editingUser,
+        fullName: formData.hoTen,
+        department: formData.boPhan,
+        position: formData.chucDanh,
+        role: formData.vaiTro,
+        status: formData.trangThai,
+        updatedAt: new Date().toISOString()
+      };
+      
+      // Cập nhật vào bảng users
+      const { error: userError } = await supabase
+        .from('users')
+        .update(updatedUser)
+        .eq('msnv', updatedUser.msnv);
+      
+      if (userError) {
+        console.error('Error updating user:', userError);
+        alert('Có lỗi xảy ra khi cập nhật người dùng');
+        return;
+      }
+      
+      // Cập nhật vào bảng wms_users
+      const { error: wmsUserError } = await supabase
+        .from('wms_users')
+        .update(updatedUser)
+        .eq('msnv', updatedUser.msnv);
+      
+      if (wmsUserError) {
+        console.error('Error updating wms_user:', wmsUserError);
+      }
+      
+      // Nếu có thay đổi mật khẩu, cập nhật vào userRecords
+      if (formData.matKhau) {
+        const { error: recordError } = await supabase
+          .from('userRecords')
+          .update({ passwordHash: formData.matKhau })
+          .eq('msnv', updatedUser.msnv);
+        
+        if (recordError) {
+          console.error('Error updating user record:', recordError);
+        }
+      }
+      
     } else {
       // Check if MSNV already exists
       if (users.some(user => user.msnv === formData.msnv)) {
@@ -111,9 +115,48 @@ export function UserManagement() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       };
-      saveUsers([...users, newUser]);
+      
+      // Thêm vào bảng users
+      const { error: userError } = await supabase
+        .from('users')
+        .insert(newUser);
+      
+      if (userError) {
+        console.error('Error adding user:', userError);
+        alert('Có lỗi xảy ra khi thêm người dùng');
+        return;
+      }
+      
+      // Thêm vào bảng wms_users
+      const { error: wmsUserError } = await supabase
+        .from('wms_users')
+        .insert(newUser);
+      
+      if (wmsUserError) {
+        console.error('Error adding wms_user:', wmsUserError);
+      }
+      
+      // Thêm vào bảng userRecords (với mật khẩu)
+      const { error: recordError } = await supabase
+        .from('userRecords')
+        .insert({
+          id: newUser.msnv,
+          msnv: newUser.msnv,
+          fullName: newUser.fullName,
+          department: newUser.department,
+          position: newUser.position,
+          role: newUser.role,
+          status: newUser.status === 'active',
+          passwordHash: formData.matKhau,
+          createdAt: newUser.createdAt
+        });
+      
+      if (recordError) {
+        console.error('Error adding user record:', recordError);
+      }
     }
 
+    await loadUsers();
     resetForm();
   };
 
@@ -146,10 +189,41 @@ export function UserManagement() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (msnv: string) => {
+  const handleDelete = async (msnv: string) => {
     if (confirm('Bạn có chắc chắn muốn xóa người dùng này?')) {
-      const updatedUsers = users.filter(user => user.msnv !== msnv);
-      saveUsers(updatedUsers);
+      // Xóa từ bảng users
+      const { error: userError } = await supabase
+        .from('users')
+        .delete()
+        .eq('msnv', msnv);
+      
+      if (userError) {
+        console.error('Error deleting user:', userError);
+        alert('Có lỗi xảy ra khi xóa người dùng');
+        return;
+      }
+      
+      // Xóa từ bảng wms_users
+      const { error: wmsUserError } = await supabase
+        .from('wms_users')
+        .delete()
+        .eq('msnv', msnv);
+      
+      if (wmsUserError) {
+        console.error('Error deleting wms_user:', wmsUserError);
+      }
+      
+      // Xóa từ bảng userRecords
+      const { error: recordError } = await supabase
+        .from('userRecords')
+        .delete()
+        .eq('msnv', msnv);
+      
+      if (recordError) {
+        console.error('Error deleting user record:', recordError);
+      }
+      
+      await loadUsers();
     }
   };
 

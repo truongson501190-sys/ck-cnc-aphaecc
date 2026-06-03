@@ -1,10 +1,11 @@
 /**
  * Hook for managing system users
  * Provides centralized user data that syncs across all components
- * Uses localStorage as source of truth
+ * Uses Supabase as source of truth
  */
 
 import { useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/supabase';
 
 export interface SystemUser {
   msnv: string;
@@ -18,26 +19,29 @@ export interface SystemUser {
   updatedAt: string;
 }
 
-const STORAGE_KEY = 'users';
+const TABLE_NAME = 'users';
 
 /**
  * Hook to manage system users
- * Automatically syncs with localStorage
+ * Automatically syncs with Supabase
  */
 export function useSystemUsers() {
   const [users, setUsers] = useState<SystemUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load users from localStorage on mount and when storage changes
-  const loadUsers = useCallback(() => {
+  // Load users from Supabase
+  const loadUsers = useCallback(async () => {
     try {
       setLoading(true);
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        setUsers(Array.isArray(parsed) ? parsed : []);
-      }
+      const { data, error: fetchError } = await supabase
+        .from(TABLE_NAME)
+        .select('*')
+        .order('fullName');
+
+      if (fetchError) throw fetchError;
+
+      setUsers(data || []);
       setError(null);
     } catch (err) {
       console.error('Error loading users:', err);
@@ -51,27 +55,26 @@ export function useSystemUsers() {
   // Load users on mount
   useEffect(() => {
     loadUsers();
-
-    // Listen for storage changes from other tabs/windows
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) {
-        loadUsers();
-      }
-    };
-
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
   }, [loadUsers]);
 
-  // Save users to localStorage
-  const saveUsers = useCallback((newUsers: SystemUser[]) => {
+  // Save users to Supabase
+  const saveUsers = useCallback(async (newUsers: SystemUser[]) => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newUsers));
+      setLoading(true);
+      // Xóa hết và chèn lại (upsert)
+      const { error: upsertError } = await supabase
+        .from(TABLE_NAME)
+        .upsert(newUsers);
+
+      if (upsertError) throw upsertError;
+
       setUsers(newUsers);
       setError(null);
     } catch (err) {
       console.error('Error saving users:', err);
       setError('Failed to save users');
+    } finally {
+      setLoading(false);
     }
   }, []);
 
@@ -96,25 +99,57 @@ export function useSystemUsers() {
   }, [users]);
 
   // Add or update a user
-  const upsertUser = useCallback((user: SystemUser) => {
-    const index = users.findIndex(u => u.msnv === user.msnv);
-    let newUsers: SystemUser[];
+  const upsertUser = useCallback(async (user: SystemUser) => {
+    try {
+      setLoading(true);
+      const index = users.findIndex(u => u.msnv === user.msnv);
+      let newUsers: SystemUser[];
 
-    if (index >= 0) {
-      newUsers = [...users];
-      newUsers[index] = { ...user, updatedAt: new Date().toISOString() };
-    } else {
-      newUsers = [...users, { ...user, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }];
+      if (index >= 0) {
+        newUsers = [...users];
+        newUsers[index] = { ...user, updatedAt: new Date().toISOString() };
+      } else {
+        newUsers = [...users, { ...user, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }];
+      }
+
+      // Cập nhật trên Supabase
+      const { error: upsertError } = await supabase
+        .from(TABLE_NAME)
+        .upsert(newUsers[index >= 0 ? index : newUsers.length - 1]);
+
+      if (upsertError) throw upsertError;
+
+      setUsers(newUsers);
+      setError(null);
+    } catch (err) {
+      console.error('Error upserting user:', err);
+      setError('Failed to save user');
+    } finally {
+      setLoading(false);
     }
-
-    saveUsers(newUsers);
-  }, [users, saveUsers]);
+  }, [users]);
 
   // Delete a user
-  const deleteUser = useCallback((msnv: string) => {
-    const newUsers = users.filter(u => u.msnv !== msnv);
-    saveUsers(newUsers);
-  }, [users, saveUsers]);
+  const deleteUser = useCallback(async (msnv: string) => {
+    try {
+      setLoading(true);
+      const { error: deleteError } = await supabase
+        .from(TABLE_NAME)
+        .delete()
+        .eq('msnv', msnv);
+
+      if (deleteError) throw deleteError;
+
+      const newUsers = users.filter(u => u.msnv !== msnv);
+      setUsers(newUsers);
+      setError(null);
+    } catch (err) {
+      console.error('Error deleting user:', err);
+      setError('Failed to delete user');
+    } finally {
+      setLoading(false);
+    }
+  }, [users]);
 
   return {
     users,
@@ -132,11 +167,11 @@ export function useSystemUsers() {
 }
 
 /**
- * Get all system users synchronously (for contexts and non-hook components)
+ * Get all system users synchronously (fallback to localStorage)
  */
 export function getSystemUsers(): SystemUser[] {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
+    const stored = localStorage.getItem(TABLE_NAME);
     if (stored) {
       const parsed = JSON.parse(stored);
       return Array.isArray(parsed) ? parsed : [];
