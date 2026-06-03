@@ -128,8 +128,8 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
           if (selectedCategory) {
             updatedItem.itemName = selectedCategory.tenLoai || selectedCategory.tenChungLoai || selectedCategory.maLoai || selectedCategory.id;
             updatedItem.unit = selectedCategory.donVi;
-            updatedItem.price = selectedCategory.gia;
-            updatedItem.totalValue = updatedItem.quantity * updatedItem.price;
+            updatedItem.price = selectedCategory.gia || 0;
+            updatedItem.totalValue = (updatedItem.quantity || 0) * (updatedItem.price || 0);
           }
         }
         if (field === 'itemName') {
@@ -142,8 +142,8 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
           );
           if (selectedCategory) {
             updatedItem.unit = selectedCategory.donVi;
-            updatedItem.price = selectedCategory.gia;
-            updatedItem.totalValue = updatedItem.quantity * updatedItem.price;
+            updatedItem.price = selectedCategory.gia || 0;
+            updatedItem.totalValue = (updatedItem.quantity || 0) * (updatedItem.price || 0);
           }
           updatedItem.itemId = value; // Set itemId to the manual name for consistency
         }
@@ -169,7 +169,7 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
       return;
     }
 
-    const totalValue = items.reduce((sum, item) => sum + item.totalValue, 0);
+    const totalValue = items.reduce((sum, item) => sum + (item.totalValue || 0), 0);
     const selectedMachine = machines.find(m => m.id === headerData.mayMoc);
     
     const transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
@@ -286,7 +286,7 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
                       <td className="p-2"><Input type="number" className="h-9 border-gray-200" value={item.quantity || ''} onChange={(e) => handleItemChange(item.id, 'quantity', parseFloat(e.target.value))} /></td>
                       <td className="p-2"><Input className="h-9 bg-gray-50 border-gray-200" value={item.unit} readOnly /></td>
                       <td className="p-2"><Input type="number" className="h-9 border-gray-200 bg-gray-50 text-gray-600" value={item.price || ''} readOnly /></td>
-                      <td className="p-2"><div className="font-semibold text-orange-600">{item.totalValue.toLocaleString('vi-VN')}</div></td>
+                      <td className="p-2"><div className="font-semibold text-orange-600">{(item.totalValue || 0).toLocaleString('vi-VN')}</div></td>
                       <td className="p-2 text-center">
                         <Button type="button" variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-400 hover:text-red-600" onClick={() => handleRemoveItem(item.id)}><Trash2 className="w-4 h-4" /></Button>
                       </td>
@@ -294,7 +294,7 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
                   ))}
                 </tbody>
                 <tfoot className="bg-orange-50 font-bold border-t border-orange-100">
-                  <tr><td colSpan={5} className="p-3 text-right text-orange-800">Tổng cộng xuất dầu:</td><td className="p-3 text-orange-700 text-lg">{items.reduce((sum, i) => sum + i.totalValue, 0).toLocaleString('vi-VN')} VND</td><td></td></tr>
+                  <tr><td colSpan={5} className="p-3 text-right text-orange-800">Tổng cộng xuất dầu:</td><td className="p-3 text-orange-700 text-lg">{(totalValue || 0).toLocaleString('vi-VN')} VND</td><td></td></tr>
                 </tfoot>
               </table>
             </div>

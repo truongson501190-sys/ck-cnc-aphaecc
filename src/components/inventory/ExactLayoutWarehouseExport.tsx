@@ -55,7 +55,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
     ghiChu: ''
   });
 
-  const [extraItems, setExtraItems] = useState<Array<{ id: string; tenChungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }>>([]);
+  const [extraItems, setExtraItems] = useState<Array<{ id: string; chungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }>>([]);
 
   useEffect(() => {
     loadData();
@@ -206,7 +206,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
   };
 
   const addRow = () => {
-    setExtraItems([...extraItems, { id: Date.now().toString(), tenChungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' }]);
+    setExtraItems([...extraItems, { id: Date.now().toString(), chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' }]);
   };
 
   const removeRow = (id: string) => {
@@ -230,7 +230,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
         if (field === 'chungLoai') {
           const selectedCategory = findCategoryByValue(value);
           if (selectedCategory) {
-            updated.tenChungLoai = selectedCategory.tenChungLoai || '';
+            updated.chungLoai = selectedCategory.maLoai || '';
             updated.donVi = selectedCategory.donVi || '';
             updated.donGia = (selectedCategory.gia || selectedCategory.gia?.toString())?.toString?.() || '0'  ;
           }
@@ -478,8 +478,8 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                       <td className="p-2 text-center text-gray-500">{idx + 2}</td>
                       <td className="p-2">
                         <Combobox
-                          value={row.tenChungLoai}
-                          onValueChange={(value) => updateRow(row.id, 'tenChungLoai', value)} 
+                          value={row.chungLoai}
+                          onValueChange={(value) => updateRow(row.id, 'chungLoai', value)} 
                           placeholder="Tìm kiếm và chọn chủng loại..."
                           options={categories.map((c) => {
                             const currentStock = getCurrentStock(c.id);

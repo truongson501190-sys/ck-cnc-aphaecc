@@ -77,8 +77,8 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
     if (field === 'loaiDau') {
       const selectedCategory = categories.find(cat => cat.id === value || cat.maLoai === value);
       if (selectedCategory) {
-        newData.donVi = selectedCategory.donVi;
-        newData.donGia = selectedCategory.gia.toString();
+        newData.donVi = selectedCategory.donVi || '';
+        newData.donGia = (selectedCategory.gia || 0).toString();  
       }
     }
     

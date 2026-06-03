@@ -118,10 +118,10 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
       maChungLoai: cat.maLoai,
       tenChungLoai: cat.tenLoai,
       donViTinh: cat.donVi,
-      donGia: cat.gia.toString()
+      donGia: (cat.gia || 0).toString()
     }))));
     
-    setFormData(prev => ({ ...prev, chungLoai: categoryToAdd.maLoai, donVi: categoryToAdd.donVi, donGia: categoryToAdd.gia.toString() }));
+    setFormData ({ ...formData, chungLoai: categoryToAdd.maLoai || '', donVi: categoryToAdd.donVi || '', donGia: (categoryToAdd.gia || 0).toString() });
     setIsAddCategoryOpen(false);
     setNewCategory({ tenChungLoai: '', donVi: '', gia: '' });
     toast.success('Đã thêm chủng loại mới');
@@ -143,7 +143,7 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
           const selectedCategory = categories.find(cat => cat.maLoai === value || cat.maChungLoai === value || cat.id === value);
           if (selectedCategory) {
             updated.donVi = selectedCategory.donVi;
-            updated.donGia = selectedCategory.gia.toString();
+            updated.donGia = (selectedCategory.gia || 0).toString();  
           }
         }
         if (field === 'soLuong') {
@@ -174,8 +174,8 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
     if (field === 'chungLoai') {
       const selectedCategory = findCategoryByValue(value);
       if (selectedCategory) {
-        newData.donVi = selectedCategory.donVi;
-        newData.donGia = selectedCategory.gia.toString();
+        newData.donVi = selectedCategory.donVi || '';
+        newData.donGia = (selectedCategory.gia || 0).toString();  
       }
     }
     
@@ -266,7 +266,7 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
                         <Label>Tên chủng loại *</Label>
-                        <Input value={newCategory.tenChungLoai} onChange={(e) => setNewCategory(prev => ({ ...prev, tenChungLoai: e.target.value }))} />
+                        <Input value={newCategory.chungLoai} onChange={(e) => setNewCategory(prev => ({ ...prev, chungLoai: e.target.value }))} />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
@@ -312,8 +312,8 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                         onValueChange={(value) => handleInputChange('chungLoai', value)}
                         placeholder="Nhập hoặc chọn chủng loại"
                         options={categories.map((c) => ({
-                          label: c.tenLoai || c.tenChungLoai || c.maLoai,
-                          value: c.id
+                          label: c.tenLoai || c.tenChungLoai || c.maLoai || '',
+                          value: c.id || '' 
                         }))}
                         allowCustom={true}
                       />
@@ -343,8 +343,8 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                           onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}
                           placeholder="Nhập hoặc chọn chủng loại"
                           options={categories.map((c) => ({
-                            label: c.tenLoai || c.tenChungLoai || c.maLoai,
-                            value: c.id
+                            label: c.tenLoai || c.tenChungLoai || c.maLoai || '',
+                            value: c.id || ''
                           }))}
                           allowCustom={true}
                         />

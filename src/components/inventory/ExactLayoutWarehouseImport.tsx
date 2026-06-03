@@ -185,10 +185,10 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
       maChungLoai: cat.maLoai,
       tenChungLoai: cat.tenLoai,
       donViTinh: cat.donVi,
-      donGia: cat.gia.toString()
+      donGia: cat.gia || '0'
     }))));
     
-    setFormData(prev => ({ ...prev, chungLoai: categoryToAdd.maLoai, donVi: categoryToAdd.donVi, donGia: categoryToAdd.gia.toString() }));
+    setFormData ({ ...formData, chungLoai: categoryToAdd.maLoai || '', donVi: categoryToAdd.donVi || '', donGia: (categoryToAdd.gia || 0).toString() });
     setIsAddCategoryOpen(false);
     setNewCategory({ tenChungLoai: '', donVi: '', gia: '' });
     toast.success('Đã thêm chủng loại mới');
@@ -210,7 +210,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
           const selectedCategory = findCategoryByValue(value);
           if (selectedCategory) {
             updated.donVi = selectedCategory.donVi;
-            updated.donGia = selectedCategory.gia.toString();
+            updated.donGia = (selectedCategory.gia || 0).toString();
           }
         }
         if (field === 'soLuong') {
@@ -242,7 +242,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
       const selectedCategory = findCategoryByValue(value);
       if (selectedCategory) {
         newData.donVi = selectedCategory.donVi;
-        newData.donGia = selectedCategory.gia.toString();
+        newData.donGia = (selectedCategory.gia || 0).toString();
       }
     }
     
@@ -371,7 +371,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                         onValueChange={(value) => handleInputChange('chungLoai', value)}
                         placeholder="Nhập hoặc chọn chủng loại"
                         options={categories.map((c) => ({
-                          label: c.tenLoai || c.tenChungLoai || c.maLoai,
+                          label: c.tenLoai || c.tenChungLoai || c.maLoai || '',
                           value: c.id
                         }))}
                         allowCustom={true}
@@ -402,7 +402,7 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                           onValueChange={(value) => updateRow(row.id, 'chungLoai', value)}
                           placeholder="Nhập hoặc chọn chủng loại"
                           options={categories.map((c) => ({
-                            label: c.tenLoai || c.tenChungLoai || c.maLoai,
+                            label: c.tenLoai || c.tenChungLoai || c.maLoai || '',
                             value: c.id
                           }))}
                           allowCustom={true}

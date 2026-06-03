@@ -550,9 +550,9 @@ export function WarehouseExport() {
                           onValueChange={(value) => updateItem(item.id, 'chungLoaiId', value)}
                           placeholder="Chọn hoặc nhập chủng loại"
                           options={categories.map((category) => ({
-                            label: category.tenLoai || category.tenChungLoai || category.maLoai,
-                            value: category.tenLoai || category.tenChungLoai || category.maLoai
-                          }))}
+                            label: category.tenLoai || category.tenChungLoai || category.maLoai || '',
+                            value: category.tenLoai || category.tenChungLoai || category.maLoai || '' || ''
+                            }))}
                           allowCustom={true}
                         />
                       </div>
