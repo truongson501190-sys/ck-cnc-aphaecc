@@ -2,6 +2,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +19,7 @@ import { OptimizedTimeInput } from '@/components/OptimizedTimeInput';
 interface ProductionFormProps {
   onSubmit: (report: Omit<ProductionReport, 'id' | 'createdAt'>) => void;
   onCancel?: () => void;
+  initialData?: any;
 }
 
 const createEmptyToolEntry = (): ToolEntry => ({
@@ -46,36 +48,64 @@ interface CategoryType {
   createdAt: string;
 }
 
-export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
+export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFormProps) {
   const masterDataHook = useMasterData();
   const { user, isAdmin } = useAuth();
   
   const masterData = masterDataHook?.masterData || { machines: [], tools: [], operators: [], inspectors: [], projects: [] };
-  const getProjectByCode = masterDataHook?.getProjectByCode || (() => undefined);
   
-  const [formData, setFormData] = useState({
-    ngayThang: new Date().toISOString().split('T')[0],
-    maySanXuat: '',
-    duAn: '',
-    tenDuAn: '',
-    banVeSo: '',
-    chiTietSo: '',
-    tenChiTiet: '',
-    noiDungGiaCong: '',
-    soLuongHoanThanh: 0,
-    vatLieu: '',
-    nguyenCongSo: '',
-    toolEntries: [createEmptyToolEntry()],
-    workTimeEntries: [] as WorkTimeEntry[],
-    setupTimeEntries: [] as WorkTimeEntry[],
-    ca: '' as 'ngay' | 'dem' | '',
-    cpMay: 0,
-    cpDaoCu: 0,
-    nguoiVanHanh: user?.fullName || user?.name || '',
-    nguoiKiemTra: '',
-    tgTrenCa: '',
-    tgGaPhoi: '',
-    status: 'draft' as const,
+  const [formData, setFormData] = useState(() => {
+    if (initialData) {
+      // Convert initialData to formData structure
+      return {
+        ngayThang: initialData.ngay || initialData.ngayThang || new Date().toISOString().split('T')[0],
+        maySanXuat: initialData.may || initialData.maySanXuat || '',
+        duAn: initialData.maDuAn || initialData.duAn || '',
+        tenDuAn: initialData.tenDuAn || '',
+        banVeSo: initialData.banVeSo || '',
+        chiTietSo: initialData.chiTietSo || '',
+        tenChiTiet: initialData.tenChiTiet || '',
+        noiDungGiaCong: initialData.noiDung || initialData.noiDungGiaCong || '',
+        soLuongHoanThanh: initialData.sanLuong || initialData.soLuongHoanThanh || 0,
+        vatLieu: initialData.vatLieu || '',
+        nguyenCongSo: initialData.nguyenCongSo || '',
+        toolEntries: initialData.toolEntries?.length ? initialData.toolEntries : [createEmptyToolEntry()],
+        workTimeEntries: initialData.workTimeEntries || (initialData.gioChay ? [{ soGio: initialData.gioChay, thoiGianBatDau: '', thoiGianKetThuc: '' }] : []),
+        setupTimeEntries: initialData.setupTimeEntries || (initialData.gioGa ? [{ soGio: initialData.gioGa, thoiGianBatDau: '', thoiGianKetThuc: '' }] : []),
+        ca: initialData.ca || '',
+        cpMay: initialData.cpMay || 0,
+        cpDaoCu: initialData.cpDaoCu || 0,
+        nguoiVanHanh: initialData.nguoiVanHanh || user?.fullName || user?.name || '',
+        nguoiKiemTra: initialData.nguoiKiemTra || '',
+        tgTrenCa: initialData.tgTrenCa || '',
+        tgGaPhoi: initialData.tgGaPhoi || '',
+        status: initialData.status || 'draft',
+      };
+    }
+    return {
+      ngayThang: new Date().toISOString().split('T')[0],
+      maySanXuat: '',
+      duAn: '',
+      tenDuAn: '',
+      banVeSo: '',
+      chiTietSo: '',
+      tenChiTiet: '',
+      noiDungGiaCong: '',
+      soLuongHoanThanh: 0,
+      vatLieu: '',
+      nguyenCongSo: '',
+      toolEntries: [createEmptyToolEntry()],
+      workTimeEntries: [] as WorkTimeEntry[],
+      setupTimeEntries: [] as WorkTimeEntry[],
+      ca: '' as 'ngay' | 'dem' | '',
+      cpMay: 0,
+      cpDaoCu: 0,
+      nguoiVanHanh: user?.fullName || user?.name || '',
+      nguoiKiemTra: '',
+      tgTrenCa: '',
+      tgGaPhoi: '',
+      status: 'draft' as const,
+    };
   });
 
   const [inspectors, setInspectors] = useState<string[]>([]);
@@ -108,7 +138,7 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
     setInspectors(masterData.inspectors);
   }, [masterData.inspectors]);
 
-  const [machines, setMachines] = useState<{ id: string; name?: string; tenMay?: string }[]>([]);
+  const [machines, setMachines] = useState<{ id: string; name?: string; tenMay?: string; gia8h1Ca?: string | number; gia10h1Ca?: string | number; gia12h1Ca?: string | number }[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [categoryTypes, setCategoryTypes] = useState<CategoryType[]>([]);
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -180,16 +210,21 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
   };
 
   // HÀM XỬ LÝ LƯU: ĐÃ ĐƯỢC CẬP NHẬT ĐỂ LIÊN KẾT SANG PHÊ DUYỆT CHỜ DUYỆT
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
     try {
+      if (initialData && initialData.status === 'approved' && !isAdmin) {
+        toast.error('Không có quyền chỉnh sửa nhật ký đã duyệt');
+        return;
+      }
+      
       if (!formData.maySanXuat || !formData.duAn || !formData.tenDuAn) {
         toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (Máy sản xuất, Dự án)');
         return;
       }
 
-      const validToolEntries = formData.toolEntries.filter(entry => entry.tenDao);
+      const validToolEntries = formData.toolEntries.filter((entry: ToolEntry) => entry.tenDao);
       if (validToolEntries.length === 0) {
         toast.error('Vui lòng nhập ít nhất một dao cụ');
         return;
@@ -204,42 +239,44 @@ export function ProductionForm({ onSubmit, onCancel }: ProductionFormProps) {
       // XỬ LÝ ĐẨY DỮ LIỆU SANG DANH SÁCH CHỜ DUYỆT (PENDING APPROVAL LIST)
       // -------------------------------------------------------------------------
       const selectedMachine = machines.find(
-  (m) =>
-    (m.name || m.tenMay || m.id) === formData.maySanXuat
-);
+        (m) =>
+          (m.name || m.tenMay || m.id) === formData.maySanXuat
+      );
 
-// Lấy đơn giá ca máy
-const machineShiftPrice =
-  Number(selectedMachine?.giaCaNgay) || 0;
+      // Lấy đơn giá ca máy dựa trên ca làm việc
+      let machineShiftPrice = 0;
+      if (selectedMachine) {
+        // Ưu tiên giá 8h/1Ca làm giá mặc định
+        machineShiftPrice = Number(selectedMachine.gia8h1Ca) || Number(selectedMachine.gia10h1Ca) || Number(selectedMachine.gia12h1Ca) || 0;
+      }
 
-// Tổng giờ chạy
-const totalRunHours =
-  formData.workTimeEntries.reduce(
-    (sum, item) => sum + Number(item.hours || 0),
-    0
-  );
+      // Tổng giờ chạy
+      const totalRunHours =
+        formData.workTimeEntries.reduce(
+          (sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0),
+          0
+        );
 
-// Tổng giờ gá
-const totalSetupHours =
-  formData.setupTimeEntries.reduce(
-    (sum, item) => sum + Number(item.hours || 0),
-    0
-  );
+      // Tổng giờ gá
+      const totalSetupHours =
+        formData.setupTimeEntries.reduce(
+          (sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0),
+          0
+        );
 
-// Thành tiền chạy
-const runAmount =
-  totalRunHours * (machineShiftPrice / 8);
+      // Tính đơn giá giờ (dùng giá 8h chia cho 8 làm giá giờ cơ bản)
+      const pricePerHour = machineShiftPrice > 0 ? machineShiftPrice / 8 : 0;
+      
+      // Thành tiền chạy
+      const runAmount =
+        totalRunHours * pricePerHour;
 
-// Thành tiền gá
-const setupAmount =
-  totalSetupHours * ((machineShiftPrice / 8) / 2);
-
-// Tổng tiền
-const totalAmount =
-  runAmount + setupAmount;
+      // Thành tiền gá (giá gá bằng nửa giá giờ chạy)
+      const setupAmount =
+        totalSetupHours * (pricePerHour / 2);
 
 const newApprovalLog = {
-  id: "LOG-" + Date.now(),
+  id: initialData?.id || "LOG-" + Date.now(),
 
   ngay: formData.ngayThang,
 
@@ -266,20 +303,18 @@ const newApprovalLog = {
     user?.name ||
     formData.nguoiVanHanh,
 
-  donGiaCa:
-    machineShiftPrice,
+  chiPhiGa: setupAmount,
 
-  tienGa:
-    setupAmount,
+  chiPhiChayMay: runAmount,
 
-  tienChay:
-    runAmount,
-
-  tongTien:
-    totalAmount,
+  chiPhiDao: validToolEntries.reduce((sum: number, tool: ToolEntry) => {
+    const matchedCategory = categoryTypes.find(cat => cat.tenLoai === tool.tenDao);
+    const donGia = Number(matchedCategory?.gia) || 0;
+    return sum + (tool.slSuDung * donGia);
+  }, 0),
 
   toolEntries:
-    validToolEntries.map((tool) => {
+    validToolEntries.map((tool: ToolEntry) => {
       // Lấy giá dao từ chủng loại
       const matchedCategory =
         categoryTypes.find(
@@ -308,11 +343,29 @@ const newApprovalLog = {
       };
     }),
 
-  status: 'pending' as const
+  status: initialData?.status || 'pending' as const
 };
 
-      // Thêm mới vào cuối mảng, không làm mất dữ liệu cũ của chú
-      const updatedApprovalList = [...currentApprovalList, newApprovalLog];
+      // Thêm mới hoặc cập nhật vào mảng
+      let currentApprovalList: any[] = [];
+      try {
+        const savedLogs = localStorage.getItem('PRODUCTION_LOGS_DATA');
+        if (savedLogs) {
+          currentApprovalList = JSON.parse(savedLogs);
+        }
+      } catch {
+        currentApprovalList = [];
+      }
+      let updatedApprovalList;
+      if (initialData) {
+        // Update existing log
+        updatedApprovalList = currentApprovalList.map(log => 
+          log.id === initialData.id ? newApprovalLog : log
+        );
+      } else {
+        // Add new log
+        updatedApprovalList = [...currentApprovalList, newApprovalLog];
+      }
       localStorage.setItem('PRODUCTION_LOGS_DATA', JSON.stringify(updatedApprovalList));
       // -------------------------------------------------------------------------
 
@@ -321,36 +374,38 @@ const newApprovalLog = {
         ...formData,
         toolEntries: validToolEntries,
         nguoiVanHanh: user?.fullName || user?.name || formData.nguoiVanHanh,
-        status: 'pending',
+        status: initialData?.status || 'pending',
       });
       
-      // Reset form về mặc định sạch sẽ
-      setFormData({
-        ngayThang: new Date().toISOString().split('T')[0],
-        maySanXuat: '',
-        duAn: '',
-        tenDuAn: '',
-        banVeSo: '',
-        chiTietSo: '',
-        tenChiTiet: '',
-        noiDungGiaCong: '',
-        soLuongHoanThanh: 0,
-        vatLieu: '',
-        nguyenCongSo: '',
-        toolEntries: [createEmptyToolEntry()],
-        workTimeEntries: [],
-        setupTimeEntries: [],
-        ca: '',
-        cpMay: 0,
-        cpDaoCu: 0,
-        nguoiVanHanh: user?.fullName || user?.name || '',
-        nguoiKiemTra: '',
-        tgTrenCa: '',
-        tgGaPhoi: '',
-        status: 'draft',
-      });
+      // Reset form về mặc định sạch will
+      if (!initialData) {
+        setFormData({
+          ngayThang: new Date().toISOString().split('T')[0],
+          maySanXuat: '',
+          duAn: '',
+          tenDuAn: '',
+          banVeSo: '',
+          chiTietSo: '',
+          tenChiTiet: '',
+          noiDungGiaCong: '',
+          soLuongHoanThanh: 0,
+          vatLieu: '',
+          nguyenCongSo: '',
+          toolEntries: [createEmptyToolEntry()],
+          workTimeEntries: [],
+          setupTimeEntries: [],
+          ca: '',
+          cpMay: 0,
+          cpDaoCu: 0,
+          nguoiVanHanh: user?.fullName || user?.name || '',
+          nguoiKiemTra: '',
+          tgTrenCa: '',
+          tgGaPhoi: '',
+          status: 'draft',
+        });
+      }
 
-      toast.success('Đã gửi báo cáo và chuyển sang danh sách chờ duyệt!');
+      toast.success(initialData ? 'Đã cập nhật báo cáo!' : 'Đã gửi báo cáo và chuyển sang danh sách chờ duyệt!');
     } catch (error) {
       console.error('Error submitting form:', error);
       toast.error('Lỗi khi gửi báo cáo');
@@ -393,14 +448,14 @@ const newApprovalLog = {
   const removeToolEntry = (index: number) => {
     setFormData(prev => ({
       ...prev,
-      toolEntries: prev.toolEntries.filter((_, i) => i !== index)
+      toolEntries: prev.toolEntries.filter((_: ToolEntry, i: number) => i !== index)
     }));
   };
 
   const updateToolEntry = (index: number, field: keyof ToolEntry, value: string | number) => {
     setFormData(prev => ({
       ...prev,
-      toolEntries: prev.toolEntries.map((entry, i) => {
+      toolEntries: prev.toolEntries.map((entry: ToolEntry, i: number) => {
         if (i === index) {
           const updatedEntry = { ...entry, [field]: value };
           
@@ -435,11 +490,10 @@ const newApprovalLog = {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="ngayThang">Ngày tháng *</Label>
-              <Input
+              <DateInput
                 id="ngayThang"
-                type="date"
                 value={formData.ngayThang}
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('ngayThang', e.target.value)}
+                onChange={(value: string) => handleInputChange('ngayThang', value)}
                 required
               />
             </div>
@@ -694,7 +748,7 @@ const newApprovalLog = {
 
   <CardContent className="space-y-4">
 
-    {formData.toolEntries.map((entry, index) => (
+    {formData.toolEntries.map((entry: ToolEntry, index: number) => (
 
       <div
         key={index}

@@ -1,4 +1,4 @@
-//Quản lý danh mục->Máy móc
+// MachineManagement.tsx - Quản lý Máy móc
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,7 @@ import {
 import { Machine as SystemMachine } from '@/types/categories';
 import * as XLSX from 'xlsx';
 
-// Cấu trúc máy móc đầy đủ 6 cột giá ca kíp, sạch sẽ không ký hiệu thừa
+// Cấu trúc máy móc đầy đủ 6 cột giá ca kíp
 interface Machine extends Omit<SystemMachine, 'loaiMay'> {
   loaiMay?: string;
   gia8h1Ca?: string;
@@ -31,13 +31,28 @@ interface Machine extends Omit<SystemMachine, 'loaiMay'> {
   gia12h2Ca?: string;
 }
 
+// Hàm format số
+const formatNumber = (value: string | number | undefined): string => {
+  if (!value) return '—';
+  let num = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) : value;
+  if (isNaN(num)) return '—';
+  return Math.round(num).toLocaleString('vi-VN');
+};
+
+// Hàm làm tròn số
+const roundNumber = (value: any): string => {
+  if (!value) return '';
+  let num = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) : Number(value);
+  if (isNaN(num)) return '';
+  return Math.round(num).toString();
+};
+
 export function MachineManagement() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  // Form nhập liệu gọn gàng theo thực tế xưởng
   const [formData, setFormData] = useState({
     maMay: '',
     tenMay: '',
@@ -199,7 +214,7 @@ export function MachineManagement() {
     }
   };
 
-  // HÀM IMPORT EXCEL THÔNG MINH - ĐỌC ĐỦ 6 CỘT GIÁ CA MÁY
+  // HÀM IMPORT EXCEL
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -232,7 +247,7 @@ export function MachineManagement() {
           const targetKeyGhiChu = Object.keys(row).find(k => k.toLowerCase().trim().includes('ghi chú') || k.toLowerCase().trim().includes('chú'));
           const ghiChu = targetKeyGhiChu ? row[targetKeyGhiChu]?.toString().trim() : '';
 
-          // Quét bốc chính xác đơn giá từ 6 tiêu đề ca làm việc trong Excel
+          // Đọc giá từ 6 cột
           const val8h1Ca = row['Giá Giờ 8h/1Ca'] || row['8h/1Ca'] || row['8h/1ca'] || '';
           const val10h1Ca = row['Giá Giờ 10h/1Ca'] || row['10h/1Ca'] || row['10h/1ca'] || '';
           const val8h2Ca = row['Giá Giờ 8h/2Ca'] || row['8h/2Ca'] || row['8h/2ca'] || '';
@@ -246,12 +261,12 @@ export function MachineManagement() {
             id: crypto.randomUUID(),
             maMay: finalMaMay,
             tenMay: tenMay,
-            gia8h1Ca: val8h1Ca.toString().trim(),
-            gia10h1Ca: val10h1Ca.toString().trim(),
-            gia8h2Ca: val8h2Ca.toString().trim(),
-            gia10h2Ca: val10h2Ca.toString().trim(),
-            gia12h1Ca: val12h1Ca.toString().trim(),
-            gia12h2Ca: val12h2Ca.toString().trim(),
+            gia8h1Ca: roundNumber(val8h1Ca),
+            gia10h1Ca: roundNumber(val10h1Ca),
+            gia8h2Ca: roundNumber(val8h2Ca),
+            gia10h2Ca: roundNumber(val10h2Ca),
+            gia12h1Ca: roundNumber(val12h1Ca),
+            gia12h2Ca: roundNumber(val12h2Ca),
             ghiChu: ghiChu !== "" ? ghiChu : undefined,
             createdAt: new Date().toISOString()
           };
@@ -287,15 +302,14 @@ export function MachineManagement() {
     <div className="space-y-6">
       {/* HEADER */}
       <div className="flex items-center justify-between">
-        <div>
-        </div>
+        <div></div>
         <Badge className="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-100 font-bold shadow-sm">
           Tổng số: {machines.length} máy
         </Badge>
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* KHỐI TRÁI: FORM NHẬP SẠCH SẼ */}
+        {/* KHỐI TRÁI: FORM NHẬP */}
         <div className="xl:col-span-1">
           <Card className="rounded-xl border border-slate-100 shadow-sm bg-white sticky top-6">
             <CardHeader className="pb-3">
@@ -303,7 +317,6 @@ export function MachineManagement() {
                 {editingId ? 'Cập nhật máy' : 'Thêm máy mới'}
               </CardTitle>
             </CardHeader>
-
             <CardContent>
               <form onSubmit={handleSubmit} className="space-y-3.5">
                 <div className="space-y-1">
@@ -382,7 +395,7 @@ export function MachineManagement() {
           </Card>
         </div>
 
-        {/* KHỐI PHẢI: BẢNG THEO DÕI ĐẦY ĐỦ 6 CỘT GIÁ CA MÁY */}
+        {/* KHỐI PHẢI: BẢNG THEO DÕI */}
         <div className="xl:col-span-3">
           <Card className="rounded-xl border border-slate-100 shadow-sm bg-white overflow-hidden">
             <CardHeader className="bg-white border-b border-slate-100 py-3.5">
@@ -404,17 +417,17 @@ export function MachineManagement() {
 
             <CardContent className="p-0 overflow-x-auto">
               <div className="min-w-[1050px] space-y-0">
-                {/* THANH TIÊU ĐỀ SẠCH SẼ GỒM ĐỦ 6 LOẠI CA THEO Ý CHÚ */}
+                {/* THANH TIÊU ĐỀ */}
                 <div className="grid grid-cols-[35px_85px_170px_90px_90px_90px_90px_90px_90px_1fr_75px] gap-1 px-3 py-2.5 bg-slate-50/80 border-b text-xs font-bold text-slate-700 items-center text-center">
                   <div className="flex justify-center"><Checkbox checked={filteredMachines.length > 0 && selectedIds.length === filteredMachines.length} onCheckedChange={toggleSelectAll} className="h-3.5 w-3.5" /></div>
                   <div className="text-left text-slate-500 font-mono">ID Máy</div>
                   <div className="text-left">Tên Máy</div>
-                  <div className="bg-blue-50 text-blue-700 py-1 rounded text-[11px]">8h/1Ca</div>
-                  <div className="bg-blue-50 text-blue-700 py-1 rounded text-[11px]">10h/1Ca</div>
-                  <div className="bg-blue-50 text-blue-700 py-1 rounded text-[11px]">8h/2Ca</div>
-                  <div className="bg-blue-50 text-blue-700 py-1 rounded text-[11px]">10h/2Ca</div>
-                  <div className="bg-blue-50 text-blue-700 py-1 rounded text-[11px]">12h/1Ca</div>
-                  <div className="bg-blue-50 text-blue-700 py-1 rounded text-[11px]">12h/2Ca</div>
+                  <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">8h/1Ca</div>
+                  <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">10h/1Ca</div>
+                  <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">8h/2Ca</div>
+                  <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">10h/2Ca</div>
+                  <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">12h/1Ca</div>
+                  <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">12h/2Ca</div>
                   <div className="text-left pl-3">Ghi Chú Máy</div>
                   <div>Thao tác</div>
                 </div>
@@ -424,18 +437,18 @@ export function MachineManagement() {
                   <div className="text-center py-12 text-slate-400 text-xs">Chưa có máy nào trong danh sách.</div>
                 ) : (
                   filteredMachines.map((machine) => (
-                    <div key={machine.id} className="grid grid-cols-[35px_85px_170px_90px_90px_90px_90px_90px_90px_1fr_75px] gap-1 px-3 py-2 items-center border-b text-xs hover:bg-slate-50/40 text-center transition-colors">
+                    <div key={machine.id} className="grid grid-cols-[35px_85px_170px_90px_90px_90px_90px_90px_90px_1fr_75px] gap-1 px-3 py-2 items-center border-b text-xs hover:bg-slate-50/40 transition-colors">
                       <div className="flex justify-center"><Checkbox checked={selectedIds.includes(machine.id)} onCheckedChange={() => toggleSelect(machine.id)} className="h-3.5 w-3.5" /></div>
                       <div className="text-left font-mono"><Badge variant="outline" className="text-[10px] px-1.5 bg-slate-50 font-bold">{machine.maMay}</Badge></div>
                       <div className="text-left font-semibold text-slate-900 truncate pr-1" title={machine.tenMay}>{machine.tenMay}</div>
                       
-                      {/* Hiển thị giá trị 6 cột tiền ca kíp */}
-                      <div className="font-medium text-slate-800 font-mono">{machine.gia8h1Ca || '—'}</div>
-                      <div className="font-medium text-slate-800 font-mono">{machine.gia10h1Ca || '—'}</div>
-                      <div className="font-medium text-slate-800 font-mono">{machine.gia8h2Ca || '—'}</div>
-                      <div className="font-medium text-slate-800 font-mono">{machine.gia10h2Ca || '—'}</div>
-                      <div className="font-medium text-slate-800 font-mono">{machine.gia12h1Ca || '—'}</div>
-                      <div className="font-medium text-slate-800 font-mono">{machine.gia12h2Ca || '—'}</div>
+                      {/* 6 cột giá - đã format số */}
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia8h1Ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia10h1Ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia8h2Ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia10h2Ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia12h1Ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia12h2Ca)}</div>
 
                       <div className="text-left text-slate-500 truncate pl-3" title={machine.ghiChu}>{machine.ghiChu || '—'}</div>
                       
@@ -454,3 +467,5 @@ export function MachineManagement() {
     </div>
   );
 }
+
+export default MachineManagement;

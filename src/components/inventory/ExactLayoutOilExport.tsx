@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
@@ -227,7 +228,7 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
           <div className="grid grid-cols-1 md:grid-cols-1 gap-4 bg-gray-50 p-4 rounded-lg border">
             <div>
               <Label className="text-sm font-medium">Ngày xuất *</Label>
-              <Input type="date" value={headerData.ngayXuat} onChange={(e) => setHeaderData({...headerData, ngayXuat: e.target.value})} required />
+              <DateInput value={headerData.ngayXuat} onChange={(value: string) => setHeaderData({...headerData, ngayXuat: value})} required />
             </div>
           </div>
 

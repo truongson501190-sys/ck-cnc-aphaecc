@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -90,11 +91,10 @@ export function QcForm({ onSubmit, onCancel }: QcFormProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="ngay">Ngày *</Label>
-          <Input
+          <DateInput
             id="ngay"
-            type="date"
             value={formData.ngay}
-            onChange={(e) => handleChange('ngay', e.target.value)}
+            onChange={(value: string) => handleChange('ngay', value)}
             required
           />
         </div>

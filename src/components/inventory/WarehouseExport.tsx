@@ -122,10 +122,10 @@ export function WarehouseExport() {
             cat.maLoai === value
           );
           if (selectedCategory) {
-            updatedItem.tenChungLoai = selectedCategory.tenChungLoai || selectedCategory.tenLoai;
-            updatedItem.donVi = selectedCategory.donVi;
-            updatedItem.donGia = selectedCategory.gia;
-            updatedItem.chungLoaiId = selectedCategory.id; // Set to id for consistency
+            updatedItem.tenChungLoai = selectedCategory.tenChungLoai || selectedCategory.tenLoai || '';
+            updatedItem.donVi = selectedCategory.donVi || '';
+            updatedItem.donGia = selectedCategory.gia || 0;
+            updatedItem.chungLoaiId = selectedCategory.id || ''; // Set to id for consistency
           } else {
             // Custom input
             updatedItem.tenChungLoai = value;
@@ -429,7 +429,7 @@ export function WarehouseExport() {
                     return ['nguoixuat', 'xuat'].includes(normalizedRole);
                   }).map((user) => (
                     <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
-                      {(user.hoTen || user.fullName || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
+                      {(user.hoTen || user.full_name || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -470,7 +470,7 @@ export function WarehouseExport() {
                     return ['nguoinhan', 'nhan'].includes(normalizedRole);
                   }).map((user) => (
                     <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
-                      {(user.hoTen || user.fullName || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
+                      {(user.hoTen || user.full_name || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
                     </SelectItem>
                   ))}
                 </SelectContent>

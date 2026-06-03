@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -349,10 +350,9 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg border">
             <div>
               <Label className="text-sm font-medium">Ngày xuất *</Label>
-              <Input
-                type="date"
+              <DateInput
                 value={formData.ngayXuat}
-                onChange={(e) => handleInputChange('ngayXuat', e.target.value)}
+                onChange={(value: string) => handleInputChange('ngayXuat', value)}
                 required
               />
             </div>

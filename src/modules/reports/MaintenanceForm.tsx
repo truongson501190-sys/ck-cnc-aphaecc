@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -65,11 +66,10 @@ export function MaintenanceForm({ onSubmit, onCancel }: MaintenanceFormProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
           <Label htmlFor="ngay">Ngày *</Label>
-          <Input
+          <DateInput
             id="ngay"
-            type="date"
             value={formData.ngay}
-            onChange={(e) => handleChange('ngay', e.target.value)}
+            onChange={(value: string) => handleChange('ngay', value)}
             required
           />
         </div>
@@ -186,11 +186,10 @@ export function MaintenanceForm({ onSubmit, onCancel }: MaintenanceFormProps) {
         </div>
         <div>
           <Label htmlFor="nextMaintenanceSchedule">Lịch bảo trì tiếp theo</Label>
-          <Input
+          <DateInput
             id="nextMaintenanceSchedule"
-            type="date"
             value={formData.nextMaintenanceSchedule}
-            onChange={(e) => handleChange('nextMaintenanceSchedule', e.target.value)}
+            onChange={(value: string) => handleChange('nextMaintenanceSchedule', value)}
           />
         </div>
       </div>
