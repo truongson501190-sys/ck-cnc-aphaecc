@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Shield, Save, RefreshCw, Search, AlertCircle, User, Building2, SlidersHorizontal, Eye, Edit3, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/supabase';
 
 const PERMISSION_GROUPS = {
   'Kho bãi (WMS)': ['nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich'],
@@ -39,6 +40,25 @@ interface UserProfile {
   roleGroup: string;
 }
 
+// Helper to convert between permission levels
+const convertToSupabase = (level: 'none' | 'view' | 'full') => {
+  return {
+    can_view: level !== 'none',
+    can_add: level === 'full',
+    can_edit: level === 'full',
+    can_delete: level === 'full',
+    can_approve: level === 'full',
+    can_export: level !== 'none',
+  };
+};
+
+const convertFromSupabase = (perm: any): 'none' | 'view' | 'full' => {
+  if (!perm) return 'none';
+  if (perm.can_edit) return 'full';
+  if (perm.can_view) return 'view';
+  return 'none';
+};
+
 export function Roles() {
   const [userList, setUserList] = useState<UserProfile[]>([]);
   const [selectedUserMsnv, setSelectedUserMsnv] = useState<string>('');
@@ -47,25 +67,73 @@ export function Roles() {
   const [userPermissions, setUserPermissions] = useState<Record<string, 'none' | 'view' | 'full'>>({ ...INITIAL_PERMISSIONS });
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const hasSupabaseConfig = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const [useFallback, setUseFallback] = useState(!hasSupabaseConfig);
 
   useEffect(() => {
     loadData();
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
     setIsLoading(true);
     try {
+      if (useFallback) {
+        // Fallback to localStorage
+        const storedUsers = localStorage.getItem('wms_users');
+        if (storedUsers) {
+          const parsedUsers = JSON.parse(storedUsers);
+          const nonAdminUsers = parsedUsers.filter((u: any) => u.msnv !== '1118').map((u: any) => ({
+            msnv: u.msnv,
+            fullName: u.fullName,
+            department: u.department,
+            roleGroup: u.position || 'User'
+          }));
+          setUserList(nonAdminUsers);
+          if (nonAdminUsers.length > 0) {
+            const defaultSelect = selectedUserMsnv || nonAdminUsers[0].msnv;
+            setSelectedUserMsnv(defaultSelect);
+            loadUserPermissions(defaultSelect);
+          }
+        }
+      } else {
+        // Load from Supabase
+        const { data: users, error } = await supabase
+          .from('users')
+          .select('*')
+          .order('msnv', { ascending: true });
+        
+        if (error) throw error;
+        
+        const nonAdminUsers = (users || [])
+          .filter((u: any) => u.msnv !== '1118')
+          .map((u: any) => ({
+            msnv: u.msnv,
+            fullName: u.full_name,
+            department: u.department,
+            roleGroup: u.role_group || 'User'
+          }));
+        
+        setUserList(nonAdminUsers);
+        if (nonAdminUsers.length > 0) {
+          const defaultSelect = selectedUserMsnv || nonAdminUsers[0].msnv;
+          setSelectedUserMsnv(defaultSelect);
+          await loadUserPermissions(defaultSelect);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading data:', error);
+      setUseFallback(true);
+      toast.warning('Đang sử dụng chế độ offline');
+      // Try fallback
       const storedUsers = localStorage.getItem('wms_users');
       if (storedUsers) {
         const parsedUsers = JSON.parse(storedUsers);
-        // Loại bỏ tài khoản Root Admin 1118 khỏi danh sách chỉnh sửa cấu hình ma trận tránh tự khóa hệ thống
         const nonAdminUsers = parsedUsers.filter((u: any) => u.msnv !== '1118').map((u: any) => ({
           msnv: u.msnv,
           fullName: u.fullName,
           department: u.department,
           roleGroup: u.position || 'User'
         }));
-        
         setUserList(nonAdminUsers);
         if (nonAdminUsers.length > 0) {
           const defaultSelect = selectedUserMsnv || nonAdminUsers[0].msnv;
@@ -73,30 +141,58 @@ export function Roles() {
           loadUserPermissions(defaultSelect);
         }
       }
-    } catch (error) {
-      toast.error('Lỗi khi nạp danh sách người dùng.');
     } finally {
       setTimeout(() => setIsLoading(false), 200);
     }
   };
 
-  const loadUserPermissions = (msnv: string) => {
+  const loadUserPermissions = async (msnv: string) => {
     if (!msnv) return;
-    const storedPerms = localStorage.getItem(`wms_user_permissions_${msnv}`);
-    if (storedPerms) {
-      try {
-        setUserPermissions(JSON.parse(storedPerms));
-      } catch (e) {
+    try {
+      if (useFallback) {
+        const storedPerms = localStorage.getItem(`wms_user_permissions_${msnv}`);
+        if (storedPerms) {
+          try {
+            setUserPermissions(JSON.parse(storedPerms));
+          } catch (e) {
+            setUserPermissions({ ...INITIAL_PERMISSIONS });
+          }
+        } else {
+          setUserPermissions({ ...INITIAL_PERMISSIONS });
+        }
+      } else {
+        const { data: perms, error } = await supabase
+          .from('user_permissions')
+          .select('*')
+          .eq('msnv', msnv);
+        
+        if (error) throw error;
+        
+        const permMap: Record<string, 'none' | 'view' | 'full'> = { ...INITIAL_PERMISSIONS };
+        (perms || []).forEach((p: any) => {
+          permMap[p.module_key] = convertFromSupabase(p);
+        });
+        setUserPermissions(permMap);
+      }
+    } catch (error) {
+      console.error('Error loading permissions:', error);
+      // Fallback to localStorage
+      const storedPerms = localStorage.getItem(`wms_user_permissions_${msnv}`);
+      if (storedPerms) {
+        try {
+          setUserPermissions(JSON.parse(storedPerms));
+        } catch (e) {
+          setUserPermissions({ ...INITIAL_PERMISSIONS });
+        }
+      } else {
         setUserPermissions({ ...INITIAL_PERMISSIONS });
       }
-    } else {
-      setUserPermissions({ ...INITIAL_PERMISSIONS });
     }
   };
 
-  const handleUserSelect = (msnv: string) => {
+  const handleUserSelect = async (msnv: string) => {
     setSelectedUserMsnv(msnv);
-    loadUserPermissions(msnv);
+    await loadUserPermissions(msnv);
   };
 
   const handleSetPermission = (permKey: string, level: 'none' | 'view' | 'full') => {
@@ -113,11 +209,41 @@ export function Roles() {
     if (!selectedUserMsnv) return;
     setIsSaving(true);
     try {
-      localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
+      if (useFallback) {
+        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
+      } else {
+        // Delete old permissions
+        const { error: deleteError } = await supabase
+          .from('user_permissions')
+          .delete()
+          .eq('msnv', selectedUserMsnv);
+        
+        if (deleteError) throw deleteError;
+        
+        // Insert new permissions
+        const permInserts = Object.entries(userPermissions).map(([module_key, level]) => ({
+          msnv: selectedUserMsnv,
+          module_key,
+          ...convertToSupabase(level)
+        }));
+        
+        const { error: insertError } = await supabase
+          .from('user_permissions')
+          .insert(permInserts);
+        
+        if (insertError) throw insertError;
+        
+        // Also save to localStorage as backup
+        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
+      }
+      
       const selectedUser = userList.find(u => u.msnv === selectedUserMsnv);
       toast.success(`Đã lưu cấu hình phân quyền nâng cao cho ${selectedUser?.fullName}`);
     } catch (error) {
-      toast.error('Lưu cấu hình thất bại');
+      console.error('Error saving permissions:', error);
+      // Fallback to localStorage
+      localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
+      toast.warning('Lưu ở chế độ offline');
     } finally {
       setIsSaving(false);
     }
@@ -141,6 +267,7 @@ export function Roles() {
             <Shield className="w-5 h-5 text-indigo-600" /> Ma trận Cấp quyền Hệ thống (3-Tier RBAC)
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">Phân định chi tiết giữa quyền Chỉ xem (Read-only) và quyền Chỉnh sửa (Write) cho từng phân hệ phần mềm.</p>
+          {useFallback && <p className="text-xs text-amber-600 mt-1">Đang sử dụng chế độ offline</p>}
         </div>
         <div className="flex items-center gap-2 self-end md:self-auto">
           <Button variant="outline" size="sm" onClick={loadData} disabled={isLoading || isSaving} className="h-9">

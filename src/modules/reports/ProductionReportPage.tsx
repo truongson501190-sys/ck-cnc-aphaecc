@@ -1,3 +1,4 @@
+
 // ProductionLogPage.tsx - NHẬT KÝ SẢN XUẤT (INPUT/CRUD)
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -14,6 +15,7 @@ import { Plus, Filter, X, ArrowLeft, Upload, Download, Edit, Eye, Trash2, FileSp
 import { toast } from 'sonner';
 import { ProductionForm } from './ProductionForm';
 import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/supabase';
 
 // ======================
 // TYPES
@@ -60,10 +62,68 @@ interface ProductionLog {
 }
 
 const STORAGE_KEY = 'PRODUCTION_LOGS_DATA';
+const hasSupabaseConfig = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // ======================
-// HÀM TIỆN ÍCH
+// HÀM CHUYỂN ĐỔI DỮ LIỆU
 // ======================
+
+const convertLogToDb = (log: ProductionLog) => {
+  return {
+    id: log.id,
+    ngay_thang: log.ngay,
+    may_san_xuat: log.may,
+    du_an: log.maDuAn,
+    khach_hang: log.tenDuAn,
+    ban_ve_so: log.banVeSo,
+    chi_tiet_so: log.ncSo,
+    ten_chi_tiet: log.tenChiTiet,
+    noi_dung_gia_cong: log.noiDung,
+    so_luong_hoan_thanh: log.sanLuong,
+    vat_lieu: log.vatLieu,
+    nguyen_cong_so: log.ncSo,
+    tool_entries: log.toolEntries,
+    ca: log.ca,
+    cp_may: log.chiPhiChayMay,
+    cp_dao_cu: log.chiPhiDao,
+    nguoi_van_hanh: log.nguoiVanHanh,
+    nguoi_kiem_tra: '',
+    tg_tren_ca: '',
+    status: log.status,
+    created_at: log.createdAt,
+  };
+};
+
+const convertDbToLog = (dbItem: any): ProductionLog => {
+  return {
+    id: dbItem.id,
+    ngay: dbItem.ngay_thang,
+    may: dbItem.may_san_xuat,
+    maDuAn: dbItem.du_an,
+    tenDuAn: dbItem.khach_hang,
+    banVeSo: dbItem.ban_ve_so,
+    tenChiTiet: dbItem.ten_chi_tiet,
+    noiDung: dbItem.noi_dung_gia_cong,
+    kichThuoc: '',
+    vatLieu: dbItem.vat_lieu,
+    ncSo: dbItem.nguyen_cong_so,
+    sanLuong: dbItem.so_luong_hoan_thanh,
+    tgBdGa: '',
+    tgKtGa: '',
+    gioGa: 0,
+    tgBdChay: '',
+    tgKtChay: '',
+    gioChay: 0,
+    ca: dbItem.ca,
+    nguoiVanHanh: dbItem.nguoi_van_hanh,
+    chiPhiGa: 0,
+    chiPhiChayMay: dbItem.cp_may,
+    chiPhiDao: dbItem.cp_dao_cu,
+    toolEntries: dbItem.tool_entries || [],
+    status: dbItem.status || 'pending',
+    createdAt: dbItem.created_at,
+  };
+};
 
 const convertTimeToHours = (timeStr: string): number => {
   if (!timeStr) return 0;
@@ -153,26 +213,62 @@ export function ProductionReportPage() {
   const [dateFilterEnd, setDateFilterEnd] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [useFallback, setUseFallback] = useState(!hasSupabaseConfig);
 
   // Load dữ liệu
-  const loadLogs = () => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) {
+  const loadLogs = async () => {
+    if (useFallback) {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) {
+          setLogs([]);
+          return;
+        }
+        const parsed: any[] = JSON.parse(raw);
+        const converted = parsed.map(item => ({
+          ...item,
+          chiPhiGa: item.chiPhiGa ?? item.tienGa ?? 0,
+          chiPhiChayMay: item.chiPhiChayMay ?? item.tienChay ?? 0,
+          chiPhiDao: item.chiPhiDao ?? 0,
+        }));
+        setLogs(converted);
+      } catch (error) {
+        console.error('Error loading logs:', error);
         setLogs([]);
-        return;
       }
-      const parsed: any[] = JSON.parse(raw);
-      const converted = parsed.map(item => ({
-        ...item,
-        chiPhiGa: item.chiPhiGa ?? item.tienGa ?? 0,
-        chiPhiChayMay: item.chiPhiChayMay ?? item.tienChay ?? 0,
-        chiPhiDao: item.chiPhiDao ?? 0,
-      }));
-      setLogs(converted);
-    } catch (error) {
-      console.error('Error loading logs:', error);
-      setLogs([]);
+    } else {
+      try {
+        const { data, error } = await supabase
+          .from('production_reports')
+          .select('*')
+          .order('ngay_thang', { ascending: false });
+        
+        if (error) throw error;
+        
+        const converted = (data || []).map(convertDbToLog);
+        setLogs(converted);
+      } catch (error) {
+        console.error('Error loading from Supabase, falling back:', error);
+        setUseFallback(true);
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) {
+            setLogs([]);
+            return;
+          }
+          const parsed: any[] = JSON.parse(raw);
+          const converted = parsed.map(item => ({
+            ...item,
+            chiPhiGa: item.chiPhiGa ?? item.tienGa ?? 0,
+            chiPhiChayMay: item.chiPhiChayMay ?? item.tienChay ?? 0,
+            chiPhiDao: item.chiPhiDao ?? 0,
+          }));
+          setLogs(converted);
+        } catch (fallbackError) {
+          console.error('Error loading fallback logs:', fallbackError);
+          setLogs([]);
+        }
+      }
     }
   };
 
@@ -181,7 +277,7 @@ export function ProductionReportPage() {
     const onSynced = () => loadLogs();
     window.addEventListener('app-data-synced', onSynced);
     return () => window.removeEventListener('app-data-synced', onSynced);
-  }, []);
+  }, [useFallback]);
 
   const persistLogs = (updatedLogs: ProductionLog[]) => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedLogs));
@@ -190,35 +286,106 @@ export function ProductionReportPage() {
   };
 
   // CRUD Operations
-  const handleAddLog = (logData: any) => {
+  const handleAddLog = async (logData: any) => {
     const newLog: ProductionLog = {
       ...logData,
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
     };
-    persistLogs([...logs, newLog]);
-    setIsAddDialogOpen(false);
-    setFormKey((k) => k + 1);
-    toast.success('Thêm nhật ký thành công');
+    
+    if (useFallback) {
+      persistLogs([...logs, newLog]);
+      setIsAddDialogOpen(false);
+      setFormKey((k) => k + 1);
+      toast.success('Thêm nhật ký thành công');
+    } else {
+      try {
+        const dbItem = convertLogToDb(newLog);
+        const { error } = await supabase
+          .from('production_reports')
+          .insert(dbItem);
+        
+        if (error) throw error;
+        
+        persistLogs([...logs, newLog]);
+        setIsAddDialogOpen(false);
+        setFormKey((k) => k + 1);
+        toast.success('Thêm nhật ký thành công');
+      } catch (error) {
+        console.error('Error adding to Supabase:', error);
+        setUseFallback(true);
+        persistLogs([...logs, newLog]);
+        setIsAddDialogOpen(false);
+        setFormKey((k) => k + 1);
+        toast.success('Thêm nhật ký thành công (chế độ offline)');
+      }
+    }
   };
 
-  const handleEditLog = () => {
-    // The ProductionForm already handles the update via localStorage
-    setIsEditDialogOpen(false);
-    setSelectedLog(null);
-    loadLogs();
-    toast.success('Cập nhật nhật ký thành công');
+  const handleEditLog = async () => {
+    if (!selectedLog) return;
+    
+    if (useFallback) {
+      persistLogs(logs.map(l => l.id === selectedLog.id ? selectedLog : l));
+      setIsEditDialogOpen(false);
+      setSelectedLog(null);
+      loadLogs();
+      toast.success('Cập nhật nhật ký thành công');
+    } else {
+      try {
+        const dbItem = convertLogToDb(selectedLog);
+        const { error } = await supabase
+          .from('production_reports')
+          .update(dbItem)
+          .eq('id', selectedLog.id);
+        
+        if (error) throw error;
+        
+        persistLogs(logs.map(l => l.id === selectedLog.id ? selectedLog : l));
+        setIsEditDialogOpen(false);
+        setSelectedLog(null);
+        loadLogs();
+        toast.success('Cập nhật nhật ký thành công');
+      } catch (error) {
+        console.error('Error updating to Supabase:', error);
+        setUseFallback(true);
+        persistLogs(logs.map(l => l.id === selectedLog.id ? selectedLog : l));
+        setIsEditDialogOpen(false);
+        setSelectedLog(null);
+        loadLogs();
+        toast.success('Cập nhật nhật ký thành công (chế độ offline)');
+      }
+    }
   };
 
-  const handleDeleteLog = (id: string) => {
+  const handleDeleteLog = async (id: string) => {
     const log = logs.find(l => l.id === id);
     if (log && log.status === 'approved' && !isAdmin) {
       toast.error('Không có quyền xóa nhật ký đã duyệt');
       return;
     }
     if (confirm('Bạn có chắc chắn muốn xóa nhật ký này?')) {
-      persistLogs(logs.filter(l => l.id !== id));
-      toast.success('Xóa nhật ký thành công');
+      if (useFallback) {
+        persistLogs(logs.filter(l => l.id !== id));
+        toast.success('Xóa nhật ký thành công');
+      } else {
+        try {
+          const { error } = await supabase
+            .from('production_reports')
+            .delete()
+            .eq('id', id);
+          
+          if (error) throw error;
+          
+          persistLogs(logs.filter(l => l.id !== id));
+          toast.success('Xóa nhật ký thành công');
+        } catch (error) {
+          console.error('Error deleting from Supabase:', error);
+          setUseFallback(true);
+          persistLogs(logs.filter(l => l.id !== id));
+          toast.success('Xóa nhật ký thành công (chế độ offline)');
+        }
+      }
     }
   };
 
@@ -237,7 +404,7 @@ const handleImportExcel = (
 
   const reader = new FileReader();
 
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     try {
       const data = e.target?.result;
 
@@ -482,10 +649,21 @@ const handleImportExcel = (
         return;
       }
 
-      persistLogs([
-        ...logs,
-        ...newLogs,
-      ]);
+      if (useFallback) {
+        persistLogs([...logs, ...newLogs]);
+      } else {
+        const dbItems = newLogs.map(convertLogToDb);
+        const { error } = await supabase
+          .from('production_reports')
+          .insert(dbItems);
+        
+        if (error) {
+          console.error('Error importing to Supabase:', error);
+          setUseFallback(true);
+        }
+        
+        persistLogs([...logs, ...newLogs]);
+      }
 
       toast.success(
         `Import thành công ${newLogs.length} dòng`
@@ -622,7 +800,7 @@ const handleImportExcel = (
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Nhật ký Sản Xuất</h1>
-            <p className="text-gray-600">Nơi nhập, quản lý và chỉnh sửa dữ liệu gốc</p>
+            <p className="text-gray-600">Nơi nhập, quản lý và chỉnh sửa dữ liệu gốc {useFallback && '(chế độ offline)'}</p>
           </div>
         </div>
 
@@ -640,12 +818,7 @@ const handleImportExcel = (
                 <DialogHeader><DialogTitle>Thêm nhật ký sản xuất mới</DialogTitle></DialogHeader>
                 <ProductionForm 
                   key={formKey} 
-                  onSubmit={() => {
-                    setFormKey(k => k + 1);
-                    setIsAddDialogOpen(false);
-                    loadLogs();
-                    toast.success('Đã thêm nhật ký sản xuất!');
-                  }} 
+                  onSubmit={handleAddLog} 
                   onCancel={() => setIsAddDialogOpen(false)} 
                 />
               </DialogContent>
