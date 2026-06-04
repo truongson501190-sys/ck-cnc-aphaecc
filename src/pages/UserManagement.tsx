@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Search, UserPlus, Trash2, UserCheck, RefreshCw, Key, Edit, X } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/supabase';
 
 const POSITIONS = [
   'Quản lý xưởng', 'Tổ trưởng', 'Tổ phó', 'Nhân viên QC', 
@@ -16,6 +16,13 @@ const POSITIONS = [
 ];
 
 const DEPARTMENTS = ['Tổ CNC', 'Tổ Cơ Khí', 'Quản lý Chung'];
+
+const ALL_PERMISSIONS_KEYS = [
+  'nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich',
+  'ke_hoach_san_xuat', 'nhat_ky_gia_cong', 'nhat_ky_qc', 'nhat_ky_bao_tri', 'theo_doi_tien_do',
+  'dashboard_tong_hop', 'bao_cao_kho', 'bao_cao_gia_cong', 'bao_cao_qc', 'bao_cao_bao_tri', 'hieu_suat_may', 'cho_duyet',
+  'chung_loai', 'kho', 'may_moc', 'du_an', 'quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong'
+];
 
 interface UserRecord {
   msnv: string;
@@ -26,17 +33,37 @@ interface UserRecord {
   status: 'active' | 'inactive';
 }
 
-const ALL_PERMISSIONS_KEYS = [
-  'nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich',
-  'ke_hoach_san_xuat', 'nhat_ky_gia_cong', 'nhat_ky_qc', 'nhat_ky_bao_tri', 'theo_doi_tien_do',
-  'dashboard_tong_hop', 'bao_cao_kho', 'bao_cao_gia_cong', 'bao_cao_qc', 'bao_cao_bao_tri', 'hieu_suat_may', 'cho_duyet',
-  'chung_loai', 'kho', 'may_moc', 'du_an', 'quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong'
-];
+// Helper function to load users from localStorage
+const loadUsersFromLocalStorage = (): UserRecord[] => {
+  try {
+    const stored = localStorage.getItem('wms_users');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+    // Default admin user
+    return [{
+      msnv: '1118',
+      fullName: 'Nguyễn Trường Sơn',
+      department: 'Quản lý Chung',
+      position: 'Quản lý xưởng',
+      status: 'active'
+    }];
+  } catch (e) {
+    console.error('Error loading from localStorage:', e);
+    return [];
+  }
+};
+
+// Helper function to save users to localStorage
+const saveUsersToLocalStorage = (users: UserRecord[]) => {
+  localStorage.setItem('wms_users', JSON.stringify(users));
+};
 
 export function UserManagement() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
   
   // Form State
   const [msnv, setMsnv] = useState('');
@@ -51,127 +78,241 @@ export function UserManagement() {
     loadUsers();
   }, []);
 
-  const loadUsers = () => {
+  const loadUsers = async () => {
     setIsLoading(true);
     try {
-      const stored = localStorage.getItem('wms_users');
-      if (stored) {
-        setUsers(JSON.parse(stored));
-      } else {
-        const defaultAdmin: UserRecord[] = [{
-          msnv: '1118',
-          fullName: 'Administrator',
-          department: 'Quản lý Chung',
-          position: 'Quản lý xưởng',
-          password: '1118',
-          status: 'active'
-        }];
-        localStorage.setItem('wms_users', JSON.stringify(defaultAdmin));
-        setUsers(defaultAdmin);
+      if (!useFallback) {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .order('msnv', { ascending: true });
         
-        const adminPerms: Record<string, string> = {};
-        ALL_PERMISSIONS_KEYS.forEach(key => adminPerms[key] = 'full');
-        localStorage.setItem('wms_user_permissions_1118', JSON.stringify(adminPerms));
+        if (error) {
+          console.warn('Supabase error, falling back to localStorage:', error);
+          setUseFallback(true);
+          const localUsers = loadUsersFromLocalStorage();
+          setUsers(localUsers);
+          return;
+        }
+        
+        const mappedUsers: UserRecord[] = (data || []).map((u: any) => ({
+          msnv: u.msnv,
+          fullName: u.full_name,
+          department: u.department,
+          position: u.position,
+          status: u.status === 'active' ? 'active' : 'inactive'
+        }));
+        
+        setUsers(mappedUsers);
+      } else {
+        const localUsers = loadUsersFromLocalStorage();
+        setUsers(localUsers);
       }
     } catch (e) {
-      toast.error('Lỗi tải danh sách người dùng.');
+      console.error('Error loading users, falling back to localStorage:', e);
+      setUseFallback(true);
+      const localUsers = loadUsersFromLocalStorage();
+      setUsers(localUsers);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!msnv || !fullName || !department || !position) {
       toast.error('Vui lòng điền đầy đủ thông tin nhân viên.');
       return;
     }
 
-    const trimmedMsnv = msnv.trim();
+    const trimmedMsnv = msnv.trim().toUpperCase();
 
     if (isEditing) {
-      // Update user in wms_users
-      const updatedUsers = users.map(u => {
-        if (u.msnv === trimmedMsnv) {
-          return { 
-            ...u, 
-            fullName: fullName.trim(), 
-            department, 
-            position,
-            status,
-            password: password.trim() !== '' ? password.trim() : u.password 
-          };
-        }
-        return u;
-      });
-      localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
-      setUsers(updatedUsers);
-      
-      // Update userRecords as well
-      const userRecordsStr = localStorage.getItem('userRecords');
-      if (userRecordsStr) {
-        const userRecords = JSON.parse(userRecordsStr);
-        const updatedUserRecords = userRecords.map((r: any) => {
-          if (r.msnv === trimmedMsnv) {
-            return {
-              ...r,
-              fullName: fullName.trim(),
-              department,
+      if (useFallback) {
+        // Update localStorage
+        const updatedUsers = users.map(u => {
+          if (u.msnv === trimmedMsnv) {
+            return { 
+              ...u, 
+              fullName: fullName.trim(), 
+              department, 
               position,
-              status: status === 'active',
-              passwordHash: password.trim() !== '' ? password.trim() : r.passwordHash
+              status
             };
           }
-          return r;
+          return u;
         });
-        localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+        saveUsersToLocalStorage(updatedUsers);
+        setUsers(updatedUsers);
+        toast.success(`Đã cập nhật thông tin nhân viên ${fullName.trim()} thành công.`);
+        resetForm();
+      } else {
+        // Update user on Supabase
+        try {
+          setIsLoading(true);
+          
+          // Update users table
+          const { error: userError } = await supabase
+            .from('users')
+            .update({
+              full_name: fullName.trim(),
+              department,
+              position,
+              status,
+              updated_at: new Date().toISOString()
+            })
+            .eq('msnv', trimmedMsnv);
+          
+          if (userError) throw userError;
+          
+          // Update user_records table if password provided
+          if (password.trim() !== '') {
+            const { error: recordError } = await supabase
+              .from('user_records')
+              .update({
+                full_name: fullName.trim(),
+                department,
+                position,
+                status: status === 'active',
+                password_hash: password.trim(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('msnv', trimmedMsnv);
+            
+            if (recordError) throw recordError;
+          } else {
+            // Update user_records without password
+            const { error: recordError } = await supabase
+              .from('user_records')
+              .update({
+                full_name: fullName.trim(),
+                department,
+                position,
+                status: status === 'active',
+                updated_at: new Date().toISOString()
+              })
+              .eq('msnv', trimmedMsnv);
+            
+            if (recordError) throw recordError;
+          }
+          
+          toast.success(`Đã cập nhật thông tin nhân viên ${fullName.trim()} thành công.`);
+          resetForm();
+          await loadUsers();
+          
+        } catch (error) {
+          console.error('Error updating user:', error);
+          toast.error('Lỗi cập nhật thông tin nhân viên.');
+        } finally {
+          setIsLoading(false);
+        }
       }
       
-      toast.success(`Đã cập nhật thông tin nhân viên ${fullName.trim()} thành công.`);
-      resetForm();
     } else {
       // Add new user
-      if (users.some(u => u.msnv.toLowerCase() === trimmedMsnv.toLowerCase())) {
-        toast.error('Mã số nhân viên (MSNV) này đã tồn tại trên hệ thống!');
-        return;
+      if (useFallback) {
+        // Add to localStorage
+        if (users.some(u => u.msnv.toLowerCase() === trimmedMsnv.toLowerCase())) {
+          toast.error('Mã số nhân viên (MSNV) này đã tồn tại trên hệ thống!');
+          return;
+        }
+        
+        const newUser: UserRecord = {
+          msnv: trimmedMsnv,
+          fullName: fullName.trim(),
+          department,
+          position,
+          status: 'active'
+        };
+        
+        const updatedUsers = [...users, newUser];
+        saveUsersToLocalStorage(updatedUsers);
+        setUsers(updatedUsers);
+        toast.success(`Đã thêm thành công nhân viên ${newUser.fullName} vào hệ thống.`);
+        resetForm();
+      } else {
+        // Add to Supabase
+        try {
+          setIsLoading(true);
+          
+          // Check if user already exists
+          const { data: existing, error: checkError } = await supabase
+            .from('users')
+            .select('msnv')
+            .eq('msnv', trimmedMsnv)
+            .maybeSingle();
+          
+          if (checkError) throw checkError;
+          if (existing) {
+            toast.error('Mã số nhân viên (MSNV) này đã tồn tại trên hệ thống!');
+            setIsLoading(false);
+            return;
+          }
+          
+          // Insert into users table
+          const { error: insertUserError } = await supabase
+            .from('users')
+            .insert({
+              msnv: trimmedMsnv,
+              full_name: fullName.trim(),
+              department,
+              position,
+              role: 'user',
+              role_group: position,
+              status: 'active',
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            });
+          
+          if (insertUserError) throw insertUserError;
+          
+          // Insert into user_records table
+          const { error: insertRecordError } = await supabase
+            .from('user_records')
+            .insert({
+              msnv: trimmedMsnv,
+              full_name: fullName.trim(),
+              department,
+              position,
+              role: 'user',
+              status: true,
+              password_hash: password.trim() !== '' ? password.trim() : trimmedMsnv,
+              created_at: new Date().toISOString()
+            });
+          
+          if (insertRecordError) throw insertRecordError;
+          
+          // Initialize permissions (optional, can be added later)
+          const permissionInserts = ALL_PERMISSIONS_KEYS.map(key => ({
+            msnv: trimmedMsnv,
+            module_key: key,
+            can_view: true,
+            can_add: false,
+            can_edit: false,
+            can_delete: false,
+            can_approve: false,
+            can_export: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+          
+          const { error: permError } = await supabase
+            .from('user_permissions')
+            .insert(permissionInserts);
+          
+          if (permError) console.warn('Could not initialize permissions:', permError);
+          
+          toast.success(`Đã thêm thành công nhân viên ${fullName.trim()} vào hệ thống.`);
+          resetForm();
+          await loadUsers();
+          
+        } catch (error) {
+          console.error('Error adding user:', error);
+          toast.error('Lỗi thêm nhân viên mới.');
+        } finally {
+          setIsLoading(false);
+        }
       }
-
-      const newUser: UserRecord = {
-        msnv: trimmedMsnv,
-        fullName: fullName.trim(),
-        department,
-        position,
-        password: password.trim() !== '' ? password.trim() : trimmedMsnv,
-        status: 'active'
-      };
-
-      const updatedUsers = [...users, newUser];
-      localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
-      
-      // Add to userRecords as well
-      const userRecordsStr = localStorage.getItem('userRecords');
-      const userRecords = userRecordsStr ? JSON.parse(userRecordsStr) : [];
-      userRecords.push({
-        id: trimmedMsnv,
-        msnv: trimmedMsnv,
-        fullName: fullName.trim(),
-        department,
-        position,
-        role: 'user',
-        status: true,
-        passwordHash: password.trim() !== '' ? password.trim() : trimmedMsnv,
-        createdAt: new Date().toISOString()
-      });
-      localStorage.setItem('userRecords', JSON.stringify(userRecords));
-      
-      // Initialize permissions
-      const initialPerms: Record<string, string> = {};
-      ALL_PERMISSIONS_KEYS.forEach(key => initialPerms[key] = 'none');
-      localStorage.setItem(`wms_user_permissions_${trimmedMsnv}`, JSON.stringify(initialPerms));
-
-      setUsers(updatedUsers);
-      toast.success(`Đã thêm thành công nhân viên ${newUser.fullName} vào hệ thống.`);
-      resetForm();
     }
   };
 
@@ -185,54 +326,87 @@ export function UserManagement() {
     setPassword('');
   };
 
-  const handleResetPassword = (targetMsnv: string, name: string) => {
+  const handleResetPassword = async (targetMsnv: string, name: string) => {
     if (confirm(`Bạn có chắc muốn đặt lại mật khẩu cho nhân viên [${name}] về mặc định (Mật khẩu mặc định trùng với MSNV: ${targetMsnv})?`)) {
-      const updatedUsers = users.map(u => 
-        u.msnv === targetMsnv ? { ...u, password: targetMsnv } : u
-      );
-      localStorage.setItem('wms_users', JSON.stringify(updatedUsers));
-      setUsers(updatedUsers);
-      
-      // Also update userRecords
-      const userRecordsStr = localStorage.getItem('userRecords');
-      if (userRecordsStr) {
-        const userRecords = JSON.parse(userRecordsStr);
-        const updatedUserRecords = userRecords.map((r: any) => {
-          if (r.msnv === targetMsnv) {
-            return { ...r, passwordHash: targetMsnv };
-          }
-          return r;
-        });
-        localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+      if (useFallback) {
+        toast.success('Đã reset mật khẩu (localStorage mode).');
+      } else {
+        try {
+          setIsLoading(true);
+          const { error } = await supabase
+            .from('user_records')
+            .update({
+              password_hash: targetMsnv,
+              updated_at: new Date().toISOString()
+            })
+            .eq('msnv', targetMsnv);
+          
+          if (error) throw error;
+          
+          toast.success(`Đã reset mật khẩu của nhân viên ${name} về mặc định (${targetMsnv}) thành công!`);
+          
+        } catch (error) {
+          console.error('Error resetting password:', error);
+          toast.error('Lỗi đặt lại mật khẩu.');
+        } finally {
+          setIsLoading(false);
+        }
       }
-      
-      toast.success(`Đã reset mật khẩu của nhân viên ${name} về mặc định (${targetMsnv}) thành công!`);
     }
   };
 
-  const handleDeleteUser = (targetMsnv: string) => {
+  const handleDeleteUser = async (targetMsnv: string) => {
     if (targetMsnv === '1118') {
       toast.error('Không thể xóa tài khoản Quản trị viên hệ thống (1118).');
       return;
     }
     
     if (confirm(`Bạn có chắc chắn muốn xóa hồ sơ và toàn bộ dữ liệu phân quyền của nhân viên có MSNV: ${targetMsnv}?`)) {
-      // Remove from wms_users
-      const updated = users.filter(u => u.msnv !== targetMsnv);
-      localStorage.setItem('wms_users', JSON.stringify(updated));
-      
-      // Remove from userRecords
-      const userRecordsStr = localStorage.getItem('userRecords');
-      if (userRecordsStr) {
-        const userRecords = JSON.parse(userRecordsStr);
-        const updatedUserRecords = userRecords.filter((r: any) => r.msnv !== targetMsnv);
-        localStorage.setItem('userRecords', JSON.stringify(updatedUserRecords));
+      if (useFallback) {
+        const updatedUsers = users.filter(u => u.msnv !== targetMsnv);
+        saveUsersToLocalStorage(updatedUsers);
+        setUsers(updatedUsers);
+        if (isEditing && msnv === targetMsnv) resetForm();
+        toast.success('Đã xóa tài khoản và thu hồi quyền truy cập thành công.');
+      } else {
+        try {
+          setIsLoading(true);
+          
+          // Delete from user_permissions first
+          const { error: permError } = await supabase
+            .from('user_permissions')
+            .delete()
+            .eq('msnv', targetMsnv);
+          
+          if (permError) console.warn('Could not delete permissions:', permError);
+          
+          // Delete from user_records
+          const { error: recordError } = await supabase
+            .from('user_records')
+            .delete()
+            .eq('msnv', targetMsnv);
+          
+          if (recordError) throw recordError;
+          
+          // Delete from users
+          const { error: userError } = await supabase
+            .from('users')
+            .delete()
+            .eq('msnv', targetMsnv);
+          
+          if (userError) throw userError;
+          
+          toast.success('Đã xóa tài khoản và thu hồi quyền truy cập thành công.');
+          if (isEditing && msnv === targetMsnv) resetForm();
+          await loadUsers();
+          
+        } catch (error) {
+          console.error('Error deleting user:', error);
+          toast.error('Lỗi xóa tài khoản nhân viên.');
+        } finally {
+          setIsLoading(false);
+        }
       }
-      
-      localStorage.removeItem(`wms_user_permissions_${targetMsnv}`);
-      setUsers(updated);
-      toast.success('Đã xóa tài khoản và thu hồi quyền truy cập thành công.');
-      if (isEditing && msnv === targetMsnv) resetForm();
     }
   };
 
@@ -259,6 +433,9 @@ export function UserManagement() {
             <UserCheck className="w-5 h-5 text-indigo-600" /> Quản lý Hồ sơ Nhân sự hệ thống WMS
           </h1>
           <p className="text-xs text-slate-500">Thiết lập nhân viên xưởng, điều chỉnh chức vụ, đổi mật khẩu và quản lý quyền hạn.</p>
+          {useFallback && (
+            <p className="text-xs text-amber-600 mt-1">Đang sử dụng chế độ offline (localStorage)</p>
+          )}
         </div>
         <Button variant="outline" size="sm" onClick={loadUsers} disabled={isLoading} className="h-9">
           <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} /> Làm mới dữ liệu
@@ -354,8 +531,8 @@ export function UserManagement() {
                   </Select>
                 </div>
               )}
-              <Button type="submit" className={`w-full h-9 text-white font-semibold shadow-sm text-sm mt-2 ${isEditing ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`}>
-                {isEditing ? 'Xác nhận cập nhật' : 'Kích hoạt & Cấp tài khoản'}
+              <Button type="submit" className={`w-full h-9 text-white font-semibold shadow-sm text-sm mt-2 ${isEditing ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`} disabled={isLoading}>
+                {isLoading ? 'Đang xử lý...' : (isEditing ? 'Xác nhận cập nhật' : 'Kích hoạt & Cấp tài khoản')}
               </Button>
             </form>
           </CardContent>
@@ -409,6 +586,7 @@ export function UserManagement() {
                             onClick={() => handleEditClick(u)}
                             className="h-7 w-7 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md"
                             title="Sửa thông tin nhân sự"
+                            disabled={isLoading}
                           >
                             <Edit className="w-3.5 h-3.5" />
                           </Button>
@@ -417,7 +595,7 @@ export function UserManagement() {
                             variant="ghost" 
                             size="icon" 
                             onClick={() => handleResetPassword(u.msnv, u.fullName)}
-                            disabled={u.msnv === '1118'}
+                            disabled={u.msnv === '1118' || isLoading}
                             className="h-7 w-7 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md"
                             title="Đặt lại mật khẩu gốc"
                           >
@@ -428,7 +606,7 @@ export function UserManagement() {
                             variant="ghost" 
                             size="icon" 
                             onClick={() => handleDeleteUser(u.msnv)} 
-                            disabled={u.msnv === '1118'} 
+                            disabled={u.msnv === '1118' || isLoading} 
                             className="h-7 w-7 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md"
                             title="Xóa nhân sự"
                           >

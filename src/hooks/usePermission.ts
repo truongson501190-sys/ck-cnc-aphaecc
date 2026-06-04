@@ -12,60 +12,38 @@ const PERMISSION_KEYS = [
 ];
 
 export function usePermission() {
-  const { user } = useAuth();
-
-  const getPermissions = () => {
-    if (!user?.msnv) {
-      const defaultPerms: Record<string, PermissionLevel> = {};
-      PERMISSION_KEYS.forEach(key => defaultPerms[key] = 'none');
-      return defaultPerms;
-    }
-    const storedPerms = localStorage.getItem(`wms_user_permissions_${user.msnv}`);
-    if (storedPerms) {
-      try {
-        const parsed = JSON.parse(storedPerms);
-        // Convert old boolean format to new string format
-        const converted: Record<string, PermissionLevel> = {};
-        PERMISSION_KEYS.forEach(key => {
-          const val = parsed[key];
-          if (typeof val === 'boolean') {
-            converted[key] = val ? 'full' : 'none';
-          } else if (typeof val === 'string' && ['none', 'view', 'full'].includes(val)) {
-            converted[key] = val as PermissionLevel;
-          } else {
-            converted[key] = 'none';
-          }
-        });
-        return converted;
-      } catch (e) {
-        // If parse fails, return default none for all keys
-        const defaultPerms: Record<string, PermissionLevel> = {};
-        PERMISSION_KEYS.forEach(key => defaultPerms[key] = 'none');
-        return defaultPerms;
-      }
-    }
-    // If no permissions stored, return default none for all keys
-    const defaultPerms: Record<string, PermissionLevel> = {};
-    PERMISSION_KEYS.forEach(key => defaultPerms[key] = 'none');
-    return defaultPerms;
-  };
+  const { hasPermission: hasAuthPermission, isAdmin } = useAuth();
 
   const canView = (module: string): boolean => {
-    const perm = getPermissions()[module];
-    return perm === 'view' || perm === 'full';
+    if (isAdmin) return true;
+    return hasAuthPermission(module, 'view');
   };
 
   const canEdit = (module: string): boolean => {
-    const perm = getPermissions()[module];
-    return perm === 'full';
+    if (isAdmin) return true;
+    return hasAuthPermission(module, 'edit');
   };
 
   const hasPermission = (module: string, level: PermissionLevel): boolean => {
-    const perm = getPermissions()[module];
-    if (level === 'none') return perm === 'none';
-    if (level === 'view') return perm === 'view' || perm === 'full';
-    if (level === 'full') return perm === 'full';
+    if (isAdmin) return true;
+    if (level === 'none') return !hasAuthPermission(module, 'view');
+    if (level === 'view') return canView(module);
+    if (level === 'full') return canEdit(module);
     return false;
+  };
+
+  const getPermissions = () => {
+    const perms: Record<string, PermissionLevel> = {};
+    PERMISSION_KEYS.forEach(key => {
+      if (canEdit(key)) {
+        perms[key] = 'full';
+      } else if (canView(key)) {
+        perms[key] = 'view';
+      } else {
+        perms[key] = 'none';
+      }
+    });
+    return perms;
   };
 
   return { canView, canEdit, hasPermission, getPermissions };
