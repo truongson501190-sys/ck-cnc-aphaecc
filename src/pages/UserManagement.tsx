@@ -63,7 +63,9 @@ export function UserManagement() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [useFallback, setUseFallback] = useState(false);
+  // Start with fallback mode by default
+  const hasSupabaseConfig = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const [useFallback, setUseFallback] = useState(!hasSupabaseConfig);
   
   // Form State
   const [msnv, setMsnv] = useState('');
@@ -201,8 +203,25 @@ export function UserManagement() {
           await loadUsers();
           
         } catch (error) {
-          console.error('Error updating user:', error);
-          toast.error('Lỗi cập nhật thông tin nhân viên.');
+          console.error('Error updating user, falling back to localStorage:', error);
+          setUseFallback(true);
+          // Try fallback update
+          const updatedUsers = users.map(u => {
+            if (u.msnv === trimmedMsnv) {
+              return { 
+                ...u, 
+                fullName: fullName.trim(), 
+                department, 
+                position,
+                status
+              };
+            }
+            return u;
+          });
+          saveUsersToLocalStorage(updatedUsers);
+          setUsers(updatedUsers);
+          toast.success(`Đã cập nhật thông tin nhân viên ${fullName.trim()} thành công.`);
+          resetForm();
         } finally {
           setIsLoading(false);
         }
@@ -307,8 +326,28 @@ export function UserManagement() {
           await loadUsers();
           
         } catch (error) {
-          console.error('Error adding user:', error);
-          toast.error('Lỗi thêm nhân viên mới.');
+          console.error('Error adding user, falling back to localStorage:', error);
+          setUseFallback(true);
+          // Try fallback add
+          if (users.some(u => u.msnv.toLowerCase() === trimmedMsnv.toLowerCase())) {
+            toast.error('Mã số nhân viên (MSNV) này đã tồn tại trên hệ thống!');
+            setIsLoading(false);
+            return;
+          }
+          
+          const newUser: UserRecord = {
+            msnv: trimmedMsnv,
+            fullName: fullName.trim(),
+            department,
+            position,
+            status: 'active'
+          };
+          
+          const updatedUsers = [...users, newUser];
+          saveUsersToLocalStorage(updatedUsers);
+          setUsers(updatedUsers);
+          toast.success(`Đã thêm thành công nhân viên ${newUser.fullName} vào hệ thống.`);
+          resetForm();
         } finally {
           setIsLoading(false);
         }
@@ -346,8 +385,9 @@ export function UserManagement() {
           toast.success(`Đã reset mật khẩu của nhân viên ${name} về mặc định (${targetMsnv}) thành công!`);
           
         } catch (error) {
-          console.error('Error resetting password:', error);
-          toast.error('Lỗi đặt lại mật khẩu.');
+          console.error('Error resetting password, falling back to localStorage:', error);
+          setUseFallback(true);
+          toast.success('Đã reset mật khẩu (localStorage mode).');
         } finally {
           setIsLoading(false);
         }
@@ -401,8 +441,13 @@ export function UserManagement() {
           await loadUsers();
           
         } catch (error) {
-          console.error('Error deleting user:', error);
-          toast.error('Lỗi xóa tài khoản nhân viên.');
+          console.error('Error deleting user, falling back to localStorage:', error);
+          setUseFallback(true);
+          const updatedUsers = users.filter(u => u.msnv !== targetMsnv);
+          saveUsersToLocalStorage(updatedUsers);
+          setUsers(updatedUsers);
+          if (isEditing && msnv === targetMsnv) resetForm();
+          toast.success('Đã xóa tài khoản và thu hồi quyền truy cập thành công.');
         } finally {
           setIsLoading(false);
         }

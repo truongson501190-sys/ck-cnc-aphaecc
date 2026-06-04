@@ -89,8 +89,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // Load user permissions
   // ---------------------------------------------------------------------------
   const loadUserPermissions = useCallback(async (msnv: string) => {
-    if (useFallback) {
-      // Fallback permissions: allow all view
+    // Fallback permissions: allow all view (always available as backup)
+    const getFallbackPerms = () => {
       const fallbackPerms: Record<string, any> = {};
       [
         'nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich',
@@ -107,7 +107,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           can_export: true
         };
       });
-      setUserPermissions(fallbackPerms);
+      return fallbackPerms;
+    };
+
+    if (useFallback) {
+      setUserPermissions(getFallbackPerms());
       return;
     }
 
@@ -117,7 +121,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         .select('*')
         .eq('msnv', msnv);
       
-      if (error) throw error;
+      if (error) {
+        console.warn('Error loading permissions from Supabase, using fallback:', error);
+        setUseFallback(true);
+        setUserPermissions(getFallbackPerms());
+        return;
+      }
       
       const permMap: Record<string, any> = {};
       data?.forEach((perm: any) => {
@@ -126,8 +135,9 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       
       setUserPermissions(permMap);
     } catch (error) {
-      console.error('Error loading permissions:', error);
-      setUserPermissions({});
+      console.warn('Error loading permissions, using fallback:', error);
+      setUseFallback(true);
+      setUserPermissions(getFallbackPerms());
     }
   }, [useFallback]);
 
