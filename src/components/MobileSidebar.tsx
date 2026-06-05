@@ -9,7 +9,7 @@ import {
   Menu,
   ChevronRight,
 } from 'lucide-react';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ERPNavItem, ERP_NAVIGATION, ERP_ROUTE, isNavItemVisible } from '@/modules/erp/routes';

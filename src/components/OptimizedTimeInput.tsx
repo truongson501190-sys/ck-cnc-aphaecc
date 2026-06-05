@@ -69,12 +69,11 @@ function convertToEntries(
   return intervals
     .filter((x) => x.startTime && x.endTime)
     .map((x) => ({
-      gioBatDau: x.startTime,
-      gioKetThuc: x.endTime,
+      thoiGianBatDau: x.startTime,  // Đổi từ gioBatDau
+      thoiGianKetThuc: x.endTime,   // Đổi từ gioKetThuc
       soGio: calculateHours(x),
     }));
 }
-
 const TimeSection: React.FC<TimeSectionProps> = ({
   title,
   intervals,
@@ -339,6 +338,31 @@ export const OptimizedTimeInput: React.FC<
 
   return (
     <div className="space-y-6">
+
+  {/* THỜI GIAN GÁ PHÔI */}
+      <TimeSection
+        title="Thời gian gá phôi"
+        intervals={setupIntervals}
+        totalHours={setupHours}
+        onAdd={() =>
+          addInterval(setSetupIntervals)
+        }
+        onRemove={(index) =>
+          removeInterval(
+            setSetupIntervals,
+            index
+          )
+        }
+        onUpdate={(index, field, value) =>
+          updateInterval(
+            setSetupIntervals,
+            index,
+            field,
+            value
+          )
+        }
+      />
+
       {/* THỜI GIAN GIA CÔNG */}
       <TimeSection
         title="Thời gian gia công"
@@ -356,30 +380,6 @@ export const OptimizedTimeInput: React.FC<
         onUpdate={(index, field, value) =>
           updateInterval(
             setMachiningIntervals,
-            index,
-            field,
-            value
-          )
-        }
-      />
-
-      {/* THỜI GIAN GÁ PHÔI */}
-      <TimeSection
-        title="Thời gian gá phôi"
-        intervals={setupIntervals}
-        totalHours={setupHours}
-        onAdd={() =>
-          addInterval(setSetupIntervals)
-        }
-        onRemove={(index) =>
-          removeInterval(
-            setSetupIntervals,
-            index
-          )
-        }
-        onUpdate={(index, field, value) =>
-          updateInterval(
-            setSetupIntervals,
             index,
             field,
             value

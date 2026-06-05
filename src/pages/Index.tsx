@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Package, Factory, LayoutDashboard, Layers, Settings, UserCircle } from 'lucide-react';
 import NutQuayLai from '@/components/NutQuayLai';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 import { ERP_ROUTE } from '@/modules/erp/routes';
 

@@ -4,11 +4,13 @@ export interface ToolEntry {
   slSuDung: number;
   hong: number;
   donVi: string;
+  donGia: number;
+  thanhTien: number;
 }
 
 export interface WorkTimeEntry {
-  gioBatDau: string;
-  gioKetThuc: string;
+  thoiGianBatDau: string;
+  thoiGianKetThuc: string;
   soGio: number;
 }
 
@@ -38,4 +40,11 @@ export interface ProductionReport {
   tgGaPhoi?: string;
   status: 'draft' | 'pending' | 'approved' | 'rejected';
   createdAt: string;
+  
+  // Chi phí và thời gian (tính toán)
+  chiPhiGa?: number;
+  chiPhiChayMay?: number;
+  chiPhiDao?: number;
+  gioGa?: number;
+  gioChay?: number;
 }

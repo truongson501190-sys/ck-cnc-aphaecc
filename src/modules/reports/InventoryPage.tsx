@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { getSavedCategories } from '@/lib/utils';
 import { Package, AlertTriangle, ArrowLeft, Trash2, CheckSquare, FileSpreadsheet } from 'lucide-react';
 import { useOnHandByProduct } from '@/shared/hooks/useInventory';

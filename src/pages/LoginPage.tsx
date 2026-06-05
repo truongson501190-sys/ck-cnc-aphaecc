@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { ERP_ROUTE } from '@/modules/erp/routes';
 import { toast } from 'sonner';
 import { Factory, User, Lock, AlertCircle, Eye, EyeOff } from 'lucide-react';

@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { ChevronDown, ChevronRight, ChevronLeft, Menu, LogOut } from 'lucide-react';
-import { ERP_NAVIGATION } from '@/modules/erp/routes';
-import { useAuth } from '@/hooks/useAuth';
+import { ERP_NAVIGATION, ERPNavItem } from '@/modules/erp/routes';
+import { useAuth } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 
-// Định nghĩa kiểu dữ liệu Props nhận từ Layout tổng truyền xuống
 interface SidebarProps {
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
@@ -17,24 +16,95 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   const { user, logout } = useAuth();
   const { canView } = usePermission();
   
-  // State quản lý ID của menu đang mở Accordion nội bộ
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  // State quản lý group đang mở (chỉ mở 1 group tại 1 thời điểm)
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  
+  // State quản lý sub-menu đang mở trong group (chỉ mở 1 sub-menu)
+  const [openSubMenu, setOpenSubMenu] = useState<string | null>(null);
 
-  // Tự động mở menu chứa trang hiện tại khi đường dẫn URL thay đổi
+  // Tự động mở group và sub-menu chứa trang hiện tại
   useEffect(() => {
-    const activeGroup = ERP_NAVIGATION.find((group) =>
-      group.items.some((item) => item.path === location.pathname)
-    );
-    setOpenMenuId(activeGroup && activeGroup.id !== 'main' ? activeGroup.id : null);
+    let foundGroupId: string | null = null;
+    let foundParentId: string | null = null;
+    
+    for (const group of ERP_NAVIGATION) {
+      for (const item of group.items) {
+        if (item.path === location.pathname) {
+          foundGroupId = group.id;
+          break;
+        }
+        if (item.children) {
+          for (const child of item.children) {
+            if (child.path === location.pathname) {
+              foundGroupId = group.id;
+              foundParentId = item.id;
+              break;
+            }
+          }
+        }
+      }
+      if (foundGroupId) break;
+    }
+    
+    if (foundGroupId) {
+      setOpenGroup(foundGroupId);
+    }
+    if (foundParentId) {
+      setOpenSubMenu(foundParentId);
+    }
   }, [location.pathname]);
 
-  const toggleMenu = (menuId: string) => {
-    setOpenMenuId((prev) => (prev === menuId ? null : menuId));
+  // Toggle group - đóng group khác nếu đang mở
+  const toggleGroup = (groupId: string) => {
+    if (openGroup === groupId) {
+      setOpenGroup(null);
+      setOpenSubMenu(null);
+    } else {
+      setOpenGroup(groupId);
+      setOpenSubMenu(null);
+    }
+  };
+
+  // Toggle sub-menu - đóng sub-menu khác nếu đang mở
+  const toggleSubMenu = (menuId: string) => {
+    setOpenSubMenu(prev => (prev === menuId ? null : menuId));
+  };
+
+  // Kiểm tra item có active không
+  const isItemActive = (item: ERPNavItem): boolean => {
+    if (item.path === location.pathname) return true;
+    if (item.children) {
+      return item.children.some(child => child.path === location.pathname);
+    }
+    return false;
+  };
+
+  // Lọc item theo quyền
+  const getVisibleItems = (items: ERPNavItem[]): ERPNavItem[] => {
+    return items.filter(item => {
+      if (user?.role === 'admin') return true;
+      if (item.action === 'logout') return false;
+      if (!item.permissionKey) return true;
+      return canView(item.permissionKey);
+    });
+  };
+
+  // Xử lý click vào menu item
+  const handleItemClick = (item: ERPNavItem) => {
+    if (item.children && item.children.length > 0) {
+      // Nếu có children -> toggle sub-menu
+      toggleSubMenu(item.id);
+    } else if (item.path) {
+      // Nếu có path -> chuyển trang
+      navigate(item.path);
+    } else if (item.action === 'logout') {
+      logout();
+    }
   };
 
   return (
     <>
-      {/* NÚT ĐIỀU KHIỂN ĐÓNG/MỞ - Thiết kế trượt đồng bộ theo mép khung Sidebar */}
+      {/* NÚT ĐIỀU KHIỂN ĐÓNG/MỞ SIDEBAR */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`fixed top-4 z-50 p-2 rounded-lg bg-white border border-slate-200 shadow-sm text-slate-600 hover:text-blue-600 hover:bg-slate-50 transition-all duration-300 ease-in-out ${
@@ -45,13 +115,13 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         {isOpen ? <ChevronLeft className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
       </button>
 
-      {/* KHUNG SIDEBAR CHÍNH - Chuyển sang h-full để khớp trọn vẹn vào khối cha div w-64/w-0 của MainLayout */}
+      {/* SIDEBAR CHÍNH */}
       <div 
         className={`h-full w-64 bg-white flex flex-col select-none transition-transform duration-300 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        {/* CỤM TIÊU ĐỀ & THÔNG TIN USER */}
+        {/* HEADER & USER INFO */}
         <div className="p-4 border-b border-slate-200 shrink-0 space-y-3 pr-12">
           <div>
             <h1 className="text-lg font-bold text-slate-800 truncate">Xưởng CK-CNC</h1>
@@ -64,13 +134,11 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 {(user?.fullName || user?.name || 'U').charAt(0).toUpperCase()}
               </div>
               <div className="flex flex-col min-w-0 flex-1 justify-center">
-                <div className="flex items-center gap-1">
-                  <span className="text-xs font-medium text-slate-800 truncate">
-                    {user?.fullName || user?.name || 'Đang tải...'}
-                  </span>
-                </div>
+                <span className="text-xs font-medium text-slate-800 truncate">
+                  {user?.fullName || user?.name || 'Đang tải...'}
+                </span>
                 <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
-                  <span className="text-blue-600 font-medium">Msnv: {user?.msnv || '---'}</span>
+                  <span className="text-blue-600 font-medium">MSNV: {user?.msnv || '---'}</span>
                   <span className="text-slate-300">|</span>
                   <span className="truncate">{user?.department || 'Tổ CNC'}</span>
                 </div>
@@ -79,61 +147,89 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           )}
         </div>
 
-        {/* DANH SÁCH MENU ĐIỀU HƯỚNG */}
-        <div className="p-3 space-y-2 flex-1 overflow-y-auto custom-scrollbar">
-          {ERP_NAVIGATION.sort((a, b) => {
-            const order = ['main', 'manufacturing', 'warehouse', 'reports', 'masterData', 'system', 'account'];
-            return order.indexOf(a.id) - order.indexOf(b.id);
-          }).map((group) => {
-            const isMainMenu = group.id === 'main';
-            const mainMenuItem = isMainMenu ? group.items[0] : null;
-            const visibleItems = group.items.filter((item) => {
-              if (item.action === 'logout') return false;
-              if (user?.role === 'admin') return true;
-              if (!item.permissionKey) return true;
-              return canView(item.permissionKey);
-            });
-
-            if (visibleItems.length === 0 && !isMainMenu) return null;
-
-            const isGroupActive = isMainMenu 
-              ? location.pathname === '/' || location.pathname === '/dashboard'
-              : visibleItems.some((item) => item.path === location.pathname);
-
-            const isExpanded = !isMainMenu && openMenuId === group.id;
+        {/* MENU NAVIGATION */}
+        <div className="p-3 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
+          {ERP_NAVIGATION.map((group) => {
+            const visibleItems = getVisibleItems(group.items);
+            if (visibleItems.length === 0) return null;
+            
+            const isGroupOpen = openGroup === group.id;
 
             return (
-              <div key={group.id} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+              <div key={group.id} className="border-b border-slate-100 last:border-0 pb-2">
+                {/* GROUP HEADER */}
                 <button
-                  onClick={() => isMainMenu && mainMenuItem?.path ? navigate(mainMenuItem.path) : toggleMenu(group.id)}
-                  className={`w-full flex items-center justify-between px-3 py-2.5 transition-all text-left ${
-                    isMainMenu && isGroupActive ? 'bg-blue-500 text-white' : 
-                    isGroupActive ? 'bg-slate-50 text-blue-600 font-semibold' : 'hover:bg-slate-50 text-slate-700'
-                  }`}
+                  onClick={() => toggleGroup(group.id)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-slate-50 transition-colors"
                 >
-                  <div className="flex items-center gap-2">
-                    <group.icon className={`w-4 h-4 ${isMainMenu && isGroupActive ? 'text-white' : 'text-slate-500'}`} />
-                    <span className="text-sm">{group.label}</span>
+                  <div className="flex items-center gap-2.5">
+                    <group.icon className="w-5 h-5 text-slate-500" />
+                    <span className="text-sm font-semibold text-slate-700">{group.label}</span>
                   </div>
-                  {!isMainMenu && (
-                    isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />
+                  {isGroupOpen ? (
+                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                  ) : (
+                    <ChevronRight className="w-4 h-4 text-slate-400" />
                   )}
                 </button>
 
-                {isExpanded && !isMainMenu && (
-                  <div className="px-2 pb-2 pt-1 space-y-1 bg-white border-t border-slate-50">
-                    {visibleItems.map((item) => (
-                      <button
-                        key={item.id}
-                        onClick={() => item.path && navigate(item.path)}
-                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
-                          item.path === location.pathname ? 'bg-blue-500 text-white font-medium' : 'hover:bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        <item.icon className="w-4 h-4" />
-                        <span>{item.label}</span>
-                      </button>
-                    ))}
+                {/* GROUP CONTENT */}
+                {isGroupOpen && (
+                  <div className="mt-1 space-y-0.5 pl-2">
+                    {visibleItems.map((item) => {
+                      const hasChildren = item.children && item.children.length > 0;
+                      const isSubMenuOpen = openSubMenu === item.id;
+                      const isActive = isItemActive(item);
+
+                      return (
+                        <div key={item.id}>
+                          {/* MENU ITEM */}
+                          <button
+                            onClick={() => handleItemClick(item)}
+                            className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all ${
+                              isActive && !hasChildren
+                                ? 'bg-blue-500 text-white'
+                                : isActive && hasChildren
+                                ? 'bg-blue-50 text-blue-600 font-medium'
+                                : 'hover:bg-slate-50 text-slate-600'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2.5">
+                              <item.icon className={`w-4 h-4 ${isActive && !hasChildren ? 'text-white' : 'text-slate-400'}`} />
+                              <span className="text-sm">{item.label}</span>
+                            </div>
+                            {hasChildren && (
+                              isSubMenuOpen ? 
+                                <ChevronDown className="w-3.5 h-3.5 text-slate-400" /> : 
+                                <ChevronRight className="w-3.5 h-3.5 text-slate-400" />
+                            )}
+                          </button>
+
+                          {/* SUB-MENU ITEMS */}
+                          {hasChildren && isSubMenuOpen && (
+                            <div className="ml-6 mt-1 space-y-0.5 border-l-2 border-slate-200 pl-2">
+                              {item.children?.map((child) => {
+                                const isChildActive = location.pathname === child.path;
+                                return (
+                                  <button
+                                    key={child.id}
+                                    onClick={() => child.path && navigate(child.path)}
+                                    className={`w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-sm transition-all ${
+                                      isChildActive
+                                        ? 'bg-blue-500 text-white'
+                                        : 'hover:bg-slate-50 text-slate-500'
+                                    }`}
+                                  >
+                                    <child.icon className="w-3.5 h-3.5" />
+                                    <span>{child.label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -141,13 +237,14 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
           })}
         </div>
 
-        {/* NÚT ĐĂNG XUẤT */}
+        {/* LOGOUT BUTTON */}
         <div className="p-3 border-t border-slate-200 bg-white shrink-0">
           <button 
             onClick={logout} 
             className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium text-white bg-red-500 hover:bg-red-600 transition-all"
           >
-            <LogOut className="w-4 h-4" /> <span>Đăng xuất tài khoản</span>
+            <LogOut className="w-4 h-4" /> 
+            <span>Đăng xuất</span>
           </button>
         </div>
       </div>

@@ -32,6 +32,12 @@ import {
   LogOut,
   NotebookPen,
   BarChart2,
+  Drill,
+  Microscope,
+  Gauge,
+  TrendingUp,
+  FileWarning,
+  DollarSign,
 } from 'lucide-react';
 
 // Định nghĩa đơn giản, cho phép mọi key string
@@ -66,7 +72,12 @@ export const ERP_ROUTE = {
   reports: {
     summary: '/reports/summary',
     warehouse: '/reports/warehouse',
-    machining: '/reports/machining',
+    machining: {
+      production: '/reports/machining/production',  // TỔNG HỢP SẢN XUẤT
+      tools: '/reports/machining/tools',            // DAO CỤ SỬ DỤNG
+      damage: '/reports/machining/damage',          // HAO HỤT DAO CỤ
+      cost: '/reports/machining/cost',              // CHI PHÍ GIA CÔNG
+    },
     qc: '/reports/qc',
     maintenance: '/reports/maintenance',
     machinePerformance: '/reports/machine-performance',
@@ -100,6 +111,7 @@ export type ERPNavItem = {
   permissionKey?: string;
   adminOnly?: boolean;
   action?: 'logout';
+  children?: ERPNavItem[];  // Thêm children để hỗ trợ sub-menu
 };
 
 export type ERPNavGroup = {
@@ -124,6 +136,18 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
     ],
   },
   {
+    id: 'manufacturing',
+    label:'Sản xuất (Manufacturing)',
+    icon: Factory,
+    items: [
+      { id: 'plan', label: 'Kế hoạch sản xuất', icon: ClipboardList, path: ERP_ROUTE.manufacturing.plan, permissionKey: 'ke_hoach_san_xuat' },
+      { id: 'machining-log', label: 'Nhật ký gia công', icon: NotebookPen, path: ERP_ROUTE.manufacturing.machiningLog, permissionKey: 'nhat_ky_gia_cong' },
+      { id: 'qc-log', label: 'Nhật ký QC', icon: ClipboardCheck, path: ERP_ROUTE.manufacturing.qcLog, permissionKey: 'nhat_ky_qc' },
+      { id: 'maintenance-log', label: 'Nhật ký bảo trì', icon: Wrench, path: ERP_ROUTE.manufacturing.maintenanceLog, permissionKey: 'nhat_ky_bao_tri' },
+      { id: 'progress', label: 'Theo dõi tiến độ', icon: Activity, path: ERP_ROUTE.manufacturing.progress, permissionKey: 'theo_doi_tien_do' },
+    ],
+  },
+  {
     id: 'warehouse',
     label: 'Kho bãi (WMS)',
     icon: Package,
@@ -138,30 +162,90 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
       { id: 'transaction-history', label: 'Lịch sử giao dịch', icon: Clock, path: ERP_ROUTE.warehouse.transactionHistory, permissionKey: 'lich_su_giao_dich' },
     ],
   },
-  {
-    id: 'manufacturing',
-    label: 'Sản xuất (Manufacturing)',
-    icon: Factory,
-    items: [
-      { id: 'plan', label: 'Kế hoạch sản xuất', icon: ClipboardList, path: ERP_ROUTE.manufacturing.plan, permissionKey: 'ke_hoach_san_xuat' },
-      { id: 'machining-log', label: 'Nhật ký gia công', icon: NotebookPen, path: ERP_ROUTE.manufacturing.machiningLog, permissionKey: 'nhat_ky_gia_cong' },
-      { id: 'qc-log', label: 'Nhật ký QC', icon: ClipboardCheck, path: ERP_ROUTE.manufacturing.qcLog, permissionKey: 'nhat_ky_qc' },
-      { id: 'maintenance-log', label: 'Nhật ký bảo trì', icon: Wrench, path: ERP_ROUTE.manufacturing.maintenanceLog, permissionKey: 'nhat_ky_bao_tri' },
-      { id: 'progress', label: 'Theo dõi tiến độ', icon: Activity, path: ERP_ROUTE.manufacturing.progress, permissionKey: 'theo_doi_tien_do' },
-    ],
-  },
+  
   {
     id: 'reports',
-    label: 'Báo cáo & Dashboard',
+    label: ' Báo cáo & Dashboard',
     icon: LayoutDashboard,
     items: [
-      { id: 'summary', label: 'Dashboard tổng hợp', icon: LayoutDashboard, path: ERP_ROUTE.reports.summary, permissionKey: 'dashboard_tong_hop' },
-      { id: 'warehouse-report', label: 'Báo cáo kho', icon: Package, path: ERP_ROUTE.reports.warehouse, permissionKey: 'bao_cao_kho' },
-      { id: 'machining-report', label: 'Báo cáo gia công', icon: BarChart2, path: ERP_ROUTE.reports.machining, permissionKey: 'bao_cao_gia_cong' },
-      { id: 'qc-report', label: 'Báo cáo QC', icon: BarChart3, path: ERP_ROUTE.reports.qc, permissionKey: 'bao_cao_qc' },
-      { id: 'maintenance-report', label: 'Báo cáo bảo trì', icon: BarChart3, path: ERP_ROUTE.reports.maintenance, permissionKey: 'bao_cao_bao_tri' },
-      { id: 'machine-performance', label: 'Hiệu suất máy', icon: Cpu, path: ERP_ROUTE.reports.machinePerformance, permissionKey: 'hieu_suat_may' },
-      { id: 'pending-approval', label: 'Chờ duyệt', icon: Hourglass, path: ERP_ROUTE.reports.pendingApproval, permissionKey: 'cho_duyet' },
+      { 
+        id: 'dashboard-summary', 
+        label: 'Dashboard tổng hợp', 
+        icon: LayoutDashboard, 
+        path: ERP_ROUTE.reports.summary, 
+        permissionKey: 'dashboard_tong_hop' 
+      },
+      { 
+        id: 'warehouse-report', 
+        label: 'Báo cáo kho', 
+        icon: Package, 
+        path: ERP_ROUTE.reports.warehouse, 
+        permissionKey: 'bao_cao_kho' 
+      },
+      { 
+        id: 'machining-report', 
+        label: 'Báo cáo gia công', 
+        icon: Drill, 
+        permissionKey: 'bao_cao_gia_cong',
+        children: [
+          { 
+            id: 'machining-production', 
+            label: 'Tông hợp sản xuất', 
+            icon: BarChart2, 
+            path: ERP_ROUTE.reports.machining.production, 
+            permissionKey: 'bao_cao_gia_cong' 
+          },
+          { 
+            id: 'machining-tools', 
+            label: 'Dao cụ sử dụng', 
+            icon: Drill, 
+            path: ERP_ROUTE.reports.machining.tools, 
+            permissionKey: 'bao_cao_gia_cong' 
+          },
+          { 
+            id: 'machining-damage', 
+            label: 'Hao hỏng dao cụ', 
+            icon: FileWarning, 
+            path: ERP_ROUTE.reports.machining.damage, 
+            permissionKey: 'bao_cao_gia_cong' 
+          },
+          { 
+            id: 'machining-cost', 
+            label: 'Chi phí gia công', 
+            icon: DollarSign, 
+            path: ERP_ROUTE.reports.machining.cost, 
+            permissionKey: 'bao_cao_gia_cong' 
+          },
+        ]
+      },
+      { 
+        id: 'qc-report', 
+        label: 'Báo cáo QC', 
+        icon: Microscope, 
+        path: ERP_ROUTE.reports.qc, 
+        permissionKey: 'bao_cao_qc' 
+      },
+      { 
+        id: 'maintenance-report', 
+        label: 'Báo cáo bảo trì', 
+        icon: Wrench, 
+        path: ERP_ROUTE.reports.maintenance, 
+        permissionKey: 'bao_cao_bao_tri' 
+      },
+      { 
+        id: 'machine-performance', 
+        label: 'Hiệu suất máy', 
+        icon: Gauge, 
+        path: ERP_ROUTE.reports.machinePerformance, 
+        permissionKey: 'hieu_suat_may' 
+      },
+      { 
+        id: 'pending-approval', 
+        label: 'Chờ duyệt', 
+        icon: Hourglass, 
+        path: ERP_ROUTE.reports.pendingApproval, 
+        permissionKey: 'cho_duyet' 
+      },
     ],
   },
   {

@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Sidebar } from '@/components/Sidebar';
 import { MobileSidebar } from '@/components/MobileSidebar';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { WarehouseTransaction } from '@/types/inventory';
 import { Package, AlertTriangle } from 'lucide-react';
 

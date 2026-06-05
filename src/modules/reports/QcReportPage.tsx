@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { QcForm } from '@/modules/reports/QcForm';
 import type { QcReport } from '@/types/qc';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Plus, ArrowLeft, ClipboardCheck, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { loadReports, saveReports } from '@/lib/reportsStorage';

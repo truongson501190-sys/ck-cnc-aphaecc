@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Combobox } from '@/components/ui/combobox';
 import { toast } from 'sonner';
 import { WarehouseTransaction } from '@/types/inventory';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { Category, Machine, Employee } from '@/types/categories';
 import { getSavedCategories } from '@/lib/utils';
 

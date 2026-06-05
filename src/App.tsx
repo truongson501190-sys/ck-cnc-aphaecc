@@ -1,7 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './supabase';
-
+import { ProductionSummary, ToolsUsage, ToolsDamage, CostBreakdown } from '@/modules/reports/machining';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from '@/shared/layout/ProtectedRoute';
 import Layout from '@/components/Layout';
@@ -239,13 +239,37 @@ const App: React.FC = () => (
                   }
                 />
                 <Route
-                  path={ERP_ROUTE.reports.machining}
-                  element={
-                    <ProtectedRoute requiredModule="bao_cao_gia_cong">
-                      <MachiningReportsPage />
-                    </ProtectedRoute>
-                  }
-                />
+                    path={ERP_ROUTE.reports.machining.production}
+                    element={
+                      <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                        <ProductionSummary />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path={ERP_ROUTE.reports.machining.tools}
+                    element={
+                      <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                        <ToolsUsage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path={ERP_ROUTE.reports.machining.damage}
+                    element={
+                      <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                        <ToolsDamage />
+                      </ProtectedRoute>
+                    }
+                  />
+                  <Route
+                    path={ERP_ROUTE.reports.machining.cost}
+                    element={
+                      <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                        <CostBreakdown />
+                      </ProtectedRoute>
+                    }
+                  />
                 <Route
                   path={ERP_ROUTE.reports.qc}
                   element={

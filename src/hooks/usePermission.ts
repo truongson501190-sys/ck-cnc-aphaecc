@@ -1,5 +1,5 @@
 
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 
 type PermissionLevel = 'none' | 'view' | 'full';
 

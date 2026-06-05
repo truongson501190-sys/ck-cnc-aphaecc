@@ -1,4 +1,3 @@
-// Sản xuất -> Nhật ký Sản Xuất-> Nút Thêm nhật ký sản xuất
 import React, { useState, useEffect, Suspense } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -10,10 +9,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Lock, QrCode, Search } from 'lucide-react';
+import { Plus, Lock, QrCode, Search, ShieldCheck } from 'lucide-react';
 import { ProductionReport, ToolEntry, WorkTimeEntry } from '@/types/production';
 import { useMasterData } from '@/hooks/useMasterData';
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/contexts/AuthContext';
 import { OptimizedTimeInput } from '@/components/OptimizedTimeInput';
 
 interface ProductionFormProps {
@@ -21,14 +20,6 @@ interface ProductionFormProps {
   onCancel?: () => void;
   initialData?: any;
 }
-
-const createEmptyToolEntry = (): ToolEntry => ({
-  tenDao: '',
-  slCap: 0,
-  slSuDung: 0,
-  hong: 0,
-  donVi: '',
-});
 
 interface Project {
   id: string;
@@ -48,33 +39,54 @@ interface CategoryType {
   createdAt: string;
 }
 
+interface Employee {
+  id: string;
+  msnv: string;
+  hoTen: string;
+  fullName?: string;
+  name?: string;
+  role: string;
+  chucVu: string;
+  department: string;
+}
+
+const createEmptyToolEntry = (): ToolEntry => ({
+  tenDao: '',
+  slCap: 0,
+  slSuDung: 0,
+  hong: 0,
+  donVi: '',
+  donGia: 0,
+  thanhTien: 0,
+});
+
 export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFormProps) {
   const masterDataHook = useMasterData();
   const { user, isAdmin } = useAuth();
   
   const masterData = masterDataHook?.masterData || { machines: [], tools: [], operators: [], inspectors: [], projects: [] };
   
+  // State cho form data
   const [formData, setFormData] = useState(() => {
     if (initialData) {
-      // Convert initialData to formData structure
       return {
         ngayThang: initialData.ngay || initialData.ngayThang || new Date().toISOString().split('T')[0],
         maySanXuat: initialData.may || initialData.maySanXuat || '',
         duAn: initialData.maDuAn || initialData.duAn || '',
         tenDuAn: initialData.tenDuAn || '',
         banVeSo: initialData.banVeSo || '',
-        chiTietSo: initialData.chiTietSo || '',
+        chiTietSo: initialData.chiTietSo || initialData.ncSo || '',
         tenChiTiet: initialData.tenChiTiet || '',
         noiDungGiaCong: initialData.noiDung || initialData.noiDungGiaCong || '',
         soLuongHoanThanh: initialData.sanLuong || initialData.soLuongHoanThanh || 0,
         vatLieu: initialData.vatLieu || '',
-        nguyenCongSo: initialData.nguyenCongSo || '',
+        nguyenCongSo: initialData.nguyenCongSo || initialData.ncSo || '',
         toolEntries: initialData.toolEntries?.length ? initialData.toolEntries : [createEmptyToolEntry()],
         workTimeEntries: initialData.workTimeEntries || (initialData.gioChay ? [{ soGio: initialData.gioChay, thoiGianBatDau: '', thoiGianKetThuc: '' }] : []),
         setupTimeEntries: initialData.setupTimeEntries || (initialData.gioGa ? [{ soGio: initialData.gioGa, thoiGianBatDau: '', thoiGianKetThuc: '' }] : []),
         ca: initialData.ca || '',
-        cpMay: initialData.cpMay || 0,
-        cpDaoCu: initialData.cpDaoCu || 0,
+        cpMay: initialData.cpMay || initialData.chiPhiChayMay || 0,
+        cpDaoCu: initialData.cpDaoCu || initialData.chiPhiDao || 0,
         nguoiVanHanh: initialData.nguoiVanHanh || user?.fullName || user?.name || '',
         nguoiKiemTra: initialData.nguoiKiemTra || '',
         tgTrenCa: initialData.tgTrenCa || '',
@@ -108,8 +120,23 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     };
   });
 
+  // State cho danh sách
   const [inspectors, setInspectors] = useState<string[]>([]);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [machines, setMachines] = useState<any[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [categoryTypes, setCategoryTypes] = useState<CategoryType[]>([]);
+  
+  // State cho UI
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [projectSearch, setProjectSearch] = useState('');
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
 
+  const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
+
+  // ======================
+  // 1. LẤY THÔNG TIN USER HIỆN TẠI
+  // ======================
   useEffect(() => {
     if (user?.fullName || user?.name) {
       setFormData((prev) => ({
@@ -119,79 +146,206 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     }
   }, [user]);
 
-  useEffect(() => {
+  // ======================
+  // 2. LẤY DANH SÁCH NHÂN VIÊN TỪ LOCALSTORAGE
+  // ======================
+  const loadEmployees = (): Employee[] => {
     try {
+      // Thử lấy từ localStorage với key 'employees'
+      let employeesList: Employee[] = [];
       const savedEmployees = localStorage.getItem('employees');
+      
       if (savedEmployees) {
-        const list = JSON.parse(savedEmployees) as { hoTen?: string; fullName?: string }[];
-        const names = list
-          .map((e) => e.hoTen || e.fullName)
-          .filter((n): n is string => !!n);
-        if (names.length > 0) {
-          setInspectors(names);
+        employeesList = JSON.parse(savedEmployees);
+      } else {
+        // Fallback: lấy từ 'users' nếu có
+        const savedUsers = localStorage.getItem('users');
+        if (savedUsers) {
+          employeesList = JSON.parse(savedUsers);
+        }
+      }
+      
+      setEmployees(employeesList);
+      return employeesList;
+    } catch (error) {
+      console.error('Error loading employees:', error);
+      return [];
+    }
+  };
+
+  // ======================
+  // 3. LẤY DANH SÁCH NGƯỜI KIỂM TRA (CHỈ NGƯỜI CÓ CHỨC VỤ PHÙ HỢP)
+  // ======================
+  const getInspectorsByRole = () => {
+    try {
+      // Chức vụ được phép làm người kiểm tra
+      const allowedRoles = ['admin', 'quan_ly_xuong', 'to_truong', 'to_pho'];
+      const allowedChucVu = ['Admin', 'Quản lý xưởng', 'Tổ trưởng', 'Tổ phó'];
+      
+      // Lấy danh sách nhân viên
+      let employeesList = employees.length > 0 ? employees : loadEmployees();
+      
+      if (employeesList.length > 0) {
+        // Lọc theo chức vụ
+        const inspectorList = employeesList
+          .filter((emp: Employee) => {
+            const role = (emp.role || '').toLowerCase();
+            const chucVu = (emp.chucVu || '').toLowerCase();
+            return allowedRoles.includes(role) || allowedChucVu.some(cv => cv.toLowerCase() === chucVu);
+          })
+          .map((emp: Employee) => emp.hoTen || emp.fullName || emp.name || '')
+          .filter((name: string) => name && name.trim() !== '');
+        
+        if (inspectorList.length > 0) {
+          setInspectors(inspectorList);
           return;
         }
       }
-    } catch {
-      /* use masterData fallback */
+      
+      // Fallback: danh sách mặc định nếu chưa có dữ liệu
+      const defaultInspectors = [
+        { name: 'Nguyễn Văn A', role: 'admin', chucVu: 'Admin' },
+        { name: 'Trần Thị B', role: 'quan_ly_xuong', chucVu: 'Quản lý xưởng' },
+        { name: 'Lê Văn C', role: 'to_truong', chucVu: 'Tổ trưởng' },
+        { name: 'Phạm Thị D', role: 'to_pho', chucVu: 'Tổ phó' },
+      ];
+      
+      const filteredDefault = defaultInspectors
+        .filter(emp => {
+          const role = (emp.role || emp.chucVu || '').toLowerCase();
+          return allowedRoles.includes(role);
+        })
+        .map(emp => emp.name);
+      
+      setInspectors(filteredDefault);
+      
+      // Cập nhật employees với dữ liệu mặc định
+      if (employeesList.length === 0) {
+        const defaultEmployees: Employee[] = defaultInspectors.map((emp, idx) => ({
+          id: `emp_${idx + 1}`,
+          msnv: `NV00${idx + 1}`,
+          hoTen: emp.name,
+          fullName: emp.name,
+          name: emp.name,
+          role: emp.role,
+          chucVu: emp.chucVu,
+          department: emp.role === 'admin' ? 'Ban Giám Đốc' : 'Xưởng CNC',
+        }));
+        setEmployees(defaultEmployees);
+      }
+      
+    } catch (error) {
+      console.error('Error getting inspectors by role:', error);
+      setInspectors(masterData.inspectors || []);
     }
-    setInspectors(masterData.inspectors);
-  }, [masterData.inspectors]);
+  };
 
-  const [machines, setMachines] = useState<{ id: string; name?: string; tenMay?: string; gia8h1Ca?: string | number; gia10h1Ca?: string | number; gia12h1Ca?: string | number }[]>([]);
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [categoryTypes, setCategoryTypes] = useState<CategoryType[]>([]);
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [projectSearch, setProjectSearch] = useState('');
-  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
-
-  const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
-
-  // LOAD DATA FROM CORRECT LOCALSTORAGE KEYS
-  const loadData = () => {
+  // ======================
+  // 4. LẤY THÔNG TIN CHI TIẾT CỦA NGƯỜI KIỂM TRA
+  // ======================
+  const getInspectorDetails = (inspectorName: string) => {
     try {
+      const employeesList = employees.length > 0 ? employees : loadEmployees();
+      const inspector = employeesList.find((emp: Employee) => {
+        const name = emp.hoTen || emp.fullName || emp.name || '';
+        return name === inspectorName;
+      });
+      
+      if (inspector) {
+        return {
+          name: inspectorName,
+          role: inspector.role || inspector.chucVu || '',
+          chucVu: inspector.chucVu || inspector.role || '',
+          department: inspector.department || '',
+          msnv: inspector.msnv || '',
+        };
+      }
+      
+      return { name: inspectorName, role: '', chucVu: '', department: '', msnv: '' };
+    } catch (error) {
+      return { name: inspectorName, role: '', chucVu: '', department: '', msnv: '' };
+    }
+  };
+
+  // ======================
+  // 5. LOAD DỮ LIỆU MÁY, DỰ ÁN, DANH MỤC
+  // ======================
+  const loadMasterData = () => {
+    try {
+      // Load projects
       const savedProjects = localStorage.getItem('projects');
       if (savedProjects) {
         setProjects(JSON.parse(savedProjects));
       }
-    } catch (error) {
-      console.error('Error loading projects:', error);
-    }
-
-    try {
+      
+      // Load categories
       const savedCategories = localStorage.getItem('category_types');
       if (savedCategories) {
         setCategoryTypes(JSON.parse(savedCategories));
       }
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
-
-    try {
+      
+      // Load machines
       const savedMachines = localStorage.getItem('machines');
       if (savedMachines) {
         setMachines(JSON.parse(savedMachines));
       }
     } catch (error) {
-      console.error('Error loading machines:', error);
+      console.error('Error loading master data:', error);
     }
   };
 
+  // ======================
+  // 6. EFFECT CHÍNH: LOAD DATA VÀ KHỞI TẠO
+  // ======================
   useEffect(() => {
-    loadData();
-
+    loadEmployees();
+    loadMasterData();
+    
+    // Lắng nghe sự kiện thay đổi dữ liệu
     const handleStorageChange = () => {
-      loadData();
+      loadMasterData();
+      loadEmployees();
     };
-
+    
     window.addEventListener('app-data-synced', handleStorageChange);
     window.addEventListener('storage', handleStorageChange);
+    
     return () => {
       window.removeEventListener('app-data-synced', handleStorageChange);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
 
+  // ======================
+  // 7. EFFECT: CẬP NHẬT DANH SÁCH NGƯỜI KIỂM TRA
+  // ======================
+  useEffect(() => {
+    if (employees.length > 0) {
+      getInspectorsByRole();
+    }
+  }, [employees]);
+
+  // ======================
+  // 8. KIỂM TRA QUYỀN CỦA NGƯỜI DÙNG HIỆN TẠI
+  // ======================
+  const isCurrentUserInspector = () => {
+    const currentUserName = user?.fullName || user?.name;
+    return formData.nguoiKiemTra === currentUserName;
+  };
+
+  const canApprove = () => {
+    const userRole = (user?.role || '').toLowerCase();
+    const allowedRoles = ['admin', 'quan_ly_xuong'];
+    
+    if (allowedRoles.includes(userRole)) return true;
+    if (isCurrentUserInspector()) return true;
+    
+    return false;
+  };
+
+  // ======================
+  // 9. XỬ LÝ FORM
+  // ======================
   const handleTimeChange = (
     machiningHours: string,
     setupHours: string,
@@ -209,7 +363,60 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     }));
   };
 
-  // HÀM XỬ LÝ LƯU: ĐÃ ĐƯỢC CẬP NHẬT ĐỂ LIÊN KẾT SANG PHÊ DUYỆT CHỜ DUYỆT
+  const handleInputChange = (field: string, value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleProjectSelect = (project: Project) => {
+    setFormData(prev => ({
+      ...prev,
+      duAn: project.maDuAn,
+      tenDuAn: project.tenDuAn
+    }));
+    setProjectSearch(project.maDuAn);
+    setIsProjectDropdownOpen(false);
+  };
+
+  const addToolEntry = () => {
+    if (formData.toolEntries.length < 10) {
+      setFormData(prev => ({
+        ...prev,
+        toolEntries: [...prev.toolEntries, createEmptyToolEntry()]
+      }));
+    }
+  };
+
+  const removeToolEntry = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      toolEntries: prev.toolEntries.filter((_: ToolEntry, i: number) => i !== index)
+    }));
+  };
+
+  const updateToolEntry = (index: number, field: keyof ToolEntry, value: string | number) => {
+    setFormData(prev => ({
+      ...prev,
+      toolEntries: prev.toolEntries.map((entry: ToolEntry, i: number) => {
+        if (i === index) {
+          const updatedEntry = { ...entry, [field]: value };
+          
+          if (field === 'tenDao' && typeof value === 'string') {
+            const selectedCategory = categoryTypes.find(cat => cat.tenLoai === value);
+            if (selectedCategory) {
+              updatedEntry.donVi = selectedCategory.donVi ?? '';
+            }
+          }
+          
+          return updatedEntry;
+        }
+        return entry;
+      })
+    }));
+  };
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
@@ -235,149 +442,51 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         return;
       }
 
-      // -------------------------------------------------------------------------
-      // XỬ LÝ ĐẨY DỮ LIỆU SANG DANH SÁCH CHỜ DUYỆT (PENDING APPROVAL LIST)
-      // -------------------------------------------------------------------------
       const selectedMachine = machines.find(
-        (m) =>
-          (m.name || m.tenMay || m.id) === formData.maySanXuat
+        (m) => (m.name || m.tenMay || m.id) === formData.maySanXuat
       );
 
-      // Lấy đơn giá ca máy dựa trên ca làm việc
       let machineShiftPrice = 0;
       if (selectedMachine) {
-        // Ưu tiên giá 8h/1Ca làm giá mặc định
         machineShiftPrice = Number(selectedMachine.gia8h1Ca) || Number(selectedMachine.gia10h1Ca) || Number(selectedMachine.gia12h1Ca) || 0;
       }
 
-      // Tổng giờ chạy
-      const totalRunHours =
-        formData.workTimeEntries.reduce(
-          (sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0),
-          0
-        );
+      const totalRunHours = formData.workTimeEntries.reduce(
+        (sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0),
+        0
+      );
 
-      // Tổng giờ gá
-      const totalSetupHours =
-        formData.setupTimeEntries.reduce(
-          (sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0),
-          0
-        );
+      const totalSetupHours = formData.setupTimeEntries.reduce(
+        (sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0),
+        0
+      );
 
-      // Tính đơn giá giờ (dùng giá 8h chia cho 8 làm giá giờ cơ bản)
       const pricePerHour = machineShiftPrice > 0 ? machineShiftPrice / 8 : 0;
-      
-      // Thành tiền chạy
-      const runAmount =
-        totalRunHours * pricePerHour;
+      const runAmount = totalRunHours * pricePerHour;
+      const setupAmount = totalSetupHours * (pricePerHour / 2);
 
-      // Thành tiền gá (giá gá bằng nửa giá giờ chạy)
-      const setupAmount =
-        totalSetupHours * (pricePerHour / 2);
+      const updatedToolEntries = validToolEntries.map((tool: ToolEntry) => {
+        const matchedCategory = categoryTypes.find(cat => cat.tenLoai === tool.tenDao);
+        const donGia = Number(matchedCategory?.gia) || 0;
+        return {
+          ...tool,
+          donGia,
+          thanhTien: tool.slSuDung * donGia,
+        };
+      });
 
-const newApprovalLog = {
-  id: initialData?.id || "LOG-" + Date.now(),
-
-  ngay: formData.ngayThang,
-
-  may: formData.maySanXuat,
-
-  maDuAn: formData.duAn,
-
-  tenDuAn: formData.tenDuAn,
-
-  banVeSo: formData.banVeSo,
-
-  tenChiTiet: formData.tenChiTiet,
-
-  noiDung: formData.noiDungGiaCong,
-
-  sanLuong: formData.soLuongHoanThanh,
-
-  gioGa: totalSetupHours,
-
-  gioChay: totalRunHours,
-
-  nguoiVanHanh:
-    user?.fullName ||
-    user?.name ||
-    formData.nguoiVanHanh,
-
-  chiPhiGa: setupAmount,
-
-  chiPhiChayMay: runAmount,
-
-  chiPhiDao: validToolEntries.reduce((sum: number, tool: ToolEntry) => {
-    const matchedCategory = categoryTypes.find(cat => cat.tenLoai === tool.tenDao);
-    const donGia = Number(matchedCategory?.gia) || 0;
-    return sum + (tool.slSuDung * donGia);
-  }, 0),
-
-  toolEntries:
-    validToolEntries.map((tool: ToolEntry) => {
-      // Lấy giá dao từ chủng loại
-      const matchedCategory =
-        categoryTypes.find(
-          (cat) =>
-            cat.tenLoai === tool.tenDao
-        );
-
-      const donGia =
-        Number(matchedCategory?.gia) || 0;
-
-      return {
-        tenDao: tool.tenDao,
-
-        slCap: tool.slCap,
-
-        slSuDung: tool.slSuDung,
-
-        hong: tool.hong,
-
-        donVi: tool.donVi,
-
-        donGia,
-
-        thanhTien:
-          tool.slSuDung * donGia,
-      };
-    }),
-
-  status: initialData?.status || 'pending' as const
-};
-
-      // Thêm mới hoặc cập nhật vào mảng
-      let currentApprovalList: any[] = [];
-      try {
-        const savedLogs = localStorage.getItem('PRODUCTION_LOGS_DATA');
-        if (savedLogs) {
-          currentApprovalList = JSON.parse(savedLogs);
-        }
-      } catch {
-        currentApprovalList = [];
-      }
-      let updatedApprovalList;
-      if (initialData) {
-        // Update existing log
-        updatedApprovalList = currentApprovalList.map(log => 
-          log.id === initialData.id ? newApprovalLog : log
-        );
-      } else {
-        // Add new log
-        updatedApprovalList = [...currentApprovalList, newApprovalLog];
-      }
-      localStorage.setItem('PRODUCTION_LOGS_DATA', JSON.stringify(updatedApprovalList));
-      // -------------------------------------------------------------------------
-
-      // Chạy tiếp luồng xử lý gốc của Form
       onSubmit({
         ...formData,
-        toolEntries: validToolEntries,
+        toolEntries: updatedToolEntries,
         nguoiVanHanh: user?.fullName || user?.name || formData.nguoiVanHanh,
         status: initialData?.status || 'pending',
+        chiPhiGa: setupAmount,
+        chiPhiChayMay: runAmount,
+        chiPhiDao: updatedToolEntries.reduce((sum: number, tool: any) => sum + tool.thanhTien, 0),
+        gioGa: totalSetupHours,
+        gioChay: totalRunHours,
       });
       
-      // Reset form về mặc định sạch will
       if (!initialData) {
         setFormData({
           ngayThang: new Date().toISOString().split('T')[0],
@@ -405,74 +514,17 @@ const newApprovalLog = {
         });
       }
 
-      toast.success(initialData ? 'Đã cập nhật báo cáo!' : 'Đã gửi báo cáo và chuyển sang danh sách chờ duyệt!');
+      toast.success(initialData ? 'Đã cập nhật báo cáo!' : 'Đã gửi báo cáo!');
     } catch (error) {
       console.error('Error submitting form:', error);
       toast.error('Lỗi khi gửi báo cáo');
     }
   };
 
-  const handleInputChange = (field: string, value: string | number) => {
-    setFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
-  };
-
-  // Handle project selection
-  const handleProjectSelect = (project: Project) => {
-    setFormData(prev => ({
-      ...prev,
-      duAn: project.maDuAn,
-      tenDuAn: project.tenDuAn
-    }));
-    setProjectSearch(project.maDuAn);
-    setIsProjectDropdownOpen(false);
-  };
-
-  // Filter projects based on search
   const filteredProjects = projects.filter(project =>
     project.maDuAn.toLowerCase().includes(projectSearch.toLowerCase()) ||
     project.tenDuAn.toLowerCase().includes(projectSearch.toLowerCase())
   );
-
-  const addToolEntry = () => {
-    if (formData.toolEntries.length < 10) {
-      setFormData(prev => ({
-        ...prev,
-        toolEntries: [...prev.toolEntries, createEmptyToolEntry()]
-      }));
-    }
-  };
-
-  const removeToolEntry = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      toolEntries: prev.toolEntries.filter((_: ToolEntry, i: number) => i !== index)
-    }));
-  };
-
-  const updateToolEntry = (index: number, field: keyof ToolEntry, value: string | number) => {
-    setFormData(prev => ({
-      ...prev,
-      toolEntries: prev.toolEntries.map((entry: ToolEntry, i: number) => {
-        if (i === index) {
-          const updatedEntry = { ...entry, [field]: value };
-          
-          // Auto-fill unit when tool name is selected from category types
-          if (field === 'tenDao' && typeof value === 'string') {
-            const selectedCategory = categoryTypes.find(cat => cat.tenLoai === value);
-            if (selectedCategory) {
-              updatedEntry.donVi = selectedCategory.donVi ?? '';
-            }
-          }
-          
-          return updatedEntry;
-        }
-        return entry;
-      })
-    }));
-  };
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -482,6 +534,11 @@ const newApprovalLog = {
         </CardTitle>
         <div className="text-center">
           <Badge variant="secondary">Người dùng: {user?.fullName || user?.name}</Badge>
+          {canApprove() && (
+            <Badge variant="outline" className="ml-2 text-green-600">
+              Có quyền duyệt
+            </Badge>
+          )}
         </div>
       </CardHeader>
       <CardContent className="max-h-[80vh] overflow-y-auto">
@@ -550,6 +607,7 @@ const newApprovalLog = {
             </div>
           </div>
 
+          {/* Project Selection */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <Label htmlFor="duAn">Mã Dự Án *</Label>
@@ -597,7 +655,8 @@ const newApprovalLog = {
             <div>
               <Label htmlFor="tenDuAn" className="flex items-center gap-2">
                 <Lock className="w-4 h-4 text-red-500" />
-                Tên Dự Án * </Label>
+                Tên Dự Án *
+              </Label>
               <Input
                 id="tenDuAn"
                 value={formData.tenDuAn}  
@@ -653,289 +712,158 @@ const newApprovalLog = {
           </div>
 
           {/* Quantity and Material */}
-         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <Label htmlFor="soLuongHoanThanh">
-                Số Lượng Hoàn Thành
-              </Label>
-
+              <Label htmlFor="soLuongHoanThanh">Số Lượng Hoàn Thành</Label>
               <Input
                 id="soLuongHoanThanh"
                 type="number"
                 step="0.001"
                 value={formData.soLuongHoanThanh}
-                onChange={(
-                  e: React.ChangeEvent<HTMLInputElement>
-                ) =>
-                  handleInputChange(
-                    'soLuongHoanThanh',
-                    parseFloat(e.target.value) || 0
-                  )
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                  handleInputChange('soLuongHoanThanh', parseFloat(e.target.value) || 0)
                 }
                 min="0"
               />
             </div>
-
             <div>
-              <Label htmlFor="vatLieu">
-                Vật Liệu
-              </Label>
-
+              <Label htmlFor="vatLieu">Vật Liệu</Label>
               <Input
                 id="vatLieu"
                 value={formData.vatLieu}
-                onChange={(
-                  e: React.ChangeEvent<HTMLInputElement>
-                ) =>
-                  handleInputChange(
-                    'vatLieu',
-                    e.target.value
-                  )
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('vatLieu', e.target.value)}
                 placeholder="Loại vật liệu"
               />
             </div>
-
             <div>
-              <Label htmlFor="nguyenCongSo">
-                Nguyên Công Số
-              </Label>
-
+              <Label htmlFor="nguyenCongSo">Nguyên Công Số</Label>
               <Input
                 id="nguyenCongSo"
                 value={formData.nguyenCongSo}
-                onChange={(
-                  e: React.ChangeEvent<HTMLInputElement>
-                ) =>
-                  handleInputChange(
-                    'nguyenCongSo',
-                    e.target.value
-                  )
-                }
+                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('nguyenCongSo', e.target.value)}
                 placeholder="Số nguyên công"
               />
             </div>
-
           </div>
 
           {/* Tool Information Section */}
-         <Card className="bg-gray-50 border-gray-200">
-
-  <CardHeader className="pb-3">
-    <div className="flex justify-between items-center">
-
-      <CardTitle className="text-lg font-semibold text-gray-600">
-        Thông tin Dao Cụ
-      </CardTitle>
-
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={addToolEntry}
-        disabled={formData.toolEntries.length >= 10}
-        className="flex items-center gap-2"
-      >
-        <Plus size={16} />
-
-        Thêm dao cụ
-        ({formData.toolEntries.length}/10)
-      </Button>
-
-    </div>
-  </CardHeader>
-
-  <CardContent className="space-y-4">
-
-    {formData.toolEntries.map((entry: ToolEntry, index: number) => (
-
-      <div
-        key={index}
-        className="p-4 border rounded-lg bg-white"
-      >
-
-        <div className="flex items-center mb-2">
-          <Label className="font-semibold text-gray-600">
-            Dao cụ {index + 1}
-          </Label>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-
-          {/* TÊN DAO */}
-
-          <div className="md:col-span-2">
-
-            <Label>Tên Dao</Label>
-
-            <Select
-              value={entry.tenDao}
-              onValueChange={(value: string) =>
-                updateToolEntry(
-                  index,
-                  'tenDao',
-                  value
-                )
-              }
-            >
-              <SelectTrigger>
-                <SelectValue placeholder="Chọn dao" />
-              </SelectTrigger>
-
-              <SelectContent>
-
-                {categoryTypes.length > 0
-                  ? categoryTypes.map((category) => (
-                      <SelectItem
-                        key={category.id}
-                        value={category.tenLoai}
+          <Card className="bg-gray-50 border-gray-200">
+            <CardHeader className="pb-3">
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg font-semibold text-gray-600">
+                  Thông tin Dao Cụ
+                </CardTitle>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addToolEntry}
+                  disabled={formData.toolEntries.length >= 10}
+                  className="flex items-center gap-2"
+                >
+                  <Plus size={16} />
+                  Thêm dao cụ ({formData.toolEntries.length}/10)
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {formData.toolEntries.map((entry: ToolEntry, index: number) => (
+                <div key={index} className="p-4 border rounded-lg bg-white">
+                  <div className="flex items-center mb-2">
+                    <Label className="font-semibold text-gray-600">Dao cụ {index + 1}</Label>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="md:col-span-2">
+                      <Label>Tên Dao</Label>
+                      <Select
+                        value={entry.tenDao}
+                        onValueChange={(value: string) => updateToolEntry(index, 'tenDao', value)}
                       >
-                        {category.tenLoai}
-                      </SelectItem>
-                    ))
-                  : masterData.tools.map((tool) => (
-                      <SelectItem
-                        key={tool.id}
-                        value={tool.name}
-                      >
-                        {tool.name}
-                      </SelectItem>
-                    ))}
-
-              </SelectContent>
-            </Select>
-
-          </div>
-
-          {/* SL CẤP */}
-
-          <div>
-
-            <Label>SL Cấp</Label>
-
-            <Input
-              type="number"
-              step="0.001"
-              value={entry.slCap}
-              onChange={(
-                e: React.ChangeEvent<HTMLInputElement>
-              ) =>
-                updateToolEntry(
-                  index,
-                  'slCap',
-                  e.target.value === ''
-                    ? ''
-                    : parseFloat(e.target.value)
-                )
-              }
-              min="0"
-              placeholder="Nhập SL cấp"
-            />
-
-          </div>
-
-          {/* SL SỬ DỤNG */}
-
-          <div>
-
-            <Label>SL Sử Dụng</Label>
-
-            <Input
-              type="number"
-              step="0.001"
-              value={entry.slSuDung}
-              onChange={(
-                e: React.ChangeEvent<HTMLInputElement>
-              ) =>
-                updateToolEntry(
-                  index,
-                  'slSuDung',
-                  e.target.value === ''
-                    ? ''
-                    : parseFloat(e.target.value)
-                )
-              }
-              min="0"
-              placeholder="Nhập SL sử dụng"
-            />
-
-          </div>
-
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-
-          {/* SL HỎNG */}
-
-          <div>
-
-            <Label>SL Hỏng</Label>
-
-            <Input
-              type="number"
-              step="0.001"
-              value={entry.hong}
-              onChange={(
-                e: React.ChangeEvent<HTMLInputElement>
-              ) =>
-                updateToolEntry(
-                  index,
-                  'hong',
-                  e.target.value === ''
-                    ? ''
-                    : parseFloat(e.target.value)
-                )
-              }
-              min="0"
-              placeholder="Nhập SL hỏng"
-            />
-
-          </div>
-
-          {/* ĐƠN VỊ */}
-
-          <div>
-
-            <Label>Đơn Vị</Label>
-
-            <Input
-              value={entry.donVi}
-              readOnly
-              className="bg-gray-100"
-              placeholder="Tự động điền theo tên dao"
-            />
-
-          </div>
-
-          {/* XÓA */}
-
-          <div className="flex items-end">
-
-            {formData.toolEntries.length > 1 && (
-              <Button
-                type="button"
-                variant="destructive"
-                size="sm"
-                onClick={() =>
-                  removeToolEntry(index)
-                }
-              >
-                Xóa
-              </Button>
-            )}
-
-          </div>
-
-        </div>
-
-      </div>
-
-    ))}
-
-  </CardContent>
-
-</Card>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Chọn dao" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {categoryTypes.length > 0
+                            ? categoryTypes.map((category) => (
+                                <SelectItem key={category.id} value={category.tenLoai}>
+                                  {category.tenLoai}
+                                </SelectItem>
+                              ))
+                            : masterData.tools.map((tool) => (
+                                <SelectItem key={tool.id} value={tool.name}>
+                                  {tool.name}
+                                </SelectItem>
+                              ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>SL Cấp</Label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        value={entry.slCap}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          updateToolEntry(index, 'slCap', e.target.value === '' ? '' : parseFloat(e.target.value))
+                        }
+                        min="0"
+                        placeholder="Nhập SL cấp"
+                      />
+                    </div>
+                    <div>
+                      <Label>SL Sử Dụng</Label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        value={entry.slSuDung}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          updateToolEntry(index, 'slSuDung', e.target.value === '' ? '' : parseFloat(e.target.value))
+                        }
+                        min="0"
+                        placeholder="Nhập SL sử dụng"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                    <div>
+                      <Label>SL Hỏng</Label>
+                      <Input
+                        type="number"
+                        step="0.001"
+                        value={entry.hong}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                          updateToolEntry(index, 'hong', e.target.value === '' ? '' : parseFloat(e.target.value))
+                        }
+                        min="0"
+                        placeholder="Nhập SL hỏng"
+                      />
+                    </div>
+                    <div>
+                      <Label>Đơn Vị</Label>
+                      <Input
+                        value={entry.donVi}
+                        readOnly
+                        className="bg-gray-100"
+                        placeholder="Tự động điền theo tên dao"
+                      />
+                    </div>
+                    <div className="flex items-end">
+                      {formData.toolEntries.length > 1 && (
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="sm"
+                          onClick={() => removeToolEntry(index)}
+                        >
+                          Xóa
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
 
           <OptimizedTimeInput onTimeChange={handleTimeChange} />
 
@@ -956,7 +884,15 @@ const newApprovalLog = {
               />
             </div>
             <div>
-              <Label htmlFor="nguoiKiemTra">Người Kiểm Tra</Label>
+              <Label htmlFor="nguoiKiemTra" className="flex items-center gap-2">
+                <ShieldCheck className="w-4 h-4 text-blue-500" />
+                Người Kiểm Tra
+                {formData.nguoiKiemTra && (
+                  <Badge variant="outline" className="text-xs ml-2">
+                    {getInspectorDetails(formData.nguoiKiemTra)?.chucVu || 'Chưa xác định'}
+                  </Badge>
+                )}
+              </Label>
               <Select 
                 value={formData.nguoiKiemTra} 
                 onValueChange={(value: string) => handleInputChange('nguoiKiemTra', value)}
@@ -965,13 +901,37 @@ const newApprovalLog = {
                   <SelectValue placeholder="Chọn người kiểm tra" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(inspectors.length > 0 ? inspectors : masterData.inspectors).map((inspector) => (
-                    <SelectItem key={inspector} value={inspector}>
-                      {inspector}
-                    </SelectItem>
-                  ))}
+                  {inspectors.length > 0 ? (
+                    inspectors.map((inspector) => {
+                      const details = getInspectorDetails(inspector);
+                      return (
+                        <SelectItem key={inspector} value={inspector}>
+                          <div className="flex items-center justify-between w-full gap-2">
+                            <span>{inspector}</span>
+                            {details.chucVu && (
+                              <Badge variant="outline" className="text-xs ml-2">
+                                {details.chucVu === 'Admin' ? '👑 Admin' :
+                                 details.chucVu === 'Quản lý xưởng' ? '📋 Quản lý xưởng' :
+                                 details.chucVu === 'Tổ trưởng' ? '👨‍💼 Tổ trưởng' :
+                                 details.chucVu === 'Tổ phó' ? '👨‍🔧 Tổ phó' : details.chucVu}
+                              </Badge>
+                            )}
+                          </div>
+                        </SelectItem>
+                      );
+                    })
+                  ) : (
+                    masterData.inspectors.map((inspector: string) => (
+                      <SelectItem key={inspector} value={inspector}>
+                        {inspector}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-gray-400 mt-1">
+                * Chọn người kiểm tra
+              </p>
             </div>
           </div>
 
