@@ -63,12 +63,17 @@ const getRoute = (route: any, defaultRoute: string): string => {
   return defaultRoute;
 };
 
-// Cấu hình các module
+// Cấu hình các module với màu sắc
 const FEATURE_GROUPS = {
   manufacturing: { 
     label: 'Sản xuất (Manufacturing)', 
     icon: Factory, 
     color: 'orange', 
+    bgLight: 'bg-orange-50',
+    borderLight: 'border-orange-200',
+    textLight: 'text-orange-600',
+    buttonBg: 'bg-orange-500',
+    buttonHover: 'hover:bg-orange-600',
     features: [
       { key: 'ke_hoach_san_xuat', label: 'Kế hoạch sản xuất', route: getRoute(ERP_ROUTE?.manufacturing?.plan, DEFAULT_ROUTES.manufacturing.plan) },
       { key: 'nhat_ky_gia_cong', label: 'Nhật ký gia công', route: getRoute(ERP_ROUTE?.manufacturing?.machiningLog, DEFAULT_ROUTES.manufacturing.machiningLog) },
@@ -81,6 +86,11 @@ const FEATURE_GROUPS = {
     label: 'Kho bãi (WMS)', 
     icon: Package, 
     color: 'green', 
+    bgLight: 'bg-green-50',
+    borderLight: 'border-green-200',
+    textLight: 'text-green-600',
+    buttonBg: 'bg-green-500',
+    buttonHover: 'hover:bg-green-600',
     features: [
       { key: 'nhap_kho', label: 'Nhập kho', route: getRoute(ERP_ROUTE?.warehouse?.import, DEFAULT_ROUTES.warehouse.import) },
       { key: 'xuat_kho', label: 'Xuất kho', route: getRoute(ERP_ROUTE?.warehouse?.export, DEFAULT_ROUTES.warehouse.export) },
@@ -96,6 +106,11 @@ const FEATURE_GROUPS = {
     label: 'Báo cáo & Dashboard', 
     icon: LayoutDashboard, 
     color: 'indigo', 
+    bgLight: 'bg-indigo-50',
+    borderLight: 'border-indigo-200',
+    textLight: 'text-indigo-600',
+    buttonBg: 'bg-indigo-500',
+    buttonHover: 'hover:bg-indigo-600',
     features: [
       { key: 'dashboard_tong_hop', label: 'Dashboard tổng hợp', route: getRoute(ERP_ROUTE?.reports?.summary, DEFAULT_ROUTES.reports.summary) },
       { key: 'bao_cao_kho', label: 'Báo cáo kho', route: getRoute(ERP_ROUTE?.reports?.warehouse, DEFAULT_ROUTES.reports.warehouse) },
@@ -110,6 +125,11 @@ const FEATURE_GROUPS = {
     label: 'Quản lý Danh mục', 
     icon: Layers, 
     color: 'yellow', 
+    bgLight: 'bg-yellow-50',
+    borderLight: 'border-yellow-200',
+    textLight: 'text-yellow-600',
+    buttonBg: 'bg-yellow-500',
+    buttonHover: 'hover:bg-yellow-600',
     features: [
       { key: 'chung_loai', label: 'Chủng loại', route: getRoute(ERP_ROUTE?.masterData?.categories, DEFAULT_ROUTES.masterData.categories) },
       { key: 'kho', label: 'Kho', route: getRoute(ERP_ROUTE?.masterData?.locations, DEFAULT_ROUTES.masterData.locations) },
@@ -121,6 +141,11 @@ const FEATURE_GROUPS = {
     label: 'Hệ thống', 
     icon: Settings, 
     color: 'gray', 
+    bgLight: 'bg-gray-50',
+    borderLight: 'border-gray-200',
+    textLight: 'text-gray-600',
+    buttonBg: 'bg-gray-500',
+    buttonHover: 'hover:bg-gray-600',
     features: [
       { key: 'quan_ly_nguoi_dung', label: 'Quản lý người dùng', route: getRoute(ERP_ROUTE?.system?.users, DEFAULT_ROUTES.system.users) },
       { key: 'phan_quyen', label: 'Phân quyền', route: getRoute(ERP_ROUTE?.system?.roles, DEFAULT_ROUTES.system.roles) },
@@ -131,14 +156,6 @@ const FEATURE_GROUPS = {
   },
 };
 
-const COLOR_STYLES: Record<string, { border: string; text: string; bg: string; hover: string }> = {
-  orange: { border: 'border-orange-500', text: 'text-orange-600', bg: 'bg-orange-500', hover: 'hover:bg-orange-600' },
-  green: { border: 'border-green-500', text: 'text-green-600', bg: 'bg-green-500', hover: 'hover:bg-green-600' },
-  indigo: { border: 'border-indigo-500', text: 'text-indigo-600', bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600' },
-  yellow: { border: 'border-yellow-500', text: 'text-yellow-600', bg: 'bg-yellow-500', hover: 'hover:bg-yellow-600' },
-  gray: { border: 'border-gray-500', text: 'text-gray-600', bg: 'bg-gray-500', hover: 'hover:bg-gray-600' },
-};
-
 export default function Index() {
   const { user, logout } = useAuth();
   const { canView } = usePermission();
@@ -146,7 +163,6 @@ export default function Index() {
   
   const [currentTime, setCurrentTime] = useState(new Date());
 
-  // Cập nhật thời gian thực
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
@@ -171,7 +187,6 @@ export default function Index() {
     }
   };
 
-  // Định dạng ngày tháng
   const formattedDate = currentTime.toLocaleDateString('vi-VN', {
     weekday: 'long',
     day: '2-digit',
@@ -179,10 +194,8 @@ export default function Index() {
     year: 'numeric',
   });
 
-  // Định dạng giờ
   const formattedTime = currentTime.toLocaleTimeString('vi-VN');
 
-  // Lời chào theo giờ
   const getGreeting = () => {
     const hour = currentTime.getHours();
     if (hour < 12) return { icon: '☀️', text: 'Chào buổi sáng' };
@@ -194,9 +207,9 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <div className="container mx-auto p-6">
+      <div className="px-4 md:px-6 py-6">
         
-        {/* HEADER: Tiêu đề + Card thông tin cùng hàng ngang */}
+        {/* HEADER - Tiêu đề bên trái, card user bên phải sát mép */}
         <div className="flex items-center justify-between gap-4 mb-8">
           {/* Tiêu đề bên trái */}
           <div className="flex-1">
@@ -206,25 +219,18 @@ export default function Index() {
             <p className="text-slate-500 text-sm mt-1">Quản lý sản xuất, kho bãi và báo cáo toàn diện</p>
           </div>
           
-          {/* Card thông tin user bên phải - THU NHỎ */}
-          <div className="w-72">
-            <Card className="border-l-4 border-blue-500 shadow-md rounded-xl overflow-hidden">
+          {/* Card thông tin user - CỐ ĐỊNH, SÁT MÉP PHẢI */}
+          <div className="w-72 sticky top-6 flex-shrink-0">
+            <Card className="border-l-4 border-blue-500 shadow-md rounded-xl overflow-hidden bg-white">
               <CardContent className="p-3">
                 <div className="flex items-center justify-between">
-                  {/* Thông tin bên trái trong card */}
                   <div className="flex-1">
-                    <div className="text-xs font-medium text-slate-500">
-                      {formattedDate}
-                    </div>
-                    <div className="text-xl font-bold text-blue-600 font-mono">
-                      {formattedTime}
-                    </div>
+                    <div className="text-xs font-medium text-slate-500">{formattedDate}</div>
+                    <div className="text-xl font-bold text-blue-600 font-mono">{formattedTime}</div>
                     <div className="text-xs font-medium text-orange-500 mt-0.5">
                       {greeting.icon} {greeting.text}
                     </div>
                   </div>
-                  
-                  {/* Avatar và thông tin bên phải */}
                   <div className="text-right">
                     <div className="font-semibold text-slate-800 text-sm">
                       {user?.fullName || user?.username || 'Người dùng'}
@@ -255,31 +261,29 @@ export default function Index() {
           </div>
         </div>
         
-        {/* NỘI DUNG CHÍNH */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* CỘT TRÁI - Danh sách module */}
-          <div className="lg:col-span-2 space-y-6">
+        {/* NỘI DUNG CHÍNH - full width, không có container rào cản */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* CỘT TRÁI - Danh sách module (chiếm 8/12 cột) */}
+          <div className="lg:col-span-8 space-y-6">
             {Object.entries(FEATURE_GROUPS).map(([key, group]) => {
               const visibleFeatures = group.features.filter((f) => hasPermission(f.key));
               if (visibleFeatures.length === 0) return null;
               
               const IconComponent = group.icon;
-              const style = COLOR_STYLES[group.color];
               
               return (
-                <Card key={key} className={`border-l-4 ${style.border} shadow-md hover:shadow-lg transition-all duration-300 rounded-xl overflow-hidden`}>
-                  <CardHeader className="py-3 bg-white border-b">
-                    <CardTitle className={`flex items-center gap-2 ${style.text} text-sm font-semibold`}>
+                <Card key={key} className={`border-l-4 border-${group.color}-500 shadow-md rounded-xl overflow-hidden`}>
+                  <CardHeader className={`py-3 ${group.bgLight} border-b ${group.borderLight}`}>
+                    <CardTitle className={`flex items-center gap-2 ${group.textLight} text-sm font-semibold`}>
                       <IconComponent size={18} /> {group.label}
                     </CardTitle>
                   </CardHeader>
-                  <CardContent className="p-3 bg-slate-50/30">
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-1.5">
+                  <CardContent className="p-4 bg-white">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                       {visibleFeatures.map((feature) => (
                         <Button
                           key={feature.key}
-                          variant="ghost"
-                          className="justify-start text-slate-700 hover:text-white hover:bg-blue-500 transition-all duration-200 text-xs h-auto py-1.5 px-2 whitespace-normal"
+                          className={`${group.buttonBg} ${group.buttonHover} text-white text-xs h-auto py-2 px-3 whitespace-normal justify-start shadow-sm transition-all duration-200 hover:shadow-md`}
                           onClick={() => navigate(feature.route)}
                         >
                           {feature.label}
@@ -292,9 +296,9 @@ export default function Index() {
             })}
           </div>
 
-          {/* CỘT PHẢI - Tin tức */}
-          <div className="lg:col-span-1">
-            <div className="space-y-4 sticky top-6">
+          {/* CỘT PHẢI - Tin tức (chiếm 4/12 cột, SÁT MÉP PHẢI) */}
+          <div className="lg:col-span-4">
+            <div className="sticky top-6">
               <DailyNews />
             </div>
           </div>
