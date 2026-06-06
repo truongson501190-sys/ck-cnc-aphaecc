@@ -1,5 +1,5 @@
-// MachineManagement.tsx - Quản lý Máy móc
-import { useState, useEffect, useRef } from 'react';
+// MachineManagement.tsx - Quản lý Máy móc (với Supabase + Realtime)
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,39 +12,33 @@ import {
   Search,
   Edit2,
   Trash2,
-  Zap,
   Upload,
-  DollarSign
+  DollarSign,
+  Loader2
 } from 'lucide-react';
-
-import { Machine as SystemMachine } from '@/types/categories';
+import { supabase } from '@/supabase';
 import * as XLSX from 'xlsx';
 
-// Cấu trúc máy móc đầy đủ 6 cột giá ca kíp
-interface Machine extends Omit<SystemMachine, 'loaiMay'> {
-  loaiMay?: string;
-  gia8h1Ca?: string;
-  gia10h1Ca?: string;
-  gia8h2Ca?: string;
-  gia10h2Ca?: string;
-  gia12h1Ca?: string;
-  gia12h2Ca?: string;
+// Cấu trúc máy móc
+interface Machine {
+  id: string;
+  ma_may: string;
+  ten_may: string;
+  gia_8h_1ca: number;
+  gia_10h_1ca: number;
+  gia_8h_2ca: number;
+  gia_10h_2ca: number;
+  gia_12h_1ca: number;
+  gia_12h_2ca: number;
+  ghi_chu?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Hàm format số
-const formatNumber = (value: string | number | undefined): string => {
-  if (!value) return '—';
-  let num = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) : value;
-  if (isNaN(num)) return '—';
-  return Math.round(num).toLocaleString('vi-VN');
-};
-
-// Hàm làm tròn số
-const roundNumber = (value: any): string => {
-  if (!value) return '';
-  let num = typeof value === 'string' ? parseFloat(value.replace(/[^0-9.-]/g, '')) : Number(value);
-  if (isNaN(num)) return '';
-  return Math.round(num).toString();
+const formatNumber = (value: number | undefined): string => {
+  if (!value && value !== 0) return '—';
+  return Math.round(value).toLocaleString('vi-VN');
 };
 
 export function MachineManagement() {
@@ -52,152 +46,236 @@ export function MachineManagement() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [formData, setFormData] = useState({
-    maMay: '',
-    tenMay: '',
-    gia8h1Ca: '',
-    gia10h1Ca: '',
-    gia8h2Ca: '',
-    gia10h2Ca: '',
-    gia12h1Ca: '',
-    gia12h2Ca: '',
-    ghiChu: ''
+    ma_may: '',
+    ten_may: '',
+    gia_8h_1ca: 0,
+    gia_10h_1ca: 0,
+    gia_8h_2ca: 0,
+    gia_10h_2ca: 0,
+    gia_12h_1ca: 0,
+    gia_12h_2ca: 0,
+    ghi_chu: ''
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    loadMachines();
+  // Hàm tải dữ liệu từ Supabase
+  const loadMachines = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('machines')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setMachines(data || []);
+    } catch (error) {
+      console.error('Error loading machines:', error);
+      toast.error('Lỗi tải dữ liệu máy móc');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  const loadMachines = () => {
-    try {
-      const saved = localStorage.getItem('machines');
-      if (saved) {
-        setMachines(JSON.parse(saved));
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  // Lắng nghe Realtime
+  useEffect(() => {
+    loadMachines();
 
-  const saveMachines = (data: Machine[]) => {
-    localStorage.setItem('machines', JSON.stringify(data));
-    setMachines(data);
-    setSelectedIds([]);
-  };
-
-  const generateMachineCode = (currentList: Machine[]) => {
-    let maxNum = 0;
-    currentList.forEach(item => {
-      if (item.maMay && item.maMay.startsWith('MAY')) {
-        const num = parseInt(item.maMay.replace('MAY', ''), 10);
-        if (!isNaN(num) && num > maxNum) {
-          maxNum = num;
+    // Tạo kết nối realtime
+    const channel = supabase
+      .channel('machines-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'machines',
+        },
+        (payload) => {
+          console.log('📡 Realtime update:', payload);
+          
+          if (payload.eventType === 'INSERT') {
+            setMachines((prev) => [payload.new as Machine, ...prev]);
+            toast.success(`Đã thêm máy mới: ${(payload.new as Machine).ten_may}`);
+          } 
+          else if (payload.eventType === 'UPDATE') {
+            setMachines((prev) =>
+              prev.map((item) =>
+                item.id === payload.new.id ? (payload.new as Machine) : item
+              )
+            );
+            toast.info(`Đã cập nhật máy: ${(payload.new as Machine).ten_may}`);
+          } 
+          else if (payload.eventType === 'DELETE') {
+            setMachines((prev) =>
+              prev.filter((item) => item.id !== payload.old.id)
+            );
+            toast.warning('Đã xóa một máy khỏi danh sách');
+          }
         }
-      }
-    });
-    return `MAY${String(maxNum + 1).padStart(3, '0')}`;
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Realtime connected for machines');
+        }
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadMachines]);
+
+  // Tạo mã máy tự động
+  const generateMachineCode = async (): Promise<string> => {
+    const { data, error } = await supabase
+      .from('machines')
+      .select('ma_may')
+      .order('ma_may', { ascending: false })
+      .limit(1);
+    
+    if (error || !data || data.length === 0) {
+      return 'MAY001';
+    }
+    
+    const lastCode = data[0].ma_may;
+    const num = parseInt(lastCode.replace('MAY', ''), 10);
+    const nextNum = (isNaN(num) ? 0 : num) + 1;
+    return `MAY${String(nextNum).padStart(3, '0')}`;
   };
 
   const resetForm = () => {
     setEditingId(null);
     setFormData({
-      maMay: '',
-      tenMay: '',
-      gia8h1Ca: '',
-      gia10h1Ca: '',
-      gia8h2Ca: '',
-      gia10h2Ca: '',
-      gia12h1Ca: '',
-      gia12h2Ca: '',
-      ghiChu: ''
+      ma_may: '',
+      ten_may: '',
+      gia_8h_1ca: 0,
+      gia_10h_1ca: 0,
+      gia_8h_2ca: 0,
+      gia_10h_2ca: 0,
+      gia_12h_1ca: 0,
+      gia_12h_2ca: 0,
+      ghi_chu: ''
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.tenMay.trim()) {
+    if (!formData.ten_may.trim()) {
       toast.error('Vui lòng nhập Tên Máy');
       return;
     }
 
-    if (editingId) {
-      const updated = machines.map((machine) =>
-        machine.id === editingId
-          ? {
-              ...machine,
-              tenMay: formData.tenMay.trim(),
-              gia8h1Ca: formData.gia8h1Ca.trim(),
-              gia10h1Ca: formData.gia10h1Ca.trim(),
-              gia8h2Ca: formData.gia8h2Ca.trim(),
-              gia10h2Ca: formData.gia10h2Ca.trim(),
-              gia12h1Ca: formData.gia12h1Ca.trim(),
-              gia12h2Ca: formData.gia12h2Ca.trim(),
-              ghiChu: formData.ghiChu.trim() || undefined
-            }
-          : machine
-      );
+    setIsSubmitting(true);
 
-      saveMachines(updated);
-      toast.success('Đã cập nhật thông tin máy thành công');
-      resetForm();
-    } else {
-      const finalMaMay = generateMachineCode(machines);
-      const newMachine: Machine = {
-        id: crypto.randomUUID(),
-        maMay: finalMaMay,
-        tenMay: formData.tenMay.trim(),
-        gia8h1Ca: formData.gia8h1Ca.trim(),
-        gia10h1Ca: formData.gia10h1Ca.trim(),
-        gia8h2Ca: formData.gia8h2Ca.trim(),
-        gia10h2Ca: formData.gia10h2Ca.trim(),
-        gia12h1Ca: formData.gia12h1Ca.trim(),
-        gia12h2Ca: formData.gia12h2Ca.trim(),
-        ghiChu: formData.ghiChu.trim() || undefined,
-        createdAt: new Date().toISOString()
-      };
+    try {
+      if (editingId) {
+        // Cập nhật máy
+        const { error } = await supabase
+          .from('machines')
+          .update({
+            ten_may: formData.ten_may.trim(),
+            gia_8h_1ca: formData.gia_8h_1ca,
+            gia_10h_1ca: formData.gia_10h_1ca,
+            gia_8h_2ca: formData.gia_8h_2ca,
+            gia_10h_2ca: formData.gia_10h_2ca,
+            gia_12h_1ca: formData.gia_12h_1ca,
+            gia_12h_2ca: formData.gia_12h_2ca,
+            ghi_chu: formData.ghi_chu.trim() || null,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingId);
 
-      saveMachines([newMachine, ...machines]);
-      toast.success(`Đã thêm máy mới thành công`);
+        if (error) throw error;
+        toast.success('Đã cập nhật thông tin máy thành công');
+      } else {
+        // Thêm mới máy
+        const newMaMay = await generateMachineCode();
+        const { error } = await supabase
+          .from('machines')
+          .insert({
+            ma_may: newMaMay,
+            ten_may: formData.ten_may.trim(),
+            gia_8h_1ca: formData.gia_8h_1ca,
+            gia_10h_1ca: formData.gia_10h_1ca,
+            gia_8h_2ca: formData.gia_8h_2ca,
+            gia_10h_2ca: formData.gia_10h_2ca,
+            gia_12h_1ca: formData.gia_12h_1ca,
+            gia_12h_2ca: formData.gia_12h_2ca,
+            ghi_chu: formData.ghi_chu.trim() || null,
+            created_at: new Date().toISOString()
+          });
+
+        if (error) throw error;
+        toast.success('Đã thêm máy mới thành công');
+      }
+      
       resetForm();
+    } catch (error) {
+      console.error('Error saving machine:', error);
+      toast.error('Lỗi lưu dữ liệu');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
   const handleEdit = (machine: Machine) => {
     setEditingId(machine.id);
     setFormData({
-      maMay: machine.maMay || '',
-      tenMay: machine.tenMay || '',
-      gia8h1Ca: machine.gia8h1Ca || '',
-      gia10h1Ca: machine.gia10h1Ca || '',
-      gia8h2Ca: machine.gia8h2Ca || '',
-      gia10h2Ca: machine.gia10h2Ca || '',
-      gia12h1Ca: machine.gia12h1Ca || '',
-      gia12h2Ca: machine.gia12h2Ca || '',
-      ghiChu: machine.ghiChu || ''
+      ma_may: machine.ma_may || '',
+      ten_may: machine.ten_may || '',
+      gia_8h_1ca: machine.gia_8h_1ca || 0,
+      gia_10h_1ca: machine.gia_10h_1ca || 0,
+      gia_8h_2ca: machine.gia_8h_2ca || 0,
+      gia_10h_2ca: machine.gia_10h_2ca || 0,
+      gia_12h_1ca: machine.gia_12h_1ca || 0,
+      gia_12h_2ca: machine.gia_12h_2ca || 0,
+      ghi_chu: machine.ghi_chu || ''
     });
   };
 
-  const handleDelete = (id: string) => {
-    if (!window.confirm('Chú có chắc muốn xóa máy này không?')) return;
-    const updated = machines.filter((m) => m.id !== id);
-    saveMachines(updated);
-    toast.success('Đã xóa máy thành công');
+  const handleDelete = async (id: string) => {
+    if (!window.confirm('Bạn có chắc muốn xóa máy này không?')) return;
+    
+    try {
+      const { error } = await supabase
+        .from('machines')
+        .delete()
+        .eq('id', id);
+      
+      if (error) throw error;
+      toast.success('Đã xóa máy thành công');
+    } catch (error) {
+      console.error('Error deleting machine:', error);
+      toast.error('Lỗi xóa dữ liệu');
+    }
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (selectedIds.length === 0) {
-      toast.error('Chú chưa chọn máy nào để xóa');
+      toast.error('Chưa chọn máy nào để xóa');
       return;
     }
-    if (!window.confirm(`Chú có chắc chắn muốn xóa ${selectedIds.length} máy đã chọn?`)) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} máy đã chọn?`)) return;
 
-    const updated = machines.filter((machine) => !selectedIds.includes(machine.id));
-    saveMachines(updated);
-    toast.success(`Đã xóa thành công ${selectedIds.length} máy`);
+    try {
+      const { error } = await supabase
+        .from('machines')
+        .delete()
+        .in('id', selectedIds);
+      
+      if (error) throw error;
+      toast.success(`Đã xóa thành công ${selectedIds.length} máy`);
+      setSelectedIds([]);
+    } catch (error) {
+      console.error('Error deleting machines:', error);
+      toast.error('Lỗi xóa dữ liệu');
+    }
   };
 
   const toggleSelect = (id: string) => {
@@ -214,13 +292,13 @@ export function MachineManagement() {
     }
   };
 
-  // HÀM IMPORT EXCEL
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // IMPORT EXCEL
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const data = evt.target?.result;
         const workbook = XLSX.read(data, { type: 'array' });
@@ -233,50 +311,42 @@ export function MachineManagement() {
           return;
         }
 
-        const currentMachines = [...machines];
         let addedCount = 0;
 
-        json.forEach((row: any) => {
+        for (const row of json) {
           const targetKeyTen = Object.keys(row).find(k => {
             const keyClean = k.toLowerCase().trim();
             return keyClean.includes('tên') || keyClean.includes('ten') || keyClean.includes('máy') || keyClean.includes('may');
           });
           const tenMay = targetKeyTen ? row[targetKeyTen]?.toString().trim() : '';
-          if (!tenMay) return;
+          if (!tenMay) continue;
 
-          const targetKeyGhiChu = Object.keys(row).find(k => k.toLowerCase().trim().includes('ghi chú') || k.toLowerCase().trim().includes('chú'));
-          const ghiChu = targetKeyGhiChu ? row[targetKeyGhiChu]?.toString().trim() : '';
+          const val8h1Ca = Number(row['Giá Giờ 8h/1Ca'] || row['8h/1Ca'] || 0);
+          const val10h1Ca = Number(row['Giá Giờ 10h/1Ca'] || row['10h/1Ca'] || 0);
+          const val8h2Ca = Number(row['Giá Giờ 8h/2Ca'] || row['8h/2Ca'] || 0);
+          const val10h2Ca = Number(row['Giá Giờ 10h/2Ca'] || row['10h/2Ca'] || 0);
+          const val12h1Ca = Number(row['Giá Giờ 12h/1Ca'] || row['12h/1Ca'] || 0);
+          const val12h2Ca = Number(row['Giá Giờ 12h/2Ca'] || row['12h/2Ca'] || 0);
 
-          // Đọc giá từ 6 cột
-          const val8h1Ca = row['Giá Giờ 8h/1Ca'] || row['8h/1Ca'] || row['8h/1ca'] || '';
-          const val10h1Ca = row['Giá Giờ 10h/1Ca'] || row['10h/1Ca'] || row['10h/1ca'] || '';
-          const val8h2Ca = row['Giá Giờ 8h/2Ca'] || row['8h/2Ca'] || row['8h/2ca'] || '';
-          const val10h2Ca = row['Giá Giờ 10h/2Ca'] || row['10h/2Ca'] || row['10h/2ca'] || '';
-          const val12h1Ca = row['Giá Giờ 12h/1Ca'] || row['12h/1Ca'] || row['12h/1ca'] || '';
-          const val12h2Ca = row['Giá Giờ 12h/2Ca'] || row['12h/2Ca'] || row['12h/2ca'] || '';
+          const newMaMay = await generateMachineCode();
 
-          const finalMaMay = generateMachineCode(currentMachines);
+          const { error } = await supabase
+            .from('machines')
+            .insert({
+              ma_may: newMaMay,
+              ten_may: tenMay,
+              gia_8h_1ca: Math.round(val8h1Ca),
+              gia_10h_1ca: Math.round(val10h1Ca),
+              gia_8h_2ca: Math.round(val8h2Ca),
+              gia_10h_2ca: Math.round(val10h2Ca),
+              gia_12h_1ca: Math.round(val12h1Ca),
+              gia_12h_2ca: Math.round(val12h2Ca),
+            });
 
-          const newMachineItem: Machine = {
-            id: crypto.randomUUID(),
-            maMay: finalMaMay,
-            tenMay: tenMay,
-            gia8h1Ca: roundNumber(val8h1Ca),
-            gia10h1Ca: roundNumber(val10h1Ca),
-            gia8h2Ca: roundNumber(val8h2Ca),
-            gia10h2Ca: roundNumber(val10h2Ca),
-            gia12h1Ca: roundNumber(val12h1Ca),
-            gia12h2Ca: roundNumber(val12h2Ca),
-            ghiChu: ghiChu !== "" ? ghiChu : undefined,
-            createdAt: new Date().toISOString()
-          };
+          if (!error) addedCount++;
+        }
 
-          currentMachines.unshift(newMachineItem);
-          addedCount++;
-        });
-
-        saveMachines(currentMachines);
-        toast.success(`Import thành công ${addedCount} máy kèm bảng giá ca kíp`);
+        toast.success(`Import thành công ${addedCount} máy`);
       } catch (error) {
         console.error(error);
         toast.error('Lỗi đọc bảng giá từ file Excel');
@@ -292,15 +362,22 @@ export function MachineManagement() {
   const filteredMachines = machines.filter((machine) => {
     const keyword = searchTerm.toLowerCase().trim();
     return (
-      (machine.maMay || '').toLowerCase().includes(keyword) ||
-      (machine.tenMay || '').toLowerCase().includes(keyword) ||
-      (machine.ghiChu || '').toLowerCase().includes(keyword)
+      (machine.ma_may || '').toLowerCase().includes(keyword) ||
+      (machine.ten_may || '').toLowerCase().includes(keyword) ||
+      (machine.ghi_chu || '').toLowerCase().includes(keyword)
     );
   });
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {/* HEADER */}
       <div className="flex items-center justify-between">
         <div></div>
         <Badge className="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-100 font-bold shadow-sm">
@@ -309,7 +386,7 @@ export function MachineManagement() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* KHỐI TRÁI: FORM NHẬP */}
+        {/* FORM NHẬP */}
         <div className="xl:col-span-1">
           <Card className="rounded-xl border border-slate-100 shadow-sm bg-white sticky top-6">
             <CardHeader className="pb-3">
@@ -322,7 +399,7 @@ export function MachineManagement() {
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-600">Mã máy</Label>
                   <Input 
-                    value={editingId ? formData.maMay : "Hệ thống tự động sinh"} 
+                    value={editingId ? formData.ma_may : "Hệ thống tự động sinh"} 
                     disabled 
                     className="h-9 bg-slate-50 text-xs font-mono text-slate-500" 
                   />
@@ -331,14 +408,15 @@ export function MachineManagement() {
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-600">Tên Máy *</Label>
                   <Input
-                    value={formData.tenMay}
-                    onChange={(e) => setFormData({ ...formData, tenMay: e.target.value })}
+                    value={formData.ten_may}
+                    onChange={(e) => setFormData({ ...formData, ten_may: e.target.value })}
                     placeholder="Nhập tên thiết bị máy móc"
                     className="h-9 text-sm border-slate-200 focus:border-blue-500"
+                    required
                   />
                 </div>
 
-                {/* 6 Ô NHẬP TIỀN THEO ĐÚNG 6 LOẠI CA */}
+                {/* 6 Ô NHẬP TIỀN */}
                 <div className="bg-slate-50/80 p-3 rounded-lg border border-slate-100 space-y-2">
                   <p className="text-xs font-bold text-slate-700 flex items-center gap-1">
                     <DollarSign className="w-3.5 h-3.5 text-blue-600" /> Điền giá theo Ca máy
@@ -347,39 +425,39 @@ export function MachineManagement() {
                   <div className="space-y-2">
                     <div className="grid grid-cols-3 items-center gap-2">
                       <Label className="text-[11px] font-medium text-slate-600 col-span-1">Giá Giờ 8h/1Ca</Label>
-                      <Input value={formData.gia8h1Ca} onChange={(e) => setFormData({ ...formData, gia8h1Ca: e.target.value })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
+                      <Input type="number" value={formData.gia_8h_1ca || ''} onChange={(e) => setFormData({ ...formData, gia_8h_1ca: Number(e.target.value) })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
                     </div>
                     <div className="grid grid-cols-3 items-center gap-2">
                       <Label className="text-[11px] font-medium text-slate-600 col-span-1">Giá Giờ 10h/1Ca</Label>
-                      <Input value={formData.gia10h1Ca} onChange={(e) => setFormData({ ...formData, gia10h1Ca: e.target.value })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
+                      <Input type="number" value={formData.gia_10h_1ca || ''} onChange={(e) => setFormData({ ...formData, gia_10h_1ca: Number(e.target.value) })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
                     </div>
                     <div className="grid grid-cols-3 items-center gap-2">
                       <Label className="text-[11px] font-medium text-slate-600 col-span-1">Giá Giờ 8h/2Ca</Label>
-                      <Input value={formData.gia8h2Ca} onChange={(e) => setFormData({ ...formData, gia8h2Ca: e.target.value })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
+                      <Input type="number" value={formData.gia_8h_2ca || ''} onChange={(e) => setFormData({ ...formData, gia_8h_2ca: Number(e.target.value) })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
                     </div>
                     <div className="grid grid-cols-3 items-center gap-2">
                       <Label className="text-[11px] font-medium text-slate-600 col-span-1">Giá Giờ 10h/2Ca</Label>
-                      <Input value={formData.gia10h2Ca} onChange={(e) => setFormData({ ...formData, gia10h2Ca: e.target.value })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
+                      <Input type="number" value={formData.gia_10h_2ca || ''} onChange={(e) => setFormData({ ...formData, gia_10h_2ca: Number(e.target.value) })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
                     </div>
                     <div className="grid grid-cols-3 items-center gap-2">
                       <Label className="text-[11px] font-medium text-slate-600 col-span-1">Giá Giờ 12h/1Ca</Label>
-                      <Input value={formData.gia12h1Ca} onChange={(e) => setFormData({ ...formData, gia12h1Ca: e.target.value })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
+                      <Input type="number" value={formData.gia_12h_1ca || ''} onChange={(e) => setFormData({ ...formData, gia_12h_1ca: Number(e.target.value) })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
                     </div>
                     <div className="grid grid-cols-3 items-center gap-2">
                       <Label className="text-[11px] font-medium text-slate-600 col-span-1">Giá Giờ 12h/2Ca</Label>
-                      <Input value={formData.gia12h2Ca} onChange={(e) => setFormData({ ...formData, gia12h2Ca: e.target.value })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
+                      <Input type="number" value={formData.gia_12h_2ca || ''} onChange={(e) => setFormData({ ...formData, gia_12h_2ca: Number(e.target.value) })} placeholder="Đơn giá" className="h-8 text-xs bg-white col-span-2" />
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-1">
                   <Label className="text-xs font-semibold text-slate-600">Ghi Chú Máy</Label>
-                  <Textarea rows={2} value={formData.ghiChu} onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })} placeholder="Điền ghi chú bổ sung..." className="text-xs resize-none" />
+                  <Textarea rows={2} value={formData.ghi_chu} onChange={(e) => setFormData({ ...formData, ghi_chu: e.target.value })} placeholder="Điền ghi chú bổ sung..." className="text-xs resize-none" />
                 </div>
 
                 <div className="flex gap-2 pt-1">
-                  <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9">
-                    {editingId ? 'Cập nhật' : 'Lưu máy'}
+                  <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9" disabled={isSubmitting}>
+                    {isSubmitting ? 'Đang lưu...' : (editingId ? 'Cập nhật' : 'Lưu máy')}
                   </Button>
                   <Button type="button" variant="outline" onClick={resetForm} className="flex-1 text-xs h-9">Hủy</Button>
                 </div>
@@ -395,7 +473,7 @@ export function MachineManagement() {
           </Card>
         </div>
 
-        {/* KHỐI PHẢI: BẢNG THEO DÕI */}
+        {/* BẢNG HIỂN THỊ */}
         <div className="xl:col-span-3">
           <Card className="rounded-xl border border-slate-100 shadow-sm bg-white overflow-hidden">
             <CardHeader className="bg-white border-b border-slate-100 py-3.5">
@@ -417,10 +495,9 @@ export function MachineManagement() {
 
             <CardContent className="p-0 overflow-x-auto">
               <div className="min-w-[1050px] space-y-0">
-                {/* THANH TIÊU ĐỀ */}
                 <div className="grid grid-cols-[35px_85px_170px_90px_90px_90px_90px_90px_90px_1fr_75px] gap-1 px-3 py-2.5 bg-slate-50/80 border-b text-xs font-bold text-slate-700 items-center text-center">
                   <div className="flex justify-center"><Checkbox checked={filteredMachines.length > 0 && selectedIds.length === filteredMachines.length} onCheckedChange={toggleSelectAll} className="h-3.5 w-3.5" /></div>
-                  <div className="text-left text-slate-500 font-mono">ID Máy</div>
+                  <div className="text-left text-slate-500 font-mono">Mã Máy</div>
                   <div className="text-left">Tên Máy</div>
                   <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">8h/1Ca</div>
                   <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">10h/1Ca</div>
@@ -428,29 +505,27 @@ export function MachineManagement() {
                   <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">10h/2Ca</div>
                   <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">12h/1Ca</div>
                   <div className="text-right bg-blue-50 text-blue-700 py-1 rounded text-[11px] px-2">12h/2Ca</div>
-                  <div className="text-left pl-3">Ghi Chú Máy</div>
+                  <div className="text-left pl-3">Ghi Chú</div>
                   <div>Thao tác</div>
                 </div>
 
-                {/* KHU VỰC HIỂN THỊ DÒNG DỮ LIỆU */}
                 {filteredMachines.length === 0 ? (
                   <div className="text-center py-12 text-slate-400 text-xs">Chưa có máy nào trong danh sách.</div>
                 ) : (
                   filteredMachines.map((machine) => (
                     <div key={machine.id} className="grid grid-cols-[35px_85px_170px_90px_90px_90px_90px_90px_90px_1fr_75px] gap-1 px-3 py-2 items-center border-b text-xs hover:bg-slate-50/40 transition-colors">
                       <div className="flex justify-center"><Checkbox checked={selectedIds.includes(machine.id)} onCheckedChange={() => toggleSelect(machine.id)} className="h-3.5 w-3.5" /></div>
-                      <div className="text-left font-mono"><Badge variant="outline" className="text-[10px] px-1.5 bg-slate-50 font-bold">{machine.maMay}</Badge></div>
-                      <div className="text-left font-semibold text-slate-900 truncate pr-1" title={machine.tenMay}>{machine.tenMay}</div>
+                      <div className="text-left font-mono"><Badge variant="outline" className="text-[10px] px-1.5 bg-slate-50 font-bold">{machine.ma_may}</Badge></div>
+                      <div className="text-left font-semibold text-slate-900 truncate pr-1" title={machine.ten_may}>{machine.ten_may}</div>
                       
-                      {/* 6 cột giá - đã format số */}
-                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia8h1Ca)}</div>
-                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia10h1Ca)}</div>
-                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia8h2Ca)}</div>
-                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia10h2Ca)}</div>
-                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia12h1Ca)}</div>
-                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia12h2Ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_8h_1ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_10h_1ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_8h_2ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_10h_2ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_12h_1ca)}</div>
+                      <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_12h_2ca)}</div>
 
-                      <div className="text-left text-slate-500 truncate pl-3" title={machine.ghiChu}>{machine.ghiChu || '—'}</div>
+                      <div className="text-left text-slate-500 truncate pl-3" title={machine.ghi_chu}>{machine.ghi_chu || '—'}</div>
                       
                       <div className="flex justify-center gap-0.5">
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(machine)}><Edit2 className="w-3.5 h-3.5" /></Button>
