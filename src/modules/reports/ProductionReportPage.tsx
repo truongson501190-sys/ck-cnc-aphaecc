@@ -224,15 +224,19 @@ export function ProductionReportPage() {
     window.dispatchEvent(new Event('app-data-synced'));
   };
 
-  // Kiểm tra quyền duyệt
-  const canApprove = (log: ProductionLog) => {
-    const userRole = user?.role || '';
-    const userName = user?.fullName || user?.name || '';
-    
-    if (userRole === 'admin' || userRole === 'quan_ly_xuong') return true;
-    if ((userRole === 'to_truong' || userRole === 'to_pho') && log.nguoiKiemTra === userName) return true;
-    return false;
-  };
+ // Kiểm tra quyền duyệt
+const canApprove = (log: ProductionLog) => {
+  const userRole = (user?.role as string) || '';
+  const userName = user?.fullName || user?.name || '';
+  
+  // Admin và Quản lý xưởng có toàn quyền
+  if (userRole === 'admin' || userRole === 'quan_ly_xuong') return true;
+  
+  // Tổ trưởng, Tổ phó, Nhóm trưởng chỉ duyệt được nhật ký do mình kiểm tra
+  if ((userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') && log.nguoiKiemTra === userName) return true;
+  
+  return false;
+};
 
   // Hàm duyệt nhật ký
   const handleApproveLog = async (id: string, e: React.MouseEvent) => {
@@ -298,7 +302,7 @@ export function ProductionReportPage() {
         
         if (error) throw error;
         
-        persistLogs([...logs, newLog]);
+        await loadLogs(); // Reload từ DB
         setIsAddDialogOpen(false);
         setFormKey((k) => k + 1);
         toast.success('Thêm nhật ký thành công');
@@ -353,7 +357,7 @@ export function ProductionReportPage() {
         
         if (error) throw error;
         
-        persistLogs(logs.map(l => l.id === selectedLog.id ? updatedLog : l));
+        await loadLogs(); // Reload từ DB
         setIsEditDialogOpen(false);
         setSelectedLog(null);
         toast.success('Cập nhật nhật ký thành công');
@@ -388,7 +392,7 @@ export function ProductionReportPage() {
           
           if (error) throw error;
           
-          persistLogs(logs.filter(l => l.id !== id));
+          await loadLogs(); // Reload từ DB
           toast.success('Xóa nhật ký thành công');
         } catch (error) {
           console.error('Error deleting from Supabase:', error);
@@ -400,10 +404,138 @@ export function ProductionReportPage() {
     }
   };
 
-  // IMPORT EXCEL (giữ nguyên code cũ)
-  const handleImportExcel = (event: React.ChangeEvent<HTMLInputElement>) => {
-    // ... giữ nguyên code import Excel của bạn
-  };
+  // IMPORT EXCEL
+const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const file = event.target.files?.[0];
+  if (!file) return;
+
+  setIsImporting(true);
+  const reader = new FileReader();
+
+  reader.onload = async (e) => {
+    try {
+      const data = e.target?.result;
+      const workbook = XLSX.read(data, { type: 'binary' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(sheet);
+
+      const newLogs: ProductionLog[] = [];
+
+      for (let i = 0; i < json.length; i++) {
+        const item: any = json[i];
+        
+        let ngayRaw = item['Ngày'] || '';
+        let ngay = '';
+        if (ngayRaw) {
+          const parts = ngayRaw.toString().split('/');
+          if (parts.length === 3) {
+            ngay = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          } else {
+            ngay = ngayRaw;
+          }
+        }
+        
+        const may = item['Máy Sản Xuất'] || item['Máy'] || '';
+        const maDuAn = item['Dự án'] || item['Mã dự án'] || '';
+        const tenDuAn = item['Tên dự án'] || '';
+        const banVeSo = item['Bản Vẽ Số'] || '';
+        const tenChiTiet = item['Tên Chi Tiết'] || '';
+        const noiDung = item['Nội dung Gia Công'] || '';
+        const sanLuong = Number(item['SL HT'] || 0);
+        const vatLieu = item['Vật Liệu'] || '';
+        const ncSo = item['NC Số'] || '';
+        
+        let gioGa = Number(item['Tổng TG gá (h)'] || 0);
+        let gioChay = Number(item['Tổng TG chạy (h)'] || 0);
+        
+        const ca = item['CA'] || '';
+        const nguoiVanHanh = item['Người vận hành (MSNV)'] || '';
+        const nguoiKiemTra = item['Người kiểm tra'] || '';
+        
+        const chiPhiChayMay = Number(String(item['Chi phí chạy máy (VND)'] || 0).replace(/[^0-9]/g, ''));
+        let chiPhiDao = Number(String(item['Chi phí dao cụ (VND)'] || 0).replace(/[^0-9]/g, ''));
+        
+        const tenDao = item['Tên dao'] || '';
+        const slCap = Number(item['SL cấp'] || 0);
+        const slSuDung = Number(item['sử dụng'] || 0);
+        const hong = Number(item['Hỏng'] || 0);
+        const donVi = item['ĐV'] || 'cái';
+        
+        const toolEntries = [];
+        if (tenDao) {
+          toolEntries.push({
+            tenDao: tenDao,
+            slCap: slCap,
+            slSuDung: slSuDung,
+            hong: hong,
+            donVi: donVi,
+            donGia: chiPhiDao / (slSuDung || 1),
+            thanhTien: chiPhiDao,
+          });
+        }
+        
+        if (maDuAn && ngay) {
+          newLogs.push({
+            id: crypto.randomUUID(),
+            ngay: ngay,
+            may: may,
+            maDuAn: maDuAn,
+            tenDuAn: tenDuAn,
+            banVeSo: banVeSo,
+            tenChiTiet: tenChiTiet,
+            noiDung: noiDung,
+            kichThuoc: '',
+            vatLieu: vatLieu,
+            ncSo: ncSo,
+            sanLuong: sanLuong,
+            tgBdGa: '',
+            tgKtGa: '',
+            gioGa: gioGa,
+            tgBdChay: '',
+            tgKtChay: '',
+            gioChay: gioChay,
+            ca: ca,
+            nguoiVanHanh: nguoiVanHanh,
+            nguoiKiemTra: nguoiKiemTra,
+            chiPhiGa: 0,
+            chiPhiChayMay: chiPhiChayMay,
+            chiPhiDao: chiPhiDao,
+            toolEntries: toolEntries,
+            status: 'pending',
+            createdAt: new Date().toISOString(),
+          });
+        }
+      }
+      
+      if (newLogs.length > 0) {
+        if (useFallback) {
+          persistLogs([...logs, ...newLogs]);
+        } else {
+          const dbItems = newLogs.map(convertLogToDb);
+          const { error } = await supabase
+            .from('production_reports')
+            .insert(dbItems);
+          if (!error) {
+            await loadLogs();
+          }
+        }
+        toast.success(`Import thành công ${newLogs.length} nhật ký`);
+      } else {
+        toast.error('Không có dữ liệu hợp lệ');
+      }
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Lỗi xử lý file Excel');
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
+    }
+  };  // Đóng reader.onload
+  
+  reader.readAsBinaryString(file);
+};  
 
   // Export Excel
   const handleExportExcel = () => {
@@ -417,8 +549,7 @@ export function ProductionReportPage() {
       'Giờ chạy': log.gioChay,
       'Người vận hành': log.nguoiVanHanh,
       'Người kiểm tra': log.nguoiKiemTra,
-      'Chi phí gá': formatCurrency(log.chiPhiGa),
-      'Chi phí chạy máy': formatCurrency(log.chiPhiChayMay),
+      'Tên dao': log.toolEntries.map(t => t.tenDao).join(', '),
       'Chi phí dao': formatCurrency(log.chiPhiDao),
       'Trạng thái': log.status === 'approved' ? 'Đã duyệt' : log.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt',
     }));
@@ -454,11 +585,11 @@ export function ProductionReportPage() {
     
     if (log.toolEntries && log.toolEntries.length > 0) {
       log.toolEntries.forEach((tool, idx) => {
-        exportData[`Dao cụ ${idx + 1} - Tên`] = tool.tenDao;
-        exportData[`Dao cụ ${idx + 1} - SL cấp`] = tool.slCap;
-        exportData[`Dao cụ ${idx + 1} - SL sử dụng`] = tool.slSuDung;
-        exportData[`Dao cụ ${idx + 1} - SL hỏng`] = tool.hong;
-        exportData[`Dao cụ ${idx + 1} - Đơn vị`] = tool.donVi;
+        exportData[`Tên dao ${idx + 1}`] = tool.tenDao;
+        exportData[`SL cấp ${idx + 1}`] = tool.slCap;
+        exportData[`SL sử dụng ${idx + 1}`] = tool.slSuDung;
+        exportData[`SL hỏng ${idx + 1}`] = tool.hong;
+        exportData[`Đơn vị ${idx + 1}`] = tool.donVi;
       });
     }
     
@@ -509,36 +640,37 @@ export function ProductionReportPage() {
     toast.success('Đã tải file mẫu');
   };
 
-  // Filter với phân quyền
-  const filteredLogs = useMemo(() => {
-    const userRole = user?.role || '';
-    const userName = user?.fullName || user?.name || '';
+ // Trong filteredLogs, sửa dòng 663 và 665:
+const filteredLogs = useMemo(() => {
+  const userRole = (user?.role as string) || '';
+  const userName = user?.fullName || user?.name || '';
+  
+  return logs.filter(log => {
+    const searchMatch = !searchTerm || 
+      log.maDuAn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.tenDuAn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      log.may?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (log.toolEntries.some(tool => tool.tenDao?.toLowerCase().includes(searchTerm.toLowerCase())));
     
-    return logs.filter(log => {
-      const searchMatch = !searchTerm || 
-        log.maDuAn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.tenDuAn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        log.may?.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      const statusMatch = statusFilter === 'all' || log.status === statusFilter;
-      const logDate = new Date(log.ngay);
-      const startDate = dateFilterStart ? new Date(dateFilterStart) : null;
-      const endDate = dateFilterEnd ? new Date(dateFilterEnd) : null;
-      const dateMatch = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate);
-      
-      // Phân quyền
-      let permissionMatch = false;
-      if (userRole === 'admin' || userRole === 'quan_ly_xuong') {
-        permissionMatch = true;
-      } else if (userRole === 'to_truong' || userRole === 'to_pho') {
-        permissionMatch = log.nguoiKiemTra === userName;
-      } else {
-        permissionMatch = log.nguoiVanHanh === userName;
-      }
-      
-      return searchMatch && statusMatch && dateMatch && permissionMatch;
-    });
-  }, [logs, searchTerm, statusFilter, dateFilterStart, dateFilterEnd, user]);
+    const statusMatch = statusFilter === 'all' || log.status === statusFilter;
+    const logDate = new Date(log.ngay);
+    const startDate = dateFilterStart ? new Date(dateFilterStart) : null;
+    const endDate = dateFilterEnd ? new Date(dateFilterEnd) : null;
+    const dateMatch = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate);
+    
+    // Phân quyền - dùng as string để ép kiểu
+    let permissionMatch = false;
+    if (userRole === 'admin' || userRole === 'quan_ly_xuong') {
+      permissionMatch = true;
+    } else if (userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') {
+      permissionMatch = log.nguoiKiemTra === userName;
+    } else {
+      permissionMatch = log.nguoiVanHanh === userName;
+    }
+    
+    return searchMatch && statusMatch && dateMatch && permissionMatch;
+  });
+}, [logs, searchTerm, statusFilter, dateFilterStart, dateFilterEnd, user]);
 
   const stats = useMemo(() => ({
     total: logs.length,
@@ -562,6 +694,13 @@ export function ProductionReportPage() {
     setDateFilterStart('');
     setDateFilterEnd('');
     setShowFilters(false);
+  };
+
+  // Format máy cho hiển thị
+  const formatMay = (may: string) => {
+    if (!may) return '---';
+    if (may.length > 30) return may.substring(0, 27) + '...';
+    return may;
   };
 
   return (
@@ -640,7 +779,7 @@ export function ProductionReportPage() {
           {showFilters && (
             <CardContent className="space-y-4 border-t pt-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div><Label>Tìm kiếm</Label><Input placeholder="Máy, dự án..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
+                <div><Label>Tìm kiếm</Label><Input placeholder="Máy, dự án, tên dao..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
                 <div><Label>Trạng thái</Label><Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả</SelectItem><SelectItem value="approved">Đã duyệt</SelectItem><SelectItem value="pending">Chờ duyệt</SelectItem><SelectItem value="rejected">Từ chối</SelectItem></SelectContent></Select></div>
                 <div><Label>Từ ngày</Label><Input type="date" value={dateFilterStart} onChange={(e) => setDateFilterStart(e.target.value)} /></div>
                 <div><Label>Đến ngày</Label><Input type="date" value={dateFilterEnd} onChange={(e) => setDateFilterEnd(e.target.value)} /></div>
@@ -686,14 +825,15 @@ export function ProductionReportPage() {
                 <TableHeader>
                   <TableRow className="bg-gray-50 border-b-2 border-gray-200">
                     <TableHead className="font-semibold text-gray-700">Ngày</TableHead>
-                    <TableHead className="font-semibold text-gray-700">Máy</TableHead>
-                    <TableHead className="font-semibold text-gray-700">Mã dự án</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Máy Sản Xuất</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Mã Dự Án</TableHead>
                     <TableHead className="font-semibold text-gray-700">Tên dự án</TableHead>
                     <TableHead className="font-semibold text-gray-700 text-center">SL</TableHead>
                     <TableHead className="font-semibold text-gray-700 text-center">Giờ gá</TableHead>
                     <TableHead className="font-semibold text-gray-700 text-center">Giờ chạy</TableHead>
                     <TableHead className="font-semibold text-gray-700">Người vận hành</TableHead>
                     <TableHead className="font-semibold text-gray-700">Người kiểm tra</TableHead>
+                    <TableHead className="font-semibold text-gray-700">Tên dao</TableHead>
                     <TableHead className="font-semibold text-gray-700">Trạng thái</TableHead>
                     <TableHead className="font-semibold text-gray-700 text-right">Thao tác</TableHead>
                   </TableRow>
@@ -701,7 +841,7 @@ export function ProductionReportPage() {
                 <TableBody>
                   {filteredLogs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={11} className="text-center py-12">
+                      <TableCell colSpan={12} className="text-center py-12">
                         <div className="flex flex-col items-center gap-3 text-gray-400">
                           <FileSpreadsheet className="w-12 h-12" />
                           <p className="text-lg">Chưa có dữ liệu</p>
@@ -715,6 +855,9 @@ export function ProductionReportPage() {
                       const canDelete = log.status !== 'approved' || isAdmin;
                       const showApprove = log.status === 'pending' && canApprove(log);
                       
+                      // Lấy danh sách tên dao
+                      const daoList = log.toolEntries.map(t => t.tenDao).join(', ');
+                      
                       return (
                         <TableRow 
                           key={log.id}
@@ -727,14 +870,15 @@ export function ProductionReportPage() {
                           }}
                         >
                           <TableCell className="font-medium">{formatDate(log.ngay)}</TableCell>
-                          <TableCell><Badge variant="outline" className="bg-gray-50">{log.may}</Badge></TableCell>
+                          <TableCell><Badge variant="outline" className="bg-gray-50 max-w-[150px] truncate" title={log.may}>{formatMay(log.may)}</Badge></TableCell>
                           <TableCell><code className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-mono font-semibold">{log.maDuAn}</code></TableCell>
-                          <TableCell><div className="max-w-[200px]"><p className="text-sm font-medium truncate" title={log.tenDuAn}>{log.tenDuAn}</p></div></TableCell>
+                          <TableCell><div className="max-w-[150px]"><p className="text-sm font-medium truncate" title={log.tenDuAn}>{log.tenDuAn}</p></div></TableCell>
                           <TableCell className="text-center"><span className="font-mono font-semibold text-gray-700">{log.sanLuong?.toLocaleString() || 0}</span></TableCell>
                           <TableCell className="text-center"><span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 rounded-md"><span className="text-amber-600">⏱</span><span className="font-mono text-sm">{log.gioGa}h</span></span></TableCell>
                           <TableCell className="text-center"><span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 rounded-md"><span className="text-green-600">▶</span><span className="font-mono text-sm">{log.gioChay}h</span></span></TableCell>
-                          <TableCell><div className="flex items-center gap-1.5"><div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center"><span className="text-xs font-bold text-purple-600">{log.nguoiVanHanh?.charAt(0) || 'NV'}</span></div><span className="text-sm">{log.nguoiVanHanh}</span></div></TableCell>
+                          <TableCell><div className="flex items-center gap-1.5"><div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center"><span className="text-xs font-bold text-purple-600">{log.nguoiVanHanh?.charAt(0) || 'NV'}</span></div><span className="text-sm truncate max-w-[100px]" title={log.nguoiVanHanh}>{log.nguoiVanHanh}</span></div></TableCell>
                           <TableCell><span className="text-sm">{log.nguoiKiemTra || '---'}</span></TableCell>
+                          <TableCell><span className="text-sm truncate max-w-[120px] block" title={daoList}>{daoList || '---'}</span></TableCell>
                           <TableCell>{getStatusBadge(log.status)}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -797,9 +941,9 @@ export function ProductionReportPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <div className="flex"><span className="w-32 text-gray-600">Ngày tháng:</span><span className="font-medium">{formatDate(selectedLog.ngay)}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Máy Sản Xuất:</span><span className="font-medium">{selectedLog.may}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Mã Dự Án:</span><span className="font-medium text-blue-600">{selectedLog.maDuAn}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Tên Dự Án:</span><span className="font-medium">{selectedLog.tenDuAn}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Máy Sản Xuất:</span><span className="font-medium">{selectedLog.may || '---'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Mã Dự Án:</span><span className="font-medium text-blue-600">{selectedLog.maDuAn || '---'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Tên Dự Án:</span><span className="font-medium">{selectedLog.tenDuAn || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Bản Vẽ Số:</span><span>{selectedLog.banVeSo || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Chi Tiết Số:</span><span>{selectedLog.ncSo || '---'}</span></div>
                   </div>
@@ -808,7 +952,7 @@ export function ProductionReportPage() {
                     <div className="flex"><span className="w-32 text-gray-600">Nội dung Gia Công:</span><span>{selectedLog.noiDung || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Vật Liệu:</span><span>{selectedLog.vatLieu || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Nguyên Công Số:</span><span>{selectedLog.ncSo || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Người Vận Hành:</span><span>{selectedLog.nguoiVanHanh}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Người Vận Hành:</span><span>{selectedLog.nguoiVanHanh || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Người Kiểm Tra:</span><span>{selectedLog.nguoiKiemTra || '---'}</span></div>
                   </div>
                 </div>
@@ -858,7 +1002,7 @@ export function ProductionReportPage() {
                         <TableBody>
                           {selectedLog.toolEntries.map((tool, idx) => (
                             <TableRow key={idx}>
-                              <TableCell>{tool.tenDao}</TableCell>
+                              <TableCell className="font-medium">{tool.tenDao}</TableCell>
                               <TableCell className="text-center">{tool.slCap}</TableCell>
                               <TableCell className="text-center">{tool.slSuDung}</TableCell>
                               <TableCell className="text-center">{tool.hong}</TableCell>
