@@ -24,10 +24,20 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
 
   // Tự động mở group và sub-menu chứa trang hiện tại
   useEffect(() => {
+    // 💡 NẾU QUAY VỀ TRANG CHỦ: Tự động thu gọn (gom) toàn bộ các menu khác lại ngay
+    if (location.pathname === '/') {
+      setOpenGroup(null);
+      setOpenSubMenu(null);
+      return; 
+    }
+
     let foundGroupId: string | null = null;
     let foundParentId: string | null = null;
     
     for (const group of ERP_NAVIGATION) {
+      // Bỏ qua kiểm tra items nếu là mục phẳng (Trang chủ) không có mảng con
+      if (!group.items) continue;
+
       for (const item of group.items) {
         if (item.path === location.pathname) {
           foundGroupId = group.id;
@@ -80,7 +90,8 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
   };
 
   // Lọc item theo quyền
-  const getVisibleItems = (items: ERPNavItem[]): ERPNavItem[] => {
+  const getVisibleItems = (items: ERPNavItem[] | undefined): ERPNavItem[] => {
+    if (!items) return [];
     return items.filter(item => {
       if (user?.role === 'admin') return true;
       if (item.action === 'logout') return false;
@@ -150,6 +161,33 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
         {/* MENU NAVIGATION */}
         <div className="p-3 space-y-1 flex-1 overflow-y-auto custom-scrollbar">
           {ERP_NAVIGATION.map((group) => {
+            
+            // 💡 XỬ LÝ RIÊNG: Nếu là nhóm dạng phẳng không có items (như nút Trang chủ phẳng)
+            if (!group.items || group.items.length === 0) {
+              const isGroupActive = location.pathname === group.path;
+              return (
+                <div key={group.id} className="border-b border-slate-100 last:border-0 pb-1">
+                  <button
+                    onClick={() => {
+                      // Click vào Trang chủ -> Gom sạch bách các group khác lại ngay lập tức
+                      setOpenGroup(null);
+                      setOpenSubMenu(null);
+                      if (group.path) navigate(group.path);
+                    }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg transition-all ${
+                      isGroupActive
+                        ? 'bg-blue-500 text-white font-medium shadow-sm'
+                        : 'hover:bg-slate-50 text-slate-700'
+                    }`}
+                  >
+                    <group.icon className={`w-5 h-5 ${isGroupActive ? 'text-white' : 'text-slate-500'}`} />
+                    <span className="text-sm font-semibold">{group.label}</span>
+                  </button>
+                </div>
+              );
+            }
+
+            // XỬ LÝ NHÓM THÔNG THƯỜNG (Có dropdown các items con)
             const visibleItems = getVisibleItems(group.items);
             if (visibleItems.length === 0) return null;
             

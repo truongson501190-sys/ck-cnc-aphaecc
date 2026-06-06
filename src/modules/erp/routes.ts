@@ -114,30 +114,32 @@ export type ERPNavItem = {
   children?: ERPNavItem[];  // Thêm children để hỗ trợ sub-menu
 };
 
+// ĐỊNH NGHĨA CHUẨN: Đã sửa 'xport' và cho phép nhận 'path', ẩn bắt buộc 'items'
 export type ERPNavGroup = {
   id: string;
   label: string;
   icon: LucideIcon;
-  items: ERPNavItem[];
+  path?: string;        // Đường dẫn trực tiếp cho mục phẳng như Trang chủ
+  items?: ERPNavItem[]; // Dấu ? để không bắt buộc phải khai báo cụm con
 };
 
 export const ERP_NAVIGATION: ERPNavGroup[] = [
+  // =========================================================================
+  // TRANG CHỦ: Định dạng phẳng hoàn toàn, nằm im một chỗ, bấm ăn ngay
+  // =========================================================================
   {
     id: 'main',
     label: 'Trang chủ',
     icon: Home,
-    items: [
-      {
-        id: 'dashboard',
-        label: 'Trang chủ',
-        icon: Home,
-        path: ERP_ROUTE.dashboard,
-      },
-    ],
+    path: ERP_ROUTE.dashboard,
   },
+  
+  // =========================================================================
+  // PHÂN HỆ SẢN XUẤT
+  // =========================================================================
   {
     id: 'manufacturing',
-    label:'Sản xuất (Manufacturing)',
+    label: 'Sản xuất (Manufacturing)',
     icon: Factory,
     items: [
       { id: 'plan', label: 'Kế hoạch sản xuất', icon: ClipboardList, path: ERP_ROUTE.manufacturing.plan, permissionKey: 'ke_hoach_san_xuat' },
@@ -147,6 +149,10 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
       { id: 'progress', label: 'Theo dõi tiến độ', icon: Activity, path: ERP_ROUTE.manufacturing.progress, permissionKey: 'theo_doi_tien_do' },
     ],
   },
+
+  // =========================================================================
+  // PHÂN HỆ KHO BÃI
+  // =========================================================================
   {
     id: 'warehouse',
     label: 'Kho bãi (WMS)',
@@ -163,6 +169,9 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
     ],
   },
   
+  // =========================================================================
+  // BÁO CÁO & DASHBOARD
+  // =========================================================================
   {
     id: 'reports',
     label: ' Báo cáo & Dashboard',
@@ -188,34 +197,10 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
         icon: Drill, 
         permissionKey: 'bao_cao_gia_cong',
         children: [
-          { 
-            id: 'machining-production', 
-            label: 'Tông hợp sản xuất', 
-            icon: BarChart2, 
-            path: ERP_ROUTE.reports.machining.production, 
-            permissionKey: 'bao_cao_gia_cong' 
-          },
-          { 
-            id: 'machining-tools', 
-            label: 'Dao cụ sử dụng', 
-            icon: Drill, 
-            path: ERP_ROUTE.reports.machining.tools, 
-            permissionKey: 'bao_cao_gia_cong' 
-          },
-          { 
-            id: 'machining-damage', 
-            label: 'Hao hỏng dao cụ', 
-            icon: FileWarning, 
-            path: ERP_ROUTE.reports.machining.damage, 
-            permissionKey: 'bao_cao_gia_cong' 
-          },
-          { 
-            id: 'machining-cost', 
-            label: 'Chi phí gia công', 
-            icon: DollarSign, 
-            path: ERP_ROUTE.reports.machining.cost, 
-            permissionKey: 'bao_cao_gia_cong' 
-          },
+          { id: 'machining-production', label: 'Tông hợp sản xuất', icon: BarChart2, path: ERP_ROUTE.reports.machining.production, permissionKey: 'bao_cao_gia_cong' },
+          { id: 'machining-tools', label: 'Dao cụ sử dụng', icon: Drill, path: ERP_ROUTE.reports.machining.tools, permissionKey: 'bao_cao_gia_cong' },
+          { id: 'machining-damage', label: 'Hao hỏng dao cụ', icon: FileWarning, path: ERP_ROUTE.reports.machining.damage, permissionKey: 'bao_cao_gia_cong' },
+          { id: 'machining-cost', label: 'Chi phí gia công', icon: DollarSign, path: ERP_ROUTE.reports.machining.cost, permissionKey: 'bao_cao_gia_cong' },
         ]
       },
       { 
@@ -248,6 +233,10 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
       },
     ],
   },
+
+  // =========================================================================
+  // DANH MỤC
+  // =========================================================================
   {
     id: 'masterData',
     label: 'Quản lý Danh mục',
@@ -259,6 +248,10 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
       { id: 'projects', label: 'Dự án', icon: ClipboardList, path: ERP_ROUTE.masterData.projects, permissionKey: 'du_an' },
     ],
   },
+
+  // =========================================================================
+  // HỆ THỐNG
+  // =========================================================================
   {
     id: 'system',
     label: 'Hệ thống',
@@ -271,6 +264,10 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
       { id: 'settings', label: 'Cài đặt hệ thống', icon: Settings, path: ERP_ROUTE.system.settings, permissionKey: 'cai_dat_he_thong' },
     ],
   },
+
+  // =========================================================================
+  // TÀI KHOẢN
+  // =========================================================================
   {
     id: 'account',
     label: 'Tài khoản',
