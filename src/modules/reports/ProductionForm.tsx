@@ -148,84 +148,151 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
 
   const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
 
-  // ======================
-  // LOAD DỮ LIỆU TỪ SUPABASE
-  // ======================
-  const loadMachinesFromSupabase = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('machines')
-        .select('id, ten_may, ma_may, gia_8h_1ca, gia_10h_1ca, gia_12h_1ca')
-        .eq('status', 'active');
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        const formattedMachines: Machine[] = data.map(m => ({
-          id: m.id,
-          name: m.ten_may,
-          tenMay: m.ten_may,
-          ten_may: m.ten_may,
-          code: m.ma_may,
-          gia_8h_1ca: m.gia_8h_1ca,
-          gia_10h_1ca: m.gia_10h_1ca,
-          gia_12h_1ca: m.gia_12h_1ca,
-        }));
-        setMachines(formattedMachines);
-      }
-    } catch (error) {
-      console.error('Error loading machines from Supabase:', error);
-    }
-  }, []);
+ // ======================
+// LOAD DỮ LIỆU TỪ SUPABASE
+// ======================
+interface MachineRecord {
+  id: string;
+  ten_may: string;
+  ma_may: string;
+  gia_8h_1ca: number;
+  gia_10h_1ca: number;
+  gia_12h_1ca: number;
+}
 
-  const loadProjectsFromSupabase = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('projects')
-        .select('id, ma_du_an, ten_du_an')
-        .eq('trang_thai', 'active');
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        const formattedProjects: Project[] = data.map(p => ({
-          id: p.id,
-          maDuAn: p.ma_du_an,
-          tenDuAn: p.ten_du_an,
-          createdAt: new Date().toISOString(),
-        }));
-        setProjects(formattedProjects);
-      }
-    } catch (error) {
-      console.error('Error loading projects from Supabase:', error);
+const loadMachinesFromSupabase = useCallback(async () => {
+  try {
+    const { data, error } = await supabase
+      .from('machines')
+      .select('id, ten_may, ma_may, gia_8h_1ca, gia_10h_1ca, gia_12h_1ca')
+      .eq('status', 'active');
+    
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      const formattedMachines: Machine[] = (data as MachineRecord[]).map((m: MachineRecord) => ({
+        id: m.id,
+        name: m.ten_may,
+        tenMay: m.ten_may,
+        ten_may: m.ten_may,
+        code: m.ma_may,
+        gia_8h_1ca: m.gia_8h_1ca,
+        gia_10h_1ca: m.gia_10h_1ca,
+        gia_12h_1ca: m.gia_12h_1ca,
+      }));
+      setMachines(formattedMachines);
     }
-  }, []);
+  } catch (error) {
+    console.error('Error loading machines from Supabase:', error);
+  }
+}, []);
 
-  const loadCategoriesFromSupabase = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('id, ten_loai, don_vi, gia')
-        .eq('status', 'active')
-        .eq('loai', 'tool');
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        const formattedCategories: CategoryType[] = data.map(c => ({
-          id: c.id,
-          maLoai: '',
-          tenLoai: c.ten_loai,
-          donVi: c.don_vi || 'cái',
-          gia: c.gia || 0,
-          createdAt: new Date().toISOString(),
-        }));
-        setCategoryTypes(formattedCategories);
-      }
-    } catch (error) {
-      console.error('Error loading categories from Supabase:', error);
+interface ProjectRecord {
+  id: string;
+  ma_du_an: string;
+  ten_du_an: string;
+}
+
+const loadProjectsFromSupabase = useCallback(async () => {
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('id, ma_du_an, ten_du_an')
+      .eq('trang_thai', 'active');
+    
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      const formattedProjects: Project[] = (data as ProjectRecord[]).map((p: ProjectRecord) => ({
+        id: p.id,
+        maDuAn: p.ma_du_an,
+        tenDuAn: p.ten_du_an,
+        createdAt: new Date().toISOString(),
+      }));
+      setProjects(formattedProjects);
     }
-  }, []);
+  } catch (error) {
+    console.error('Error loading projects from Supabase:', error);
+  }
+}, []);
+
+interface CategoryRecord {
+  id: string;
+  ten_loai: string;
+  don_vi: string;
+  gia: number;
+}
+
+const loadCategoriesFromSupabase = useCallback(async () => {
+  try {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('id, ten_loai, don_vi, gia')
+      .eq('status', 'active')
+      .eq('loai', 'tool');
+    
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      const formattedCategories: CategoryType[] = (data as CategoryRecord[]).map((c: CategoryRecord) => ({
+        id: c.id,
+        maLoai: '',
+        tenLoai: c.ten_loai,
+        donVi: c.don_vi || 'cái',
+        gia: c.gia || 0,
+        createdAt: new Date().toISOString(),
+      }));
+      setCategoryTypes(formattedCategories);
+    }
+  } catch (error) {
+    console.error('Error loading categories from Supabase:', error);
+  }
+}, []);
+
+interface EmployeeRecord {
+  id: string;
+  msnv: string;
+  ho_ten: string;
+  full_name: string;
+  chuc_vu: string;
+  phong_ban: string;
+}
+
+const loadEmployees = useCallback(async () => {
+  try {
+    const { data, error } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('status', 'active');
+    
+    if (error) throw error;
+    
+    if (data && data.length > 0) {
+      const formattedEmployees: Employee[] = (data as EmployeeRecord[]).map((emp: EmployeeRecord) => ({
+        id: emp.id,
+        msnv: emp.msnv,
+        hoTen: emp.ho_ten || emp.full_name,
+        fullName: emp.ho_ten || emp.full_name,
+        name: emp.ho_ten || emp.full_name,
+        role: emp.chuc_vu?.toLowerCase() || 'user',
+        chucVu: emp.chuc_vu || '',
+        department: emp.phong_ban || '',
+      }));
+      setEmployees(formattedEmployees);
+    }
+  } catch (error) {
+    console.error('Error loading employees from Supabase:', error);
+    // Fallback: thử load từ localStorage
+    try {
+      const savedEmployees = localStorage.getItem('employees');
+      if (savedEmployees) {
+        setEmployees(JSON.parse(savedEmployees));
+      }
+    } catch (e) {
+      console.error('Error loading employees from localStorage:', e);
+    }
+  }
+}, []);
 
   // ======================
   // LOAD TẤT CẢ DỮ LIỆU MASTER
