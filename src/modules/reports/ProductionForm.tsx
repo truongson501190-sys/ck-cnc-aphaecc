@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/DateInput';
@@ -48,6 +48,15 @@ interface Employee {
   role: string;
   chucVu: string;
   department: string;
+}
+
+interface Machine {
+  id: string;
+  name?: string;
+  tenMay?: string;
+  ten_may?: string;
+  code?: string;
+  status?: string;
 }
 
 const createEmptyToolEntry = (): ToolEntry => ({
@@ -123,7 +132,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   // State cho danh sách
   const [inspectors, setInspectors] = useState<string[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [machines, setMachines] = useState<any[]>([]);
+  const [machines, setMachines] = useState<Machine[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [categoryTypes, setCategoryTypes] = useState<CategoryType[]>([]);
   
@@ -135,7 +144,43 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
 
   // ======================
-  // 1. LẤY THÔNG TIN USER HIỆN TẠI
+  // HÀM LẤY DANH SÁCH MÁY UNIQUE
+  // ======================
+  const loadUniqueMachines = useCallback(() => {
+    try {
+      let allMachines: Machine[] = [];
+      
+      // Lấy từ masterData
+      if (masterData.machines && masterData.machines.length) {
+        allMachines = [...allMachines, ...masterData.machines];
+      }
+      
+      // Lấy từ localStorage
+      const savedMachines = localStorage.getItem('machines');
+      if (savedMachines) {
+        const localMachines = JSON.parse(savedMachines);
+        allMachines = [...allMachines, ...localMachines];
+      }
+      
+      // Loại bỏ trùng lặp dựa trên tên máy
+      const uniqueMap = new Map<string, Machine>();
+      allMachines.forEach(machine => {
+        const machineName = machine.name || machine.tenMay || machine.ten_may || '';
+        if (machineName && !uniqueMap.has(machineName)) {
+          uniqueMap.set(machineName, machine);
+        }
+      });
+      
+      const uniqueMachines = Array.from(uniqueMap.values());
+      setMachines(uniqueMachines);
+      
+    } catch (error) {
+      console.error('Error loading machines:', error);
+    }
+  }, [masterData.machines]);
+
+  // ======================
+  // LẤY THÔNG TIN USER HIỆN TẠI
   // ======================
   useEffect(() => {
     if (user?.fullName || user?.name) {
@@ -147,18 +192,16 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   }, [user]);
 
   // ======================
-  // 2. LẤY DANH SÁCH NHÂN VIÊN TỪ LOCALSTORAGE
+  // LẤY DANH SÁCH NHÂN VIÊN TỪ LOCALSTORAGE
   // ======================
-  const loadEmployees = (): Employee[] => {
+  const loadEmployees = useCallback((): Employee[] => {
     try {
-      // Thử lấy từ localStorage với key 'employees'
       let employeesList: Employee[] = [];
       const savedEmployees = localStorage.getItem('employees');
       
       if (savedEmployees) {
         employeesList = JSON.parse(savedEmployees);
       } else {
-        // Fallback: lấy từ 'users' nếu có
         const savedUsers = localStorage.getItem('users');
         if (savedUsers) {
           employeesList = JSON.parse(savedUsers);
@@ -171,22 +214,19 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       console.error('Error loading employees:', error);
       return [];
     }
-  };
+  }, []);
 
   // ======================
-  // 3. LẤY DANH SÁCH NGƯỜI KIỂM TRA (CHỈ NGƯỜI CÓ CHỨC VỤ PHÙ HỢP)
+  // LẤY DANH SÁCH NGƯỜI KIỂM TRA
   // ======================
-  const getInspectorsByRole = () => {
+  const getInspectorsByRole = useCallback(() => {
     try {
-      // Chức vụ được phép làm người kiểm tra
       const allowedRoles = ['admin', 'quan_ly_xuong', 'to_truong', 'to_pho'];
       const allowedChucVu = ['Admin', 'Quản lý xưởng', 'Tổ trưởng', 'Tổ phó'];
       
-      // Lấy danh sách nhân viên
       let employeesList = employees.length > 0 ? employees : loadEmployees();
       
       if (employeesList.length > 0) {
-        // Lọc theo chức vụ
         const inspectorList = employeesList
           .filter((emp: Employee) => {
             const role = (emp.role || '').toLowerCase();
@@ -202,7 +242,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         }
       }
       
-      // Fallback: danh sách mặc định nếu chưa có dữ liệu
+      // Fallback
       const defaultInspectors = [
         { name: 'Nguyễn Văn A', role: 'admin', chucVu: 'Admin' },
         { name: 'Trần Thị B', role: 'quan_ly_xuong', chucVu: 'Quản lý xưởng' },
@@ -211,39 +251,21 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       ];
       
       const filteredDefault = defaultInspectors
-        .filter(emp => {
-          const role = (emp.role || emp.chucVu || '').toLowerCase();
-          return allowedRoles.includes(role);
-        })
+        .filter(emp => allowedRoles.includes(emp.role))
         .map(emp => emp.name);
       
       setInspectors(filteredDefault);
-      
-      // Cập nhật employees với dữ liệu mặc định
-      if (employeesList.length === 0) {
-        const defaultEmployees: Employee[] = defaultInspectors.map((emp, idx) => ({
-          id: `emp_${idx + 1}`,
-          msnv: `NV00${idx + 1}`,
-          hoTen: emp.name,
-          fullName: emp.name,
-          name: emp.name,
-          role: emp.role,
-          chucVu: emp.chucVu,
-          department: emp.role === 'admin' ? 'Ban Giám Đốc' : 'Xưởng CNC',
-        }));
-        setEmployees(defaultEmployees);
-      }
       
     } catch (error) {
       console.error('Error getting inspectors by role:', error);
       setInspectors(masterData.inspectors || []);
     }
-  };
+  }, [employees, loadEmployees, masterData.inspectors]);
 
   // ======================
-  // 4. LẤY THÔNG TIN CHI TIẾT CỦA NGƯỜI KIỂM TRA
+  // LẤY THÔNG TIN CHI TIẾT CỦA NGƯỜI KIỂM TRA
   // ======================
-  const getInspectorDetails = (inspectorName: string) => {
+  const getInspectorDetails = useCallback((inspectorName: string) => {
     try {
       const employeesList = employees.length > 0 ? employees : loadEmployees();
       const inspector = employeesList.find((emp: Employee) => {
@@ -265,12 +287,12 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     } catch (error) {
       return { name: inspectorName, role: '', chucVu: '', department: '', msnv: '' };
     }
-  };
+  }, [employees, loadEmployees]);
 
   // ======================
-  // 5. LOAD DỮ LIỆU MÁY, DỰ ÁN, DANH MỤC
+  // LOAD DỮ LIỆU MASTER
   // ======================
-  const loadMasterData = () => {
+  const loadMasterData = useCallback(() => {
     try {
       // Load projects
       const savedProjects = localStorage.getItem('projects');
@@ -284,24 +306,21 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         setCategoryTypes(JSON.parse(savedCategories));
       }
       
-      // Load machines
-      const savedMachines = localStorage.getItem('machines');
-      if (savedMachines) {
-        setMachines(JSON.parse(savedMachines));
-      }
+      // Load machines (đã có trong loadUniqueMachines)
+      loadUniqueMachines();
+      
     } catch (error) {
       console.error('Error loading master data:', error);
     }
-  };
+  }, [loadUniqueMachines]);
 
   // ======================
-  // 6. EFFECT CHÍNH: LOAD DATA VÀ KHỞI TẠO
+  // EFFECT CHÍNH
   // ======================
   useEffect(() => {
     loadEmployees();
     loadMasterData();
     
-    // Lắng nghe sự kiện thay đổi dữ liệu
     const handleStorageChange = () => {
       loadMasterData();
       loadEmployees();
@@ -314,19 +333,19 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       window.removeEventListener('app-data-synced', handleStorageChange);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [loadEmployees, loadMasterData]);
 
   // ======================
-  // 7. EFFECT: CẬP NHẬT DANH SÁCH NGƯỜI KIỂM TRA
+  // EFFECT: CẬP NHẬT DANH SÁCH NGƯỜI KIỂM TRA
   // ======================
   useEffect(() => {
     if (employees.length > 0) {
       getInspectorsByRole();
     }
-  }, [employees]);
+  }, [employees, getInspectorsByRole]);
 
   // ======================
-  // 8. KIỂM TRA QUYỀN CỦA NGƯỜI DÙNG HIỆN TẠI
+  // KIỂM TRA QUYỀN
   // ======================
   const isCurrentUserInspector = () => {
     const currentUserName = user?.fullName || user?.name;
@@ -344,7 +363,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   };
 
   // ======================
-  // 9. XỬ LÝ FORM
+  // XỬ LÝ FORM
   // ======================
   const handleTimeChange = (
     machiningHours: string,
@@ -417,6 +436,11 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     }));
   };
 
+  // Lấy tên máy từ object machine
+  const getMachineName = (machine: Machine): string => {
+    return machine.name || machine.tenMay || machine.ten_may || machine.id || '';
+  };
+
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     
@@ -443,12 +467,14 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       }
 
       const selectedMachine = machines.find(
-        (m) => (m.name || m.tenMay || m.id) === formData.maySanXuat
+        (m) => getMachineName(m) === formData.maySanXuat
       );
 
       let machineShiftPrice = 0;
       if (selectedMachine) {
-        machineShiftPrice = Number(selectedMachine.gia8h1Ca) || Number(selectedMachine.gia10h1Ca) || Number(selectedMachine.gia12h1Ca) || 0;
+        machineShiftPrice = Number((selectedMachine as any).gia8h1Ca) || 
+                           Number((selectedMachine as any).gia10h1Ca) || 
+                           Number((selectedMachine as any).gia12h1Ca) || 0;
       }
 
       const totalRunHours = formData.workTimeEntries.reduce(
@@ -526,6 +552,18 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     project.tenDuAn.toLowerCase().includes(projectSearch.toLowerCase())
   );
 
+  // Lấy danh sách máy unique để hiển thị
+  const uniqueMachinesForSelect = React.useMemo(() => {
+    const machineMap = new Map<string, Machine>();
+    machines.forEach(machine => {
+      const name = getMachineName(machine);
+      if (name && !machineMap.has(name)) {
+        machineMap.set(name, machine);
+      }
+    });
+    return Array.from(machineMap.values());
+  }, [machines]);
+
   return (
     <Card className="w-full max-w-4xl mx-auto">
       <CardHeader>
@@ -565,11 +603,18 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                     <SelectValue placeholder="Chọn máy sản xuất" />
                   </SelectTrigger>
                   <SelectContent>
-                    {(machines.length > 0 ? machines : (masterData.machines as any[])).map((machine) => (
-                      <SelectItem key={machine.id} value={machine.name || machine.tenMay || machine.id}>
-                        {machine.name || machine.tenMay || machine.id}
-                      </SelectItem>
-                    ))}
+                    {uniqueMachinesForSelect.length > 0 ? (
+                      uniqueMachinesForSelect.map((machine) => {
+                        const machineName = getMachineName(machine);
+                        return (
+                          <SelectItem key={machine.id} value={machineName}>
+                            {machineName}
+                          </SelectItem>
+                        );
+                      })
+                    ) : (
+                      <SelectItem value="" disabled>Chưa có dữ liệu máy</SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
 
@@ -587,12 +632,13 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                     <p className="text-sm text-gray-600 mb-2">Đưa mã QR vào khung camera để quét.</p>
                     <Suspense fallback={<div>Đang tải máy quét...</div>}>
                       <LazyScanner onDetected={(text: string) => {
-                        let legacy: any[] = [];
-                        try { legacy = JSON.parse(localStorage.getItem('machines') || '[]'); } catch { legacy = []; }
-                        const pool = [ ...(machines || []), ...legacy, ...(masterData.machines || []) ];
-                        const found = pool.find(m => (m.qrData === text) || (m.id === text) || (m.name === text) || (m.tenMay === text));
+                        const found = machines.find(m => 
+                          (m as any).qrData === text || 
+                          (m as any).id === text || 
+                          getMachineName(m) === text
+                        );
                         if (found) {
-                          const name = found.name || found.tenMay || found.id;
+                          const name = getMachineName(found);
                           setFormData(prev => ({ ...prev, maySanXuat: name }));
                           toast.success(`Chọn máy: ${name}`);
                         } else {
@@ -789,7 +835,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                                   {category.tenLoai}
                                 </SelectItem>
                               ))
-                            : masterData.tools.map((tool) => (
+                            : masterData.tools.map((tool: any) => (
                                 <SelectItem key={tool.id} value={tool.name}>
                                   {tool.name}
                                 </SelectItem>
