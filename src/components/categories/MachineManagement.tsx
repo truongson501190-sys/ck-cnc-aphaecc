@@ -1,4 +1,4 @@
-// MachineManagement.tsx - Quản lý Máy móc (với Supabase + Realtime)
+// MachineManagement.tsx - Quản lý Máy móc (bỏ cột ghi_chu)
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +14,13 @@ import {
   Trash2,
   Upload,
   DollarSign,
-  Loader2
+  Loader2,
+  Download
 } from 'lucide-react';
 import { supabase } from '@/supabase';
 import * as XLSX from 'xlsx';
 
-// Cấu trúc máy móc
+// Cấu trúc máy móc (không có ghi_chu)
 interface Machine {
   id: string;
   ma_may: string;
@@ -30,10 +31,12 @@ interface Machine {
   gia_10h_2ca: number;
   gia_12h_1ca: number;
   gia_12h_2ca: number;
-  ghi_chu?: string;
   created_at?: string;
   updated_at?: string;
 }
+
+const STORAGE_KEY = 'machines_data';
+const SUPABASE_CONFIGURED = !!import.meta.env.VITE_SUPABASE_URL && !!import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 // Hàm format số
 const formatNumber = (value: number | undefined): string => {
@@ -48,6 +51,7 @@ export function MachineManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
 
   const [formData, setFormData] = useState({
     ma_may: '',
@@ -58,35 +62,62 @@ export function MachineManagement() {
     gia_10h_2ca: 0,
     gia_12h_1ca: 0,
     gia_12h_2ca: 0,
-    ghi_chu: ''
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Hàm tải dữ liệu từ Supabase
+  // Hàm load từ localStorage
+  const loadFromLocalStorage = () => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        setMachines(Array.isArray(parsed) ? parsed : []);
+      }
+    } catch (e) {
+      console.error('Failed to load from localStorage:', e);
+    }
+  };
+
+  // Hàm lưu vào localStorage
+  const saveToLocalStorage = (data: Machine[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error('Failed to save to localStorage:', e);
+    }
+  };
+
+  // Hàm tải dữ liệu
   const loadMachines = useCallback(async () => {
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('machines')
-        .select('*')
-        .order('created_at', { ascending: false });
+      if (SUPABASE_CONFIGURED) {
+        const { data, error } = await supabase
+          .from('machines')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-      if (error) throw error;
-      setMachines(data || []);
+        if (error) throw error;
+        setMachines(data || []);
+      } else {
+        loadFromLocalStorage();
+      }
     } catch (error) {
       console.error('Error loading machines:', error);
-      toast.error('Lỗi tải dữ liệu máy móc');
+      // Fallback to localStorage
+      loadFromLocalStorage();
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-  // Lắng nghe Realtime
+  // Lắng nghe Realtime (chỉ khi có Supabase)
   useEffect(() => {
     loadMachines();
 
-    // Tạo kết nối realtime
+    if (!SUPABASE_CONFIGURED) return;
+
     const channel = supabase
       .channel('machines-realtime')
       .on(
@@ -132,17 +163,36 @@ export function MachineManagement() {
 
   // Tạo mã máy tự động
   const generateMachineCode = async (): Promise<string> => {
-    const { data, error } = await supabase
-      .from('machines')
-      .select('ma_may')
-      .order('ma_may', { ascending: false })
-      .limit(1);
-    
-    if (error || !data || data.length === 0) {
-      return 'MAY001';
+    if (SUPABASE_CONFIGURED) {
+      try {
+        const { data, error } = await supabase
+          .from('machines')
+          .select('ma_may')
+          .order('ma_may', { ascending: false })
+          .limit(1);
+        
+        if (error || !data || data.length === 0) {
+          return 'MAY001';
+        }
+        
+        const lastCode = data[0].ma_may;
+        const num = parseInt(lastCode.replace('MAY', ''), 10);
+        const nextNum = (isNaN(num) ? 0 : num) + 1;
+        return `MAY${String(nextNum).padStart(3, '0')}`;
+      } catch (e) {
+        // Fallback to localStorage
+      }
     }
     
-    const lastCode = data[0].ma_may;
+    // LocalStorage fallback
+    const sortedMachines = [...machines].sort((a, b) => {
+      const numA = parseInt(a.ma_may.replace('MAY', ''), 10);
+      const numB = parseInt(b.ma_may.replace('MAY', ''), 10);
+      return numB - numA;
+    });
+    
+    if (sortedMachines.length === 0) return 'MAY001';
+    const lastCode = sortedMachines[0].ma_may;
     const num = parseInt(lastCode.replace('MAY', ''), 10);
     const nextNum = (isNaN(num) ? 0 : num) + 1;
     return `MAY${String(nextNum).padStart(3, '0')}`;
@@ -159,7 +209,6 @@ export function MachineManagement() {
       gia_10h_2ca: 0,
       gia_12h_1ca: 0,
       gia_12h_2ca: 0,
-      ghi_chu: ''
     });
   };
 
@@ -175,43 +224,58 @@ export function MachineManagement() {
 
     try {
       if (editingId) {
-        // Cập nhật máy
-        const { error } = await supabase
-          .from('machines')
-          .update({
-            ten_may: formData.ten_may.trim(),
-            gia_8h_1ca: formData.gia_8h_1ca,
-            gia_10h_1ca: formData.gia_10h_1ca,
-            gia_8h_2ca: formData.gia_8h_2ca,
-            gia_10h_2ca: formData.gia_10h_2ca,
-            gia_12h_1ca: formData.gia_12h_1ca,
-            gia_12h_2ca: formData.gia_12h_2ca,
-            ghi_chu: formData.ghi_chu.trim() || null,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', editingId);
+        const updatedMachine = {
+          id: editingId,
+          ma_may: formData.ma_may,
+          ten_may: formData.ten_may.trim(),
+          gia_8h_1ca: formData.gia_8h_1ca,
+          gia_10h_1ca: formData.gia_10h_1ca,
+          gia_8h_2ca: formData.gia_8h_2ca,
+          gia_10h_2ca: formData.gia_10h_2ca,
+          gia_12h_1ca: formData.gia_12h_1ca,
+          gia_12h_2ca: formData.gia_12h_2ca,
+          updated_at: new Date().toISOString()
+        };
 
-        if (error) throw error;
+        if (SUPABASE_CONFIGURED) {
+          const { error } = await supabase
+            .from('machines')
+            .update(updatedMachine)
+            .eq('id', editingId);
+          if (error) throw error;
+        } else {
+          // LocalStorage update
+          const newMachines = machines.map(m => m.id === editingId ? updatedMachine : m);
+          setMachines(newMachines);
+          saveToLocalStorage(newMachines);
+        }
+
         toast.success('Đã cập nhật thông tin máy thành công');
       } else {
-        // Thêm mới máy
         const newMaMay = await generateMachineCode();
-        const { error } = await supabase
-          .from('machines')
-          .insert({
-            ma_may: newMaMay,
-            ten_may: formData.ten_may.trim(),
-            gia_8h_1ca: formData.gia_8h_1ca,
-            gia_10h_1ca: formData.gia_10h_1ca,
-            gia_8h_2ca: formData.gia_8h_2ca,
-            gia_10h_2ca: formData.gia_10h_2ca,
-            gia_12h_1ca: formData.gia_12h_1ca,
-            gia_12h_2ca: formData.gia_12h_2ca,
-            ghi_chu: formData.ghi_chu.trim() || null,
-            created_at: new Date().toISOString()
-          });
+        const newMachine = {
+          id: crypto.randomUUID(),
+          ma_may: newMaMay,
+          ten_may: formData.ten_may.trim(),
+          gia_8h_1ca: formData.gia_8h_1ca,
+          gia_10h_1ca: formData.gia_10h_1ca,
+          gia_8h_2ca: formData.gia_8h_2ca,
+          gia_10h_2ca: formData.gia_10h_2ca,
+          gia_12h_1ca: formData.gia_12h_1ca,
+          gia_12h_2ca: formData.gia_12h_2ca,
+          created_at: new Date().toISOString()
+        };
 
-        if (error) throw error;
+        if (SUPABASE_CONFIGURED) {
+          const { error } = await supabase.from('machines').insert(newMachine);
+          if (error) throw error;
+        } else {
+          // LocalStorage insert
+          const newMachines = [newMachine, ...machines];
+          setMachines(newMachines);
+          saveToLocalStorage(newMachines);
+        }
+
         toast.success('Đã thêm máy mới thành công');
       }
       
@@ -235,7 +299,6 @@ export function MachineManagement() {
       gia_10h_2ca: machine.gia_10h_2ca || 0,
       gia_12h_1ca: machine.gia_12h_1ca || 0,
       gia_12h_2ca: machine.gia_12h_2ca || 0,
-      ghi_chu: machine.ghi_chu || ''
     });
   };
 
@@ -243,12 +306,14 @@ export function MachineManagement() {
     if (!window.confirm('Bạn có chắc muốn xóa máy này không?')) return;
     
     try {
-      const { error } = await supabase
-        .from('machines')
-        .delete()
-        .eq('id', id);
-      
-      if (error) throw error;
+      if (SUPABASE_CONFIGURED) {
+        const { error } = await supabase.from('machines').delete().eq('id', id);
+        if (error) throw error;
+      } else {
+        const newMachines = machines.filter(m => m.id !== id);
+        setMachines(newMachines);
+        saveToLocalStorage(newMachines);
+      }
       toast.success('Đã xóa máy thành công');
     } catch (error) {
       console.error('Error deleting machine:', error);
@@ -264,12 +329,14 @@ export function MachineManagement() {
     if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} máy đã chọn?`)) return;
 
     try {
-      const { error } = await supabase
-        .from('machines')
-        .delete()
-        .in('id', selectedIds);
-      
-      if (error) throw error;
+      if (SUPABASE_CONFIGURED) {
+        const { error } = await supabase.from('machines').delete().in('id', selectedIds);
+        if (error) throw error;
+      } else {
+        const newMachines = machines.filter(m => !selectedIds.includes(m.id));
+        setMachines(newMachines);
+        saveToLocalStorage(newMachines);
+      }
       toast.success(`Đã xóa thành công ${selectedIds.length} máy`);
       setSelectedIds([]);
     } catch (error) {
@@ -292,12 +359,67 @@ export function MachineManagement() {
     }
   };
 
+  // TẢI FILE MẪU
+  const handleDownloadTemplate = () => {
+    const template = [
+      {
+        'Tên máy': 'Máy CNC 1',
+        '8h/1Ca': 500000,
+        '10h/1Ca': 600000,
+        '8h/2Ca': 550000,
+        '10h/2Ca': 650000,
+        '12h/1Ca': 700000,
+        '12h/2Ca': 800000,
+      },
+      {
+        'Tên máy': 'Máy CNC 2',
+        '8h/1Ca': 450000,
+        '10h/1Ca': 540000,
+        '8h/2Ca': 495000,
+        '10h/2Ca': 585000,
+        '12h/1Ca': 630000,
+        '12h/2Ca': 720000,
+      },
+    ];
+    
+    const ws = XLSX.utils.json_to_sheet(template);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Mau_Nhap_May');
+    XLSX.writeFile(wb, 'mau_nhap_may_moc.xlsx');
+    toast.success('Đã tải file mẫu');
+  };
+
+  // EXPORT EXCEL
+  const handleExportExcel = () => {
+    const exportData = machines.map(machine => ({
+      'Mã máy': machine.ma_may,
+      'Tên máy': machine.ten_may,
+      '8h/1Ca': formatNumber(machine.gia_8h_1ca),
+      '10h/1Ca': formatNumber(machine.gia_10h_1ca),
+      '8h/2Ca': formatNumber(machine.gia_8h_2ca),
+      '10h/2Ca': formatNumber(machine.gia_10h_2ca),
+      '12h/1Ca': formatNumber(machine.gia_12h_1ca),
+      '12h/2Ca': formatNumber(machine.gia_12h_2ca),
+    }));
+    
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'DanhSachMay');
+    XLSX.writeFile(wb, `danh_sach_may_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success('Xuất Excel thành công');
+  };
+
   // IMPORT EXCEL
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      toast.error('Vui lòng chọn file Excel');
+      return;
+    }
 
+    setIsImporting(true);
     const reader = new FileReader();
+
     reader.onload = async (evt) => {
       try {
         const data = evt.target?.result;
@@ -306,65 +428,132 @@ export function MachineManagement() {
         const worksheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json<any>(worksheet);
 
+        console.log('📊 Các cột trong Excel:', Object.keys(json[0] || {}));
+
         if (!json || json.length === 0) {
           toast.error('File Excel không có dữ liệu');
+          setIsImporting(false);
           return;
         }
 
         let addedCount = 0;
+        let errorCount = 0;
+        let tempMachines = [...machines];
 
-        for (const row of json) {
-          const targetKeyTen = Object.keys(row).find(k => {
-            const keyClean = k.toLowerCase().trim();
-            return keyClean.includes('tên') || keyClean.includes('ten') || keyClean.includes('máy') || keyClean.includes('may');
-          });
-          const tenMay = targetKeyTen ? row[targetKeyTen]?.toString().trim() : '';
-          if (!tenMay) continue;
+        for (let idx = 0; idx < json.length; idx++) {
+          const row = json[idx];
+          try {
+            // Tìm tên máy
+            let tenMay = '';
+            const keys = Object.keys(row);
+            for (const key of keys) {
+              const lowerKey = key.toLowerCase();
+              if (lowerKey.includes('tên') || lowerKey.includes('ten') || lowerKey.includes('máy') || lowerKey.includes('may')) {
+                if (row[key] && row[key].toString().trim()) {
+                  tenMay = row[key].toString().trim();
+                  break;
+                }
+              }
+            }
+            
+            if (!tenMay) {
+              errorCount++;
+              continue;
+            }
 
-          const val8h1Ca = Number(row['Giá Giờ 8h/1Ca'] || row['8h/1Ca'] || 0);
-          const val10h1Ca = Number(row['Giá Giờ 10h/1Ca'] || row['10h/1Ca'] || 0);
-          const val8h2Ca = Number(row['Giá Giờ 8h/2Ca'] || row['8h/2Ca'] || 0);
-          const val10h2Ca = Number(row['Giá Giờ 10h/2Ca'] || row['10h/2Ca'] || 0);
-          const val12h1Ca = Number(row['Giá Giờ 12h/1Ca'] || row['12h/1Ca'] || 0);
-          const val12h2Ca = Number(row['Giá Giờ 12h/2Ca'] || row['12h/2Ca'] || 0);
+            // Hàm lấy giá trị số
+            const getNumberValue = (row: any, possibleNames: string[]): number => {
+              for (const name of possibleNames) {
+                const val = row[name];
+                if (val !== undefined && val !== null && val !== '') {
+                  let num = 0;
+                  if (typeof val === 'number') {
+                    num = val;
+                  } else {
+                    const cleanNum = String(val).replace(/[^0-9.-]/g, '');
+                    num = parseFloat(cleanNum);
+                  }
+                  if (!isNaN(num)) return Math.round(num);
+                }
+              }
+              return 0;
+            };
 
-          const newMaMay = await generateMachineCode();
+            // Đọc giá từ các cột
+            const gia8h1Ca = getNumberValue(row, ['8h/1Ca', 'Giá Giờ 8h/1Ca', '8h1Ca']);
+            const gia10h1Ca = getNumberValue(row, ['10h/1Ca', 'Giá Giờ 10h/1Ca', '10h1Ca']);
+            const gia8h2Ca = getNumberValue(row, ['8h/2Ca', 'Giá Giờ 8h/2Ca', '8h2Ca']);
+            const gia10h2Ca = getNumberValue(row, ['10h/2Ca', 'Giá Giờ 10h/2Ca', '10h2Ca']);
+            const gia12h1Ca = getNumberValue(row, ['12h/1Ca', 'Giá Giờ 12h/1Ca', '12h1Ca']);
+            const gia12h2Ca = getNumberValue(row, ['12h/2Ca', 'Giá Giờ 12h/2Ca', '12h2Ca']);
 
-          const { error } = await supabase
-            .from('machines')
-            .insert({
+            // Tạo mã máy mới
+            const newMaMay = `MAY${String(tempMachines.length + 1 + addedCount).padStart(3, '0')}`;
+            const newMachine = {
+              id: crypto.randomUUID(),
               ma_may: newMaMay,
               ten_may: tenMay,
-              gia_8h_1ca: Math.round(val8h1Ca),
-              gia_10h_1ca: Math.round(val10h1Ca),
-              gia_8h_2ca: Math.round(val8h2Ca),
-              gia_10h_2ca: Math.round(val10h2Ca),
-              gia_12h_1ca: Math.round(val12h1Ca),
-              gia_12h_2ca: Math.round(val12h2Ca),
-            });
+              gia_8h_1ca: gia8h1Ca,
+              gia_10h_1ca: gia10h1Ca,
+              gia_8h_2ca: gia8h2Ca,
+              gia_10h_2ca: gia10h2Ca,
+              gia_12h_1ca: gia12h1Ca,
+              gia_12h_2ca: gia12h2Ca,
+              created_at: new Date().toISOString()
+            };
 
-          if (!error) addedCount++;
+            if (SUPABASE_CONFIGURED) {
+              const { error } = await supabase.from('machines').insert(newMachine);
+              if (error) throw error;
+            }
+            
+            tempMachines = [newMachine, ...tempMachines];
+            addedCount++;
+            
+          } catch (err) {
+            console.error(`Dòng ${idx + 2}: Lỗi xử lý:`, err);
+            errorCount++;
+          }
         }
 
-        toast.success(`Import thành công ${addedCount} máy`);
+        // Save to localStorage if not using Supabase
+        if (!SUPABASE_CONFIGURED) {
+          setMachines(tempMachines);
+          saveToLocalStorage(tempMachines);
+        } else {
+          await loadMachines();
+        }
+
+        if (addedCount > 0) {
+          toast.success(`Import thành công ${addedCount} máy${errorCount > 0 ? `, ${errorCount} lỗi` : ''}`);
+        } else {
+          toast.error(`Import thất bại. Kiểm tra định dạng file Excel.`);
+        }
+        
       } catch (error) {
-        console.error(error);
-        toast.error('Lỗi đọc bảng giá từ file Excel');
+        console.error('Import error:', error);
+        toast.error('Lỗi đọc file Excel: ' + (error as Error).message);
+      } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
       }
     };
 
+    reader.onerror = () => {
+      toast.error('Lỗi đọc file');
+      setIsImporting(false);
+    };
+
     reader.readAsArrayBuffer(file);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
   const filteredMachines = machines.filter((machine) => {
     const keyword = searchTerm.toLowerCase().trim();
     return (
       (machine.ma_may || '').toLowerCase().includes(keyword) ||
-      (machine.ten_may || '').toLowerCase().includes(keyword) ||
-      (machine.ghi_chu || '').toLowerCase().includes(keyword)
+      (machine.ten_may || '').toLowerCase().includes(keyword)
     );
   });
 
@@ -378,8 +567,28 @@ export function MachineManagement() {
 
   return (
     <div className="space-y-6">
+      {/* HEADER BUTTONS */}
       <div className="flex items-center justify-between">
-        <div></div>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleDownloadTemplate}
+            className="text-xs"
+          >
+            <Download className="w-3.5 h-3.5 mr-1" />
+            Tải file mẫu
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            onClick={handleExportExcel}
+            className="text-xs"
+          >
+            <Download className="w-3.5 h-3.5 mr-1" />
+            Export Excel
+          </Button>
+        </div>
         <Badge className="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-100 font-bold shadow-sm">
           Tổng số: {machines.length} máy
         </Badge>
@@ -450,11 +659,6 @@ export function MachineManagement() {
                   </div>
                 </div>
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-semibold text-slate-600">Ghi Chú Máy</Label>
-                  <Textarea rows={2} value={formData.ghi_chu} onChange={(e) => setFormData({ ...formData, ghi_chu: e.target.value })} placeholder="Điền ghi chú bổ sung..." className="text-xs resize-none" />
-                </div>
-
                 <div className="flex gap-2 pt-1">
                   <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9" disabled={isSubmitting}>
                     {isSubmitting ? 'Đang lưu...' : (editingId ? 'Cập nhật' : 'Lưu máy')}
@@ -464,9 +668,21 @@ export function MachineManagement() {
               </form>
 
               <div className="border-t border-slate-100 mt-4 pt-3 space-y-2">
-                <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportExcel} />
-                <Button variant="outline" className="w-full h-10 border-dashed border-2 text-xs text-slate-600" onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="w-3.5 h-3.5 mr-2 text-slate-400" /> Tải bảng Excel lên
+                <input 
+                  ref={fileInputRef} 
+                  type="file" 
+                  accept=".xlsx,.xls" 
+                  className="hidden" 
+                  onChange={handleImportExcel} 
+                />
+                <Button 
+                  variant="outline" 
+                  className="w-full h-10 border-dashed border-2 text-xs text-slate-600" 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isImporting}
+                >
+                  <Upload className="w-3.5 h-3.5 mr-2 text-slate-400" /> 
+                  {isImporting ? 'Đang import...' : 'Tải bảng Excel lên'}
                 </Button>
               </div>
             </CardContent>
@@ -525,7 +741,7 @@ export function MachineManagement() {
                       <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_12h_1ca)}</div>
                       <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_12h_2ca)}</div>
 
-                      <div className="text-left text-slate-500 truncate pl-3" title={machine.ghi_chu}>{machine.ghi_chu || '—'}</div>
+                      <div className="text-left text-slate-500 truncate pl-3">—</div>
                       
                       <div className="flex justify-center gap-0.5">
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(machine)}><Edit2 className="w-3.5 h-3.5" /></Button>
