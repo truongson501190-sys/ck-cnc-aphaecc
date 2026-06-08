@@ -1,85 +1,92 @@
-//Quản lý danh mục ->kho 
+//Quản lý danh mục -> kho (ĐÃ SỬA DÙNG SUPABASE)
 import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-
-import {
-  Edit2,
-  Package,
-  Plus,
-  Search,
-  Trash2,
-  Upload,
-} from 'lucide-react';
-
+import { Edit2, Package, Plus, Search, Trash2, Upload } from 'lucide-react';
 import { toast } from 'sonner';
-
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { supabase } from '@/supabase';
 
-import { Warehouse } from '@/types/categories';
-
-const STORAGE_KEY = 'warehouses';
+interface Warehouse {
+  id: string;
+  maKho: string;
+  tenKho: string;
+  ghiChu?: string;
+  created_by?: string;
+  createdAt: string;
+}
 
 export function WarehouseManagement() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [editingId, setEditingId] = useState<string | null>(
-    null
-  );
-
-  const [selectedIds, setSelectedIds] = useState<string[]>(
-    []
-  );
-
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ msnv: string; role: string } | null>(null);
   const [formData, setFormData] = useState({
     maKho: '',
     tenKho: '',
     ghiChu: '',
   });
-
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Lấy thông tin user hiện tại
+  useEffect(() => {
+    const getUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data } = await supabase
+          .from('users')
+          .select('msnv, role')
+          .eq('msnv', user.email)
+          .single();
+        setCurrentUser(data);
+      }
+    };
+    getUser();
+  }, []);
+
+  // Tải dữ liệu từ Supabase
+  const loadWarehouses = async () => {
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('warehouses')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      // Chuyển đổi từ snake_case sang camelCase cho UI
+      const mappedData = (data || []).map((item: any) => ({
+        id: item.id,
+        maKho: item.ma_kho,
+        tenKho: item.ten_kho,
+        ghiChu: item.mo_ta,
+        created_by: item.created_by,
+        createdAt: item.created_at,
+      }));
+      
+      setWarehouses(mappedData);
+    } catch (error) {
+      console.error('Error loading warehouses:', error);
+      toast.error('Không thể tải dữ liệu kho');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
     loadWarehouses();
   }, []);
 
-  const loadWarehouses = () => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-
-      if (saved) {
-        setWarehouses(JSON.parse(saved));
-      }
-    } catch (error) {
-      console.error(error);
-      toast.error('Không thể tải dữ liệu kho');
-    }
-  };
-
-  const saveWarehouses = (
-    updatedWarehouses: Warehouse[]
-  ) => {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(updatedWarehouses)
-    );
-
-    setWarehouses(updatedWarehouses);
-  };
-
   const resetForm = () => {
     setEditingId(null);
-
     setFormData({
       maKho: '',
       tenKho: '',
@@ -87,110 +94,104 @@ export function WarehouseManagement() {
     });
   };
 
-  const generateWarehouseCode = () => {
-    const nextNumber = warehouses.length + 1;
-
+  const generateWarehouseCode = async () => {
+    // Lấy số lượng kho hiện tại để tạo mã
+    const { count } = await supabase
+      .from('warehouses')
+      .select('*', { count: 'exact', head: true });
+    
+    const nextNumber = (count || 0) + 1;
     return `KHO${String(nextNumber).padStart(3, '0')}`;
   };
 
-  const handleSubmit = (
-    e: React.FormEvent<HTMLFormElement>
-  ) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-
     const tenKho = formData.tenKho.trim();
-
     if (!tenKho) {
       toast.error('Vui lòng nhập tên kho');
       return;
     }
 
+    const user = currentUser?.msnv || 'unknown';
+
     if (editingId) {
-      const updated = warehouses.map((warehouse) =>
-        warehouse.id === editingId
-          ? {
-              ...warehouse,
-              tenKho,
-              ghiChu: formData.ghiChu.trim(),
-            }
-          : warehouse
-      );
+      // Cập nhật
+      const { error } = await supabase
+        .from('warehouses')
+        .update({
+          ten_kho: tenKho,
+          mo_ta: formData.ghiChu.trim(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', editingId);
 
-      saveWarehouses(updated);
-
+      if (error) throw error;
       toast.success('Cập nhật kho thành công');
     } else {
-      const newWarehouse: Warehouse = {
-        id: crypto.randomUUID(),
-        maKho: generateWarehouseCode(),
-        tenKho,
-        ghiChu: formData.ghiChu.trim(),
-        createdAt: new Date().toISOString(),
-      };
+      // Thêm mới
+      const newMaKho = await generateWarehouseCode();
+      const { error } = await supabase
+        .from('warehouses')
+        .insert({
+          id: crypto.randomUUID(),
+          ma_kho: newMaKho,
+          ten_kho: tenKho,
+          mo_ta: formData.ghiChu.trim(),
+          status: 'active',
+          created_by: user,
+          created_at: new Date().toISOString()
+        });
 
-      saveWarehouses([...warehouses, newWarehouse]);
-
+      if (error) throw error;
       toast.success('Thêm kho thành công');
     }
 
     resetForm();
+    await loadWarehouses();
   };
 
   const handleEdit = (warehouse: Warehouse) => {
     setEditingId(warehouse.id);
-
     setFormData({
-      maKho: warehouse.maKho ?? '',
+      maKho: warehouse.maKho || '',
       tenKho: warehouse.tenKho,
       ghiChu: warehouse.ghiChu || '',
     });
   };
 
-  const handleDelete = (id: string) => {
-    const confirmDelete = window.confirm(
-      'Bạn có chắc muốn xóa kho này?'
-    );
-
-    if (!confirmDelete) return;
-
-    const updated = warehouses.filter(
-      (warehouse) => warehouse.id !== id
-    );
-
-    saveWarehouses(updated);
-
+  const handleDelete = async (id: string) => {
+    if (!confirm('Bạn có chắc muốn xóa kho này?')) return;
+    
+    const { error } = await supabase
+      .from('warehouses')
+      .delete()
+      .eq('id', id);
+    
+    if (error) throw error;
     toast.success('Đã xóa kho');
+    await loadWarehouses();
   };
 
-  const handleDeleteSelected = () => {
+  const handleDeleteSelected = async () => {
     if (selectedIds.length === 0) {
       toast.error('Vui lòng chọn kho cần xóa');
       return;
     }
-
-    const confirmDelete = window.confirm(
-      `Bạn có chắc muốn xóa ${selectedIds.length} kho?`
-    );
-
-    if (!confirmDelete) return;
-
-    const updated = warehouses.filter(
-      (warehouse) =>
-        !selectedIds.includes(warehouse.id)
-    );
-
-    saveWarehouses(updated);
-
+    
+    if (!confirm(`Bạn có chắc muốn xóa ${selectedIds.length} kho?`)) return;
+    
+    for (const id of selectedIds) {
+      await supabase.from('warehouses').delete().eq('id', id);
+    }
+    
     setSelectedIds([]);
-
     toast.success('Đã xóa nhiều kho');
+    await loadWarehouses();
   };
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) =>
-      prev.includes(id)
-        ? prev.filter((item) => item !== id)
-        : [...prev, id]
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
@@ -198,152 +199,105 @@ export function WarehouseManagement() {
     if (selectedIds.length === filteredWarehouses.length) {
       setSelectedIds([]);
     } else {
-      setSelectedIds(
-        filteredWarehouses.map(
-          (warehouse) => warehouse.id
-        )
-      );
+      setSelectedIds(filteredWarehouses.map((warehouse) => warehouse.id));
     }
   };
 
-  const handleImportExcel = (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-
     if (!file) return;
 
     const reader = new FileReader();
-
-    reader.onload = (event) => {
+    reader.onload = async (event) => {
       try {
         const data = event.target?.result;
+        const workbook = XLSX.read(data, { type: 'array' });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
 
-        const workbook = XLSX.read(data, {
-          type: 'array',
-        });
-
-        const sheetName = workbook.SheetNames[0];
-
-        const worksheet =
-          workbook.Sheets[sheetName];
-
-        const jsonData = XLSX.utils.sheet_to_json<
-          Record<string, unknown>
-        >(worksheet);
-
-        const updatedWarehouses = [...warehouses];
-
+        const user = currentUser?.msnv || 'unknown';
         let added = 0;
         let updated = 0;
 
-        jsonData.forEach((row) => {
-          const maKho = String(
-            row.maKho ||
-              row['Mã kho'] ||
-              row['Mã Kho'] ||
-              ''
-          ).trim();
+        // Lấy số lượng hiện tại để tạo mã mới
+        const { count: currentCount } = await supabase
+          .from('warehouses')
+          .select('*', { count: 'exact', head: true });
+        
+        let nextNumber = (currentCount || 0) + 1;
 
-          const tenKho = String(
-            row.tenKho ||
-              row['Tên kho'] ||
-              row['Tên Kho'] ||
-              ''
-          ).trim();
+        for (const row of jsonData) {
+          const maKho = String(row.maKho || row['Mã kho'] || row['Mã Kho'] || '').trim();
+          const tenKho = String(row.tenKho || row['Tên kho'] || row['Tên Kho'] || '').trim();
+          const ghiChu = String(row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').trim();
 
-          const ghiChu = String(
-            row.ghiChu ||
-              row['Ghi chú'] ||
-              row['Ghi Chú'] ||
-              ''
-          ).trim();
+          if (!tenKho) continue;
 
-          if (!tenKho) return;
+          // Kiểm tra xem mã kho đã tồn tại chưa
+          const { data: existing } = await supabase
+            .from('warehouses')
+            .select('id')
+            .eq('ma_kho', maKho)
+            .maybeSingle();
 
-          const existingIndex =
-            updatedWarehouses.findIndex(
-              (warehouse) =>
-                warehouse.maKho === maKho
-            );
-
-          if (
-            existingIndex >= 0 &&
-            maKho
-          ) {
-            updatedWarehouses[existingIndex] = {
-              ...updatedWarehouses[
-                existingIndex
-              ],
-              tenKho,
-              ghiChu,
-            };
-
+          if (existing && maKho) {
+            // Cập nhật
+            await supabase
+              .from('warehouses')
+              .update({
+                ten_kho: tenKho,
+                mo_ta: ghiChu,
+                updated_at: new Date().toISOString()
+              })
+              .eq('ma_kho', maKho);
             updated++;
           } else {
-            updatedWarehouses.push({
+            // Thêm mới
+            const finalMaKho = maKho || `KHO${String(nextNumber).padStart(3, '0')}`;
+            await supabase.from('warehouses').insert({
               id: crypto.randomUUID(),
-              maKho:
-                maKho ||
-                `KHO${String(
-                  updatedWarehouses.length + 1
-                ).padStart(3, '0')}`,
-              tenKho,
-              ghiChu,
-              createdAt:
-                new Date().toISOString(),
+              ma_kho: finalMaKho,
+              ten_kho: tenKho,
+              mo_ta: ghiChu,
+              status: 'active',
+              created_by: user,
+              created_at: new Date().toISOString()
             });
-
             added++;
+            nextNumber++;
           }
-        });
+        }
 
-        saveWarehouses(updatedWarehouses);
-
-        toast.success(
-          `Import thành công: ${added} thêm mới, ${updated} cập nhật`
-        );
+        toast.success(`Import thành công: ${added} thêm mới, ${updated} cập nhật`);
+        await loadWarehouses();
       } catch (error) {
         console.error(error);
-
         toast.error('Lỗi đọc file Excel');
       }
     };
-
     reader.readAsArrayBuffer(file);
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const filteredWarehouses = warehouses.filter(
     (warehouse) =>
-      warehouse.maKho
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      warehouse.tenKho
-        .toLowerCase()
-        .includes(searchTerm.toLowerCase()) ||
-      warehouse.ghiChu
-        ?.toLowerCase()
-        .includes(searchTerm.toLowerCase())
+      warehouse.maKho?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      warehouse.tenKho.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      warehouse.ghiChu?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  if (isLoading) {
+    return <div className="flex justify-center items-center h-64">Đang tải dữ liệu...</div>;
+  }
 
   return (
     <div className="space-y-6">
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">
-            Quản lý Kho
-          </h2>
-
-          <p className="text-sm text-muted-foreground">
-            Danh mục kho trong hệ thống
-          </p>
+          <h2 className="text-2xl font-bold">Quản lý Kho</h2>
+          <p className="text-sm text-muted-foreground">Danh mục kho trong hệ thống</p>
         </div>
-
         <Badge variant="secondary">
           <Package className="w-4 h-4 mr-1" />
           {warehouses.length} kho
@@ -354,80 +308,41 @@ export function WarehouseManagement() {
         {/* FORM */}
         <Card className="xl:col-span-1">
           <CardHeader>
-            <CardTitle>
-              {editingId
-                ? 'Chỉnh sửa kho'
-                : 'Thêm kho mới'}
-            </CardTitle>
+            <CardTitle>{editingId ? 'Chỉnh sửa kho' : 'Thêm kho mới'}</CardTitle>
           </CardHeader>
-
           <CardContent>
-            <form
-              onSubmit={handleSubmit}
-              className="space-y-4"
-            >
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <Label>Mã kho</Label>
-
                 <Input
-                  value={
-                    editingId
-                      ? formData.maKho
-                      : generateWarehouseCode()
-                  }
+                  value={editingId ? formData.maKho : (warehouses.length > 0 ? `KHO${String(warehouses.length + 1).padStart(3, '0')}` : 'KHO001')}
                   disabled
                 />
               </div>
-
               <div>
                 <Label>Tên kho</Label>
-
                 <Input
                   value={formData.tenKho}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      tenKho: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, tenKho: e.target.value })}
                   placeholder="Nhập tên kho"
                 />
               </div>
-
               <div>
                 <Label>Ghi chú</Label>
-
                 <Textarea
                   rows={3}
                   value={formData.ghiChu}
-                  onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      ghiChu: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
                   placeholder="Ghi chú..."
                 />
               </div>
-
               <div className="flex gap-2">
-                <Button
-                  type="submit"
-                  className="flex-1"
-                >
+                <Button type="submit" className="flex-1">
                   <Plus className="w-4 h-4 mr-2" />
-
-                  {editingId
-                    ? 'Cập nhật'
-                    : 'Thêm kho'}
+                  {editingId ? 'Cập nhật' : 'Thêm kho'}
                 </Button>
-
                 {editingId && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={resetForm}
-                  >
+                  <Button type="button" variant="outline" onClick={resetForm}>
                     Hủy
                   </Button>
                 )}
@@ -443,14 +358,7 @@ export function WarehouseManagement() {
                 className="hidden"
                 onChange={handleImportExcel}
               />
-
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() =>
-                  fileInputRef.current?.click()
-                }
-              >
+              <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()}>
                 <Upload className="w-4 h-4 mr-2" />
                 Import Excel
               </Button>
@@ -462,41 +370,27 @@ export function WarehouseManagement() {
         <Card className="xl:col-span-2">
           <CardHeader className="space-y-4">
             <div className="flex items-center justify-between">
-              <CardTitle>
-                Danh sách kho
-              </CardTitle>
-
+              <CardTitle>Danh sách kho</CardTitle>
               {selectedIds.length > 0 && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={handleDeleteSelected}
-                >
+                <Button variant="destructive" size="sm" onClick={handleDeleteSelected}>
                   <Trash2 className="w-4 h-4 mr-2" />
                   Xóa ({selectedIds.length})
                 </Button>
               )}
             </div>
-
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-
               <Input
                 className="pl-10"
                 placeholder="Tìm kiếm kho..."
                 value={searchTerm}
-                onChange={(e) =>
-                  setSearchTerm(e.target.value)
-                }
+                onChange={(e) => setSearchTerm(e.target.value)}
               />
             </div>
           </CardHeader>
-
           <CardContent>
             {filteredWarehouses.length === 0 ? (
-              <div className="py-10 text-center text-muted-foreground">
-                Không có dữ liệu kho
-              </div>
+              <div className="py-10 text-center text-muted-foreground">Không có dữ liệu kho</div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -504,103 +398,44 @@ export function WarehouseManagement() {
                     <tr>
                       <th className="w-[40px] py-3">
                         <Checkbox
-                          checked={
-                            selectedIds.length ===
-                              filteredWarehouses.length &&
-                            filteredWarehouses.length >
-                              0
-                          }
-                          onCheckedChange={
-                            toggleSelectAll
-                          }
+                          checked={selectedIds.length === filteredWarehouses.length && filteredWarehouses.length > 0}
+                          onCheckedChange={toggleSelectAll}
                           className="h-3.5 w-3.5 rounded-[3px]"
                         />
                       </th>
-
-                      <th className="text-left py-3">
-                        Mã kho
-                      </th>
-
-                      <th className="text-left py-3">
-                        Tên kho
-                      </th>
-
-                      <th className="text-left py-3">
-                        Ghi chú
-                      </th>
-
-                      <th className="text-right py-3">
-                        Thao tác
-                      </th>
+                      <th className="text-left py-3">Mã kho</th>
+                      <th className="text-left py-3">Tên kho</th>
+                      <th className="text-left py-3">Ghi chú</th>
+                      <th className="text-right py-3">Thao tác</th>
                     </tr>
                   </thead>
-
                   <tbody>
-                    {filteredWarehouses.map(
-                      (warehouse) => (
-                        <tr
-                          key={warehouse.id}
-                          className="border-b hover:bg-slate-50"
-                        >
-                          <td className="py-3 text-center">
-                            <Checkbox
-                              checked={selectedIds.includes(
-                                warehouse.id
-                              )}
-                              onCheckedChange={() =>
-                                toggleSelect(
-                                  warehouse.id
-                                )
-                              }
-                              className="h-3.5 w-3.5 rounded-[3px]"
-                            />
-                          </td>
-
-                          <td className="py-3">
-                            <Badge variant="outline">
-                              {warehouse.maKho}
-                            </Badge>
-                          </td>
-
-                          <td className="py-3 font-medium">
-                            {warehouse.tenKho}
-                          </td>
-
-                          <td className="py-3 text-muted-foreground">
-                            {warehouse.ghiChu ||
-                              '-'}
-                          </td>
-
-                          <td className="py-3">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() =>
-                                  handleEdit(
-                                    warehouse
-                                  )
-                                }
-                              >
-                                <Edit2 className="w-4 h-4 text-blue-600" />
-                              </Button>
-
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() =>
-                                  handleDelete(
-                                    warehouse.id
-                                  )
-                                }
-                              >
-                                <Trash2 className="w-4 h-4 text-red-600" />
-                              </Button>
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    )}
+                    {filteredWarehouses.map((warehouse) => (
+                      <tr key={warehouse.id} className="border-b hover:bg-slate-50">
+                        <td className="py-3 text-center">
+                          <Checkbox
+                            checked={selectedIds.includes(warehouse.id)}
+                            onCheckedChange={() => toggleSelect(warehouse.id)}
+                            className="h-3.5 w-3.5 rounded-[3px]"
+                          />
+                        </td>
+                        <td className="py-3">
+                          <Badge variant="outline">{warehouse.maKho}</Badge>
+                        </td>
+                        <td className="py-3 font-medium">{warehouse.tenKho}</td>
+                        <td className="py-3 text-muted-foreground">{warehouse.ghiChu || '-'}</td>
+                        <td className="py-3">
+                          <div className="flex justify-end gap-2">
+                            <Button size="icon" variant="ghost" onClick={() => handleEdit(warehouse)}>
+                              <Edit2 className="w-4 h-4 text-blue-600" />
+                            </Button>
+                            <Button size="icon" variant="ghost" onClick={() => handleDelete(warehouse.id)}>
+                              <Trash2 className="w-4 h-4 text-red-600" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

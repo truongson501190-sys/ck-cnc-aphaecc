@@ -319,44 +319,7 @@ const loadEmployees = useCallback(async () => {
     }
   }, [user]);
 
-  // ======================
-  // LẤY DANH SÁCH NHÂN VIÊN TỪ SUPABASE
-  // ======================
-  const loadEmployees = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('employees')
-        .select('*')
-        .eq('status', 'active');
-      
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        const formattedEmployees: Employee[] = data.map(emp => ({
-          id: emp.id,
-          msnv: emp.msnv,
-          hoTen: emp.ho_ten || emp.full_name,
-          fullName: emp.ho_ten || emp.full_name,
-          name: emp.ho_ten || emp.full_name,
-          role: emp.chuc_vu?.toLowerCase() || 'user',
-          chucVu: emp.chuc_vu || '',
-          department: emp.phong_ban || '',
-        }));
-        setEmployees(formattedEmployees);
-      }
-    } catch (error) {
-      console.error('Error loading employees from Supabase:', error);
-      // Fallback: thử load từ localStorage
-      try {
-        const savedEmployees = localStorage.getItem('employees');
-        if (savedEmployees) {
-          setEmployees(JSON.parse(savedEmployees));
-        }
-      } catch (e) {
-        console.error('Error loading employees from localStorage:', e);
-      }
-    }
-  }, []);
+
 
   // ======================
   // LẤY DANH SÁCH NGƯỜI KIỂM TRA

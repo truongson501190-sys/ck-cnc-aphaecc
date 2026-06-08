@@ -1,4 +1,4 @@
-//Quản lý danh mục -> du an
+//Quản lý danh mục -> dự án (ĐÃ SỬA DÙNG SUPABASE + PHÂN QUYỀN)
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,15 +8,52 @@ import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
 import { toast } from 'sonner';
-import { Search, Plus, Edit2, Trash2, Briefcase, Upload, ListFilter } from 'lucide-react';
-import { Project } from '@/types/categories';
+import { Search, Plus, Edit2, Trash2, Briefcase, Upload, ListFilter, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
+import { supabase } from '@/supabase';
+
+interface Project {
+  id: string;
+  maDuAn: string;
+  tenDuAn: string;
+  ghiChu?: string;
+  created_by?: string;
+  createdAt: string;
+}
+
+// ========== PHÂN QUYỀN ==========
+const checkPermission = async (action: 'view' | 'add' | 'edit' | 'delete' = 'view'): Promise<boolean> => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return false;
+  
+  const { data: currentUser } = await supabase
+    .from('users')
+    .select('role')
+    .eq('msnv', user.email)
+    .single();
+  
+  if (currentUser?.role === 'admin') return true;
+  
+  const { data: perm } = await supabase
+    .from('user_permissions')
+    .select(`can_${action}`)
+    .eq('msnv', user.email)
+    .eq('module_key', 'du_an')
+    .single();
+  
+  return perm ? perm[`can_${action}`] : false;
+};
 
 export function ProjectManagement() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [canAdd, setCanAdd] = useState(false);
+  const [canEdit, setCanEdit] = useState(false);
+  const [canDelete, setCanDelete] = useState(false);
   const [formData, setFormData] = useState({
     maDuAn: '',
     tenDuAn: '',
@@ -24,38 +61,79 @@ export function ProjectManagement() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Kiểm tra quyền
   useEffect(() => {
-    loadProjects();
-    
-    // Listen for sync events
-    const handleSync = () => loadProjects();
-    window.addEventListener('app-data-synced', handleSync);
-    return () => window.removeEventListener('app-data-synced', handleSync);
+    const checkAccess = async () => {
+      setCanAdd(await checkPermission('add'));
+      setCanEdit(await checkPermission('edit'));
+      setCanDelete(await checkPermission('delete'));
+      const hasView = await checkPermission('view');
+      if (!hasView) {
+        toast.error('Bạn không có quyền xem danh sách dự án');
+      }
+    };
+    checkAccess();
   }, []);
 
-  const loadProjects = () => {
+  // Tải dữ liệu từ Supabase
+  const loadProjects = async () => {
+    setIsLoading(true);
     try {
-      const saved = localStorage.getItem('projects');
-      if (saved) {
-        setProjects(JSON.parse(saved));
-      }
+      const { data, error } = await supabase
+        .from('projects')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      
+      const mappedData = (data || []).map((item: any) => ({
+        id: item.id,
+        maDuAn: item.ma_du_an,
+        tenDuAn: item.ten_du_an,
+        ghiChu: item.mo_ta,
+        created_by: item.created_by,
+        createdAt: item.created_at,
+      }));
+      
+      setProjects(mappedData);
     } catch (error) {
       console.error('Error loading projects:', error);
+      toast.error('Không thể tải dữ liệu dự án');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const saveProjects = (newProjects: Project[]) => {
-    try {
-      localStorage.setItem('projects', JSON.stringify(newProjects));
-      setProjects(newProjects);
-      setSelectedIds([]); // Reset lựa chọn sau khi lưu dữ liệu mới
-    } catch (error) {
-      console.error('Error saving projects:', error);
-      toast.error('Lỗi khi lưu dữ liệu');
+  useEffect(() => {
+    loadProjects();
+  }, []);
+
+  // Lưu dữ liệu xuống Supabase (thêm mới hoặc cập nhật)
+  const saveProjects = async (newProjects: Project[]) => {
+    // Đồng bộ lên Supabase
+    for (const item of newProjects) {
+      const { error } = await supabase
+        .from('projects')
+        .upsert({
+          id: item.id,
+          ma_du_an: item.maDuAn,
+          ten_du_an: item.tenDuAn,
+          mo_ta: item.ghiChu,
+          status: 'active',
+          trang_thai: 'active',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', item.id);
+      
+      if (error) console.error('Upsert error:', error);
     }
+    
+    setProjects(newProjects);
+    setSelectedIds([]);
+    await loadProjects(); // Reload để lấy dữ liệu mới nhất
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.maDuAn.trim() || !formData.tenDuAn.trim()) {
@@ -63,81 +141,144 @@ export function ProjectManagement() {
       return;
     }
 
-    // Check for duplicate code
-    const isDuplicateMa = projects.some(p => 
-      p.maDuAn === formData.maDuAn.trim() && p.id !== editingId
-    );
-    
-    if (isDuplicateMa) {
-      toast.error('Mã dự án này đã tồn tại');
+    const isEditing = !!editingId;
+    if (isEditing && !canEdit) {
+      toast.error('Bạn không có quyền sửa dự án');
+      return;
+    }
+    if (!isEditing && !canAdd) {
+      toast.error('Bạn không có quyền thêm dự án');
       return;
     }
 
-    if (editingId) {
-      const updatedProjects = projects.map(project =>
-        project.id === editingId
-          ? { ...project, ...formData }
-          : project
-      );
-      saveProjects(updatedProjects);
-      toast.success('Đã cập nhật dự án thành công');
-      setEditingId(null);
-    } else {
-      const newProject: Project = {
-        id: Date.now().toString(),
-        maDuAn: formData.maDuAn.trim(),
-        tenDuAn: formData.tenDuAn.trim(),
-        ghiChu: formData.ghiChu.trim(),
-        createdAt: new Date().toISOString()
-      };
-      saveProjects([newProject, ...projects]);
-      toast.success('Đã thêm dự án mới thành công');
-    }
+    setIsSubmitting(true);
 
-    setFormData({
-      maDuAn: '',
-      tenDuAn: '',
-      ghiChu: ''
-    });
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.email || 'unknown';
+
+      // Kiểm tra trùng mã dự án (trừ khi đang edit chính nó)
+      const { data: existing } = await supabase
+        .from('projects')
+        .select('id')
+        .eq('ma_du_an', formData.maDuAn.trim())
+        .maybeSingle();
+
+      if (existing && (!isEditing || existing.id !== editingId)) {
+        toast.error('Mã dự án này đã tồn tại');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (isEditing) {
+        const { error } = await supabase
+          .from('projects')
+          .update({
+            ten_du_an: formData.tenDuAn.trim(),
+            mo_ta: formData.ghiChu.trim(),
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', editingId);
+
+        if (error) throw error;
+        toast.success('Đã cập nhật dự án thành công');
+        setEditingId(null);
+      } else {
+        const { error } = await supabase
+          .from('projects')
+          .insert({
+            id: crypto.randomUUID(),
+            ma_du_an: formData.maDuAn.trim(),
+            ten_du_an: formData.tenDuAn.trim(),
+            mo_ta: formData.ghiChu.trim(),
+            status: 'active',
+            trang_thai: 'active',
+            created_by: userId,
+            created_at: new Date().toISOString()
+          });
+
+        if (error) throw error;
+        toast.success('Đã thêm dự án mới thành công');
+      }
+
+      setFormData({
+        maDuAn: '',
+        tenDuAn: '',
+        ghiChu: ''
+      });
+      await loadProjects();
+    } catch (error) {
+      console.error('Error saving project:', error);
+      toast.error('Lỗi lưu dữ liệu');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEdit = (project: Project) => {
+    if (!canEdit) {
+      toast.error('Bạn không có quyền sửa dự án');
+      return;
+    }
     setFormData({
-      maDuAn: project.maDuAn ?? '',
+      maDuAn: project.maDuAn || '',
       tenDuAn: project.tenDuAn,
       ghiChu: project.ghiChu || ''
     });
     setEditingId(project.id);
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Chú có chắc chắn muốn xóa dự án này?')) {
-      const updatedProjects = projects.filter(project => project.id !== id);
-      saveProjects(updatedProjects);
+  const handleDelete = async (id: string) => {
+    if (!canDelete) {
+      toast.error('Bạn không có quyền xóa dự án');
+      return;
+    }
+    if (!window.confirm('Bạn có chắc chắn muốn xóa dự án này không?')) return;
+    
+    try {
+      const { error } = await supabase.from('projects').delete().eq('id', id);
+      if (error) throw error;
       toast.success('Đã xóa dự án thành công');
+      await loadProjects();
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast.error('Lỗi xóa dữ liệu');
     }
   };
 
-  // HÀM XỬ LÝ XÓA HÀNG LOẠT ĐÃ CHỌN TRÊN THẺ
-  const handleDeleteSelected = () => {
-    if (selectedIds.length === 0) {
-      toast.error('Chú chưa chọn dự án nào để xóa');
+  const handleDeleteSelected = async () => {
+    if (!canDelete) {
+      toast.error('Bạn không có quyền xóa dự án');
       return;
     }
-    if (!window.confirm(`Chú có chắc chắn muốn xóa ${selectedIds.length} dự án đang tích chọn không?`)) return;
+    if (selectedIds.length === 0) {
+      toast.error('Chưa chọn dự án nào để xóa');
+      return;
+    }
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} dự án đang tích chọn không?`)) return;
 
-    const updatedProjects = projects.filter(project => !selectedIds.includes(project.id));
-    saveProjects(updatedProjects);
-    toast.success(`Đã xóa thành công ${selectedIds.length} dự án`);
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('projects').delete().eq('id', id);
+      }
+      toast.success(`Đã xóa thành công ${selectedIds.length} dự án`);
+      setSelectedIds([]);
+      await loadProjects();
+    } catch (error) {
+      console.error('Error deleting projects:', error);
+      toast.error('Lỗi xóa dữ liệu');
+    }
   };
 
   const toggleSelect = (id: string) => {
+    if (!canDelete) return;
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
     );
   };
 
   const toggleSelectAll = () => {
+    if (!canDelete) return;
     if (selectedIds.length === filteredProjects.length) {
       setSelectedIds([]);
     } else {
@@ -154,12 +295,17 @@ export function ProjectManagement() {
     });
   };
 
-  const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!canAdd) {
+      toast.error('Bạn không có quyền thêm dự án');
+      return;
+    }
+
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       try {
         const data = evt.target?.result;
         const workbook = XLSX.read(data, { type: 'array' });
@@ -184,44 +330,58 @@ export function ProjectManagement() {
           return foundKey ? row[foundKey] : undefined;
         };
 
+        const { data: { user } } = await supabase.auth.getUser();
+        const userId = user?.email || 'unknown';
         let addedCount = 0;
         let updatedCount = 0;
         let skippedCount = 0;
-        const currentProjects = [...projects];
 
-        json.forEach(row => {
+        for (const row of json) {
           const maDuAn = (getValueByHeaders(row, ['maDuAn', 'Mã dự án', 'Mã Dự Án', 'ma_du_an', 'Ma Du An', 'Mã DA']) || '').toString().trim();
           const tenDuAn = (getValueByHeaders(row, ['tenDuAn', 'Tên dự án', 'Tên Dự Án', 'ten_du_an', 'Ten Du An', 'Tên DA']) || '').toString().trim();
           const ghiChu = (getValueByHeaders(row, ['ghiChu', 'Ghi chú', 'Ghi Chú', 'ghi_chu', 'Ghi Chu', 'Note']) || '').toString().trim();
 
           if (!maDuAn || !tenDuAn) {
             skippedCount++;
-            return;
+            continue;
           }
 
-          const existingIndex = currentProjects.findIndex(p => p.maDuAn === maDuAn);
-          
-          if (existingIndex >= 0) {
-            currentProjects[existingIndex] = {
-              ...currentProjects[existingIndex],
-              tenDuAn: tenDuAn || currentProjects[existingIndex].tenDuAn,
-              ghiChu: ghiChu || currentProjects[existingIndex].ghiChu
-            };
+          // Kiểm tra tồn tại
+          const { data: existing } = await supabase
+            .from('projects')
+            .select('id')
+            .eq('ma_du_an', maDuAn)
+            .maybeSingle();
+
+          if (existing) {
+            await supabase
+              .from('projects')
+              .update({
+                ten_du_an: tenDuAn,
+                mo_ta: ghiChu,
+                updated_at: new Date().toISOString()
+              })
+              .eq('ma_du_an', maDuAn);
             updatedCount++;
           } else {
-            currentProjects.unshift({
-              id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-              maDuAn,
-              tenDuAn,
-              ghiChu: ghiChu || undefined,
-              createdAt: new Date().toISOString()
-            });
+            await supabase
+              .from('projects')
+              .insert({
+                id: crypto.randomUUID(),
+                ma_du_an: maDuAn,
+                ten_du_an: tenDuAn,
+                mo_ta: ghiChu,
+                status: 'active',
+                trang_thai: 'active',
+                created_by: userId,
+                created_at: new Date().toISOString()
+              });
             addedCount++;
           }
-        });
+        }
 
-        saveProjects(currentProjects);
-        toast.success(`Đã import thành công: Thêm mới ${addedCount}, cập nhật ${updatedCount}. Bỏ qua ${skippedCount} dòng lỗi.`);
+        toast.success(`Đã import: Thêm mới ${addedCount}, cập nhật ${updatedCount}. Bỏ qua ${skippedCount} dòng.`);
+        await loadProjects();
       } catch (error) {
         console.error('Error importing Excel:', error);
         toast.error('Lỗi khi đọc file Excel. Vui lòng kiểm tra định dạng file.');
@@ -238,6 +398,14 @@ export function ProjectManagement() {
     project.tenDuAn.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (project.ghiChu && project.ghiChu.toLowerCase().includes(searchTerm.toLowerCase()))
   );
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-full overflow-hidden">
@@ -273,6 +441,7 @@ export function ProjectManagement() {
                     onChange={(e) => setFormData({ ...formData, maDuAn: e.target.value })}
                     placeholder="Ví dụ: DA001"
                     className="h-9 text-sm border-slate-200 uppercase font-mono"
+                    disabled={!canAdd && !editingId}
                     required
                   />
                 </div>
@@ -285,6 +454,7 @@ export function ProjectManagement() {
                     onChange={(e) => setFormData({ ...formData, tenDuAn: e.target.value })}
                     placeholder="Nhập tên dự án hoặc tên khách hàng"
                     className="h-9 text-sm border-slate-200"
+                    disabled={!canAdd && !editingId}
                     required
                   />
                 </div>
@@ -298,12 +468,17 @@ export function ProjectManagement() {
                     placeholder="Nhập ghi chú chi tiết (nếu có)"
                     rows={3}
                     className="text-xs resize-none border-slate-200"
+                    disabled={!canAdd && !editingId}
                   />
                 </div>
 
                 <div className="flex gap-2 pt-1">
-                  <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9">
-                    {editingId ? 'Cập nhật' : 'Lưu dự án'}
+                  <Button 
+                    type="submit" 
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9" 
+                    disabled={isSubmitting || (!canAdd && !editingId)}
+                  >
+                    {isSubmitting ? 'Đang lưu...' : (editingId ? 'Cập nhật' : 'Lưu dự án')}
                   </Button>
                   {editingId && (
                     <Button type="button" variant="outline" onClick={handleCancel} className="flex-1 text-xs h-9">
@@ -313,34 +488,36 @@ export function ProjectManagement() {
                 </div>
               </form>
 
-              {/* Import Excel */}
-              <div className="border-t border-slate-100 pt-3 space-y-2">
-                <Label className="text-xs font-bold text-slate-700 block">Tải bảng Excel mẫu lên</Label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImportExcel}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-10 border-dashed border-2 text-xs text-slate-600 hover:bg-slate-50"
-                >
-                  <Upload className="w-3.5 h-3.5 mr-2 text-slate-400" />
-                  Import tệp dữ liệu Excel
-                </Button>
-                <p className="text-[10px] text-gray-400 leading-tight">
-                  * Yêu cầu file Excel chứa tiêu đề cột rõ ràng: <code className="font-mono bg-slate-50 px-1 py-0.5 rounded text-blue-600">maDuAn</code>, <code className="font-mono bg-slate-50 px-1 py-0.5 rounded text-blue-600">tenDuAn</code>.
-                </p>
-              </div>
+              {/* Import Excel - chỉ hiển thị nếu có quyền thêm */}
+              {canAdd && (
+                <div className="border-t border-slate-100 pt-3 space-y-2">
+                  <Label className="text-xs font-bold text-slate-700 block">Tải bảng Excel mẫu lên</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleImportExcel}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-10 border-dashed border-2 text-xs text-slate-600 hover:bg-slate-50"
+                  >
+                    <Upload className="w-3.5 h-3.5 mr-2 text-slate-400" />
+                    Import tệp dữ liệu Excel
+                  </Button>
+                  <p className="text-[10px] text-gray-400 leading-tight">
+                    * Yêu cầu file Excel chứa tiêu đề cột rõ ràng: <code className="font-mono bg-slate-50 px-1 py-0.5 rounded text-blue-600">maDuAn</code>, <code className="font-mono bg-slate-50 px-1 py-0.5 rounded text-blue-600">tenDuAn</code>.
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* KHỐI PHẢI: BẢNG THIẾT KẾ ĐẸP, CHỐNG TRÀN VÀ CÓ TIÊU ĐỀ DÒNG */}
+        {/* KHỐI PHẢI: BẢNG DANH SÁCH DỰ ÁN */}
         <div className="xl:col-span-2 w-full overflow-hidden">
           <Card className="rounded-xl border border-slate-100 shadow-sm bg-white overflow-hidden">
             <CardHeader className="bg-white border-b border-slate-100 py-3.5">
@@ -358,7 +535,7 @@ export function ProjectManagement() {
                       className="pl-9 w-48 sm:w-56 h-8 text-xs border-slate-200"
                     />
                   </div>
-                  {selectedIds.length > 0 && (
+                  {selectedIds.length > 0 && canDelete && (
                     <Button variant="destructive" size="sm" onClick={handleDeleteSelected} className="h-8 text-xs font-medium px-2.5">
                       <Trash2 className="w-3.5 h-3.5 mr-1" /> Xóa ({selectedIds.length})
                     </Button>
@@ -375,22 +552,24 @@ export function ProjectManagement() {
               ) : (
                 <div className="w-full overflow-x-auto">
                   <div className="min-w-[550px] w-full">
-                    {/* DÒNG TIÊU ĐỀ CỘT CHUẨN ĐẸP CỦA CHÚ */}
+                    {/* DÒNG TIÊU ĐỀ CỘT */}
                     <div className="grid grid-cols-[40px_100px_180px_1fr_80px] gap-2 px-4 py-2.5 bg-slate-50/80 border-b text-[11px] font-bold text-slate-700 items-center text-center">
-                      <div className="flex justify-center">
-                        <Checkbox 
-                          checked={filteredProjects.length > 0 && selectedIds.length === filteredProjects.length} 
-                          onCheckedChange={toggleSelectAll} 
-                          className="h-3.5 w-3.5 border-slate-300 data-[state=checked]:bg-blue-600" 
-                        />
-                      </div>
+                      {canDelete && (
+                        <div className="flex justify-center">
+                          <Checkbox 
+                            checked={filteredProjects.length > 0 && selectedIds.length === filteredProjects.length} 
+                            onCheckedChange={toggleSelectAll} 
+                            className="h-3.5 w-3.5 border-slate-300 data-[state=checked]:bg-blue-600" 
+                          />
+                        </div>
+                      )}
                       <div className="text-left font-semibold">Mã Dự Án</div>
                       <div className="text-left">Tên Dự Án</div>
                       <div className="text-left">Ghi Chú Công Việc</div>
                       <div>Thao tác</div>
                     </div>
 
-                    {/* HIỂN THỊ CÁC DÒNG DỮ LIỆU CÓ Ô TÍCH CHỌN */}
+                    {/* HIỂN THỊ CÁC DÒNG DỮ LIỆU */}
                     <div className="divide-y divide-slate-100">
                       {filteredProjects.map((project) => {
                         const isChecked = selectedIds.includes(project.id);
@@ -401,13 +580,15 @@ export function ProjectManagement() {
                               isChecked ? 'bg-blue-50/20' : ''
                             }`}
                           >
-                            <div className="flex justify-center">
-                              <Checkbox
-                                checked={isChecked}
-                                onCheckedChange={() => toggleSelect(project.id)}
-                                className="h-3.5 w-3.5 border-slate-300 data-[state=checked]:bg-blue-600"
-                              />
-                            </div>
+                            {canDelete && (
+                              <div className="flex justify-center">
+                                <Checkbox
+                                  checked={isChecked}
+                                  onCheckedChange={() => toggleSelect(project.id)}
+                                  className="h-3.5 w-3.5 border-slate-300 data-[state=checked]:bg-blue-600"
+                                />
+                              </div>
+                            )}
                             <div className="text-left font-mono">
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-slate-50 text-slate-700 font-bold border-slate-200">
                                 {project.maDuAn}
@@ -428,14 +609,16 @@ export function ProjectManagement() {
                               >
                                 <Edit2 className="w-3 h-3" />
                               </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                className="h-7 w-7 text-red-500 hover:bg-red-50"
-                                onClick={() => handleDelete(project.id)}
-                              >
-                                <Trash2 className="w-3 h-3" />
-                              </Button>
+                              {canDelete && (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7 text-red-500 hover:bg-red-50"
+                                  onClick={() => handleDelete(project.id)}
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </Button>
+                              )}
                             </div>
                           </div>
                         );
