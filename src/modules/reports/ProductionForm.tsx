@@ -14,6 +14,7 @@ import { ProductionReport, ToolEntry, WorkTimeEntry } from '@/types/production';
 import { useMasterData } from '@/hooks/useMasterData';
 import { useAuth } from '@/contexts/AuthContext';
 import { OptimizedTimeInput } from '@/components/OptimizedTimeInput';
+import { supabase } from '@/supabase';
 
 interface ProductionFormProps {
   onSubmit: (report: Omit<ProductionReport, 'id' | 'createdAt'>) => void;
@@ -57,6 +58,9 @@ interface Machine {
   ten_may?: string;
   code?: string;
   status?: string;
+  gia_8h_1ca?: number;
+  gia_10h_1ca?: number;
+  gia_12h_1ca?: number;
 }
 
 const createEmptyToolEntry = (): ToolEntry => ({
@@ -135,6 +139,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   const [machines, setMachines] = useState<Machine[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [categoryTypes, setCategoryTypes] = useState<CategoryType[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   
   // State cho UI
   const [scannerOpen, setScannerOpen] = useState(false);
@@ -144,40 +149,96 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
 
   // ======================
-  // HÀM LẤY DANH SÁCH MÁY UNIQUE
+  // LOAD DỮ LIỆU TỪ SUPABASE
   // ======================
-  const loadUniqueMachines = useCallback(() => {
+  const loadMachinesFromSupabase = useCallback(async () => {
     try {
-      let allMachines: Machine[] = [];
+      const { data, error } = await supabase
+        .from('machines')
+        .select('id, ten_may, ma_may, gia_8h_1ca, gia_10h_1ca, gia_12h_1ca')
+        .eq('status', 'active');
       
-      // Lấy từ masterData
-      if (masterData.machines && masterData.machines.length) {
-        allMachines = [...allMachines, ...masterData.machines];
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const formattedMachines: Machine[] = data.map(m => ({
+          id: m.id,
+          name: m.ten_may,
+          tenMay: m.ten_may,
+          ten_may: m.ten_may,
+          code: m.ma_may,
+          gia_8h_1ca: m.gia_8h_1ca,
+          gia_10h_1ca: m.gia_10h_1ca,
+          gia_12h_1ca: m.gia_12h_1ca,
+        }));
+        setMachines(formattedMachines);
       }
-      
-      // Lấy từ localStorage
-      const savedMachines = localStorage.getItem('machines');
-      if (savedMachines) {
-        const localMachines = JSON.parse(savedMachines);
-        allMachines = [...allMachines, ...localMachines];
-      }
-      
-      // Loại bỏ trùng lặp dựa trên tên máy
-      const uniqueMap = new Map<string, Machine>();
-      allMachines.forEach(machine => {
-        const machineName = machine.name || machine.tenMay || machine.ten_may || '';
-        if (machineName && !uniqueMap.has(machineName)) {
-          uniqueMap.set(machineName, machine);
-        }
-      });
-      
-      const uniqueMachines = Array.from(uniqueMap.values());
-      setMachines(uniqueMachines);
-      
     } catch (error) {
-      console.error('Error loading machines:', error);
+      console.error('Error loading machines from Supabase:', error);
     }
-  }, [masterData.machines]);
+  }, []);
+
+  const loadProjectsFromSupabase = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('projects')
+        .select('id, ma_du_an, ten_du_an')
+        .eq('trang_thai', 'active');
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const formattedProjects: Project[] = data.map(p => ({
+          id: p.id,
+          maDuAn: p.ma_du_an,
+          tenDuAn: p.ten_du_an,
+          createdAt: new Date().toISOString(),
+        }));
+        setProjects(formattedProjects);
+      }
+    } catch (error) {
+      console.error('Error loading projects from Supabase:', error);
+    }
+  }, []);
+
+  const loadCategoriesFromSupabase = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('id, ten_loai, don_vi, gia')
+        .eq('status', 'active')
+        .eq('loai', 'tool');
+      
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const formattedCategories: CategoryType[] = data.map(c => ({
+          id: c.id,
+          maLoai: '',
+          tenLoai: c.ten_loai,
+          donVi: c.don_vi || 'cái',
+          gia: c.gia || 0,
+          createdAt: new Date().toISOString(),
+        }));
+        setCategoryTypes(formattedCategories);
+      }
+    } catch (error) {
+      console.error('Error loading categories from Supabase:', error);
+    }
+  }, []);
+
+  // ======================
+  // LOAD TẤT CẢ DỮ LIỆU MASTER
+  // ======================
+  const loadAllMasterData = useCallback(async () => {
+    setIsLoadingData(true);
+    await Promise.all([
+      loadMachinesFromSupabase(),
+      loadProjectsFromSupabase(),
+      loadCategoriesFromSupabase(),
+    ]);
+    setIsLoadingData(false);
+  }, [loadMachinesFromSupabase, loadProjectsFromSupabase, loadCategoriesFromSupabase]);
 
   // ======================
   // LẤY THÔNG TIN USER HIỆN TẠI
@@ -192,27 +253,41 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   }, [user]);
 
   // ======================
-  // LẤY DANH SÁCH NHÂN VIÊN TỪ LOCALSTORAGE
+  // LẤY DANH SÁCH NHÂN VIÊN TỪ SUPABASE
   // ======================
-  const loadEmployees = useCallback((): Employee[] => {
+  const loadEmployees = useCallback(async () => {
     try {
-      let employeesList: Employee[] = [];
-      const savedEmployees = localStorage.getItem('employees');
+      const { data, error } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('status', 'active');
       
-      if (savedEmployees) {
-        employeesList = JSON.parse(savedEmployees);
-      } else {
-        const savedUsers = localStorage.getItem('users');
-        if (savedUsers) {
-          employeesList = JSON.parse(savedUsers);
-        }
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const formattedEmployees: Employee[] = data.map(emp => ({
+          id: emp.id,
+          msnv: emp.msnv,
+          hoTen: emp.ho_ten || emp.full_name,
+          fullName: emp.ho_ten || emp.full_name,
+          name: emp.ho_ten || emp.full_name,
+          role: emp.chuc_vu?.toLowerCase() || 'user',
+          chucVu: emp.chuc_vu || '',
+          department: emp.phong_ban || '',
+        }));
+        setEmployees(formattedEmployees);
       }
-      
-      setEmployees(employeesList);
-      return employeesList;
     } catch (error) {
-      console.error('Error loading employees:', error);
-      return [];
+      console.error('Error loading employees from Supabase:', error);
+      // Fallback: thử load từ localStorage
+      try {
+        const savedEmployees = localStorage.getItem('employees');
+        if (savedEmployees) {
+          setEmployees(JSON.parse(savedEmployees));
+        }
+      } catch (e) {
+        console.error('Error loading employees from localStorage:', e);
+      }
     }
   }, []);
 
@@ -221,10 +296,10 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   // ======================
   const getInspectorsByRole = useCallback(() => {
     try {
-      const allowedRoles = ['admin', 'quan_ly_xuong', 'to_truong', 'to_pho'];
-      const allowedChucVu = ['Admin', 'Quản lý xưởng', 'Tổ trưởng', 'Tổ phó'];
+      const allowedRoles = ['admin', 'quan_ly_xuong', 'to_truong', 'to_pho', 'nhom_truong'];
+      const allowedChucVu = ['Admin', 'Quản lý xưởng', 'Tổ trưởng', 'Tổ phó', 'Nhóm trưởng'];
       
-      let employeesList = employees.length > 0 ? employees : loadEmployees();
+      let employeesList = employees.length > 0 ? employees : [];
       
       if (employeesList.length > 0) {
         const inspectorList = employeesList
@@ -260,15 +335,14 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       console.error('Error getting inspectors by role:', error);
       setInspectors(masterData.inspectors || []);
     }
-  }, [employees, loadEmployees, masterData.inspectors]);
+  }, [employees, masterData.inspectors]);
 
   // ======================
   // LẤY THÔNG TIN CHI TIẾT CỦA NGƯỜI KIỂM TRA
   // ======================
   const getInspectorDetails = useCallback((inspectorName: string) => {
     try {
-      const employeesList = employees.length > 0 ? employees : loadEmployees();
-      const inspector = employeesList.find((emp: Employee) => {
+      const inspector = employees.find((emp: Employee) => {
         const name = emp.hoTen || emp.fullName || emp.name || '';
         return name === inspectorName;
       });
@@ -287,42 +361,17 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     } catch (error) {
       return { name: inspectorName, role: '', chucVu: '', department: '', msnv: '' };
     }
-  }, [employees, loadEmployees]);
-
-  // ======================
-  // LOAD DỮ LIỆU MASTER
-  // ======================
-  const loadMasterData = useCallback(() => {
-    try {
-      // Load projects
-      const savedProjects = localStorage.getItem('projects');
-      if (savedProjects) {
-        setProjects(JSON.parse(savedProjects));
-      }
-      
-      // Load categories
-      const savedCategories = localStorage.getItem('category_types');
-      if (savedCategories) {
-        setCategoryTypes(JSON.parse(savedCategories));
-      }
-      
-      // Load machines (đã có trong loadUniqueMachines)
-      loadUniqueMachines();
-      
-    } catch (error) {
-      console.error('Error loading master data:', error);
-    }
-  }, [loadUniqueMachines]);
+  }, [employees]);
 
   // ======================
   // EFFECT CHÍNH
   // ======================
   useEffect(() => {
+    loadAllMasterData();
     loadEmployees();
-    loadMasterData();
     
     const handleStorageChange = () => {
-      loadMasterData();
+      loadAllMasterData();
       loadEmployees();
     };
     
@@ -333,7 +382,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       window.removeEventListener('app-data-synced', handleStorageChange);
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, [loadEmployees, loadMasterData]);
+  }, [loadAllMasterData, loadEmployees]);
 
   // ======================
   // EFFECT: CẬP NHẬT DANH SÁCH NGƯỜI KIỂM TRA
@@ -472,9 +521,9 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
 
       let machineShiftPrice = 0;
       if (selectedMachine) {
-        machineShiftPrice = Number((selectedMachine as any).gia8h1Ca) || 
-                           Number((selectedMachine as any).gia10h1Ca) || 
-                           Number((selectedMachine as any).gia12h1Ca) || 0;
+        machineShiftPrice = Number(selectedMachine.gia_8h_1ca) || 
+                           Number(selectedMachine.gia_10h_1ca) || 
+                           Number(selectedMachine.gia_12h_1ca) || 0;
       }
 
       const totalRunHours = formData.workTimeEntries.reduce(
@@ -563,6 +612,17 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     });
     return Array.from(machineMap.values());
   }, [machines]);
+
+  if (isLoadingData && machines.length === 0 && projects.length === 0) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Đang tải dữ liệu...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <Card className="w-full max-w-4xl mx-auto">
@@ -829,17 +889,15 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                           <SelectValue placeholder="Chọn dao" />
                         </SelectTrigger>
                         <SelectContent>
-                          {categoryTypes.length > 0
-                            ? categoryTypes.map((category) => (
-                                <SelectItem key={category.id} value={category.tenLoai}>
-                                  {category.tenLoai}
-                                </SelectItem>
-                              ))
-                            : masterData.tools.map((tool: any) => (
-                                <SelectItem key={tool.id} value={tool.name}>
-                                  {tool.name}
-                                </SelectItem>
-                              ))}
+                          {categoryTypes.length > 0 ? (
+                            categoryTypes.map((category) => (
+                              <SelectItem key={category.id} value={category.tenLoai}>
+                                {category.tenLoai}
+                              </SelectItem>
+                            ))
+                          ) : (
+                            <SelectItem value="" disabled>Chưa có dữ liệu dao cụ</SelectItem>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -908,6 +966,11 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                   </div>
                 </div>
               ))}
+              {categoryTypes.length === 0 && !isLoadingData && (
+                <p className="text-center text-gray-400 text-sm py-4">
+                  Chưa có dữ liệu dao cụ. Vui lòng thêm danh mục dao cụ trong Quản lý Danh mục.
+                </p>
+              )}
             </CardContent>
           </Card>
 
@@ -959,7 +1022,8 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                                 {details.chucVu === 'Admin' ? '👑 Admin' :
                                  details.chucVu === 'Quản lý xưởng' ? '📋 Quản lý xưởng' :
                                  details.chucVu === 'Tổ trưởng' ? '👨‍💼 Tổ trưởng' :
-                                 details.chucVu === 'Tổ phó' ? '👨‍🔧 Tổ phó' : details.chucVu}
+                                 details.chucVu === 'Tổ phó' ? '👨‍🔧 Tổ phó' : 
+                                 details.chucVu === 'Nhóm trưởng' ? '👥 Nhóm trưởng' : details.chucVu}
                               </Badge>
                             )}
                           </div>
@@ -976,7 +1040,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                 </SelectContent>
               </Select>
               <p className="text-xs text-gray-400 mt-1">
-                * Chọn người kiểm tra
+                * Chọn người kiểm tra (Tổ trưởng, Tổ phó, Nhóm trưởng, Quản lý)
               </p>
             </div>
           </div>
