@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 import { Search, Plus, Edit2, Trash2, Briefcase, Upload, ListFilter, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Project {
   id: string;
@@ -21,39 +22,20 @@ interface Project {
   createdAt: string;
 }
 
-// ========== PHÂN QUYỀN ==========
-const checkPermission = async (action: 'view' | 'add' | 'edit' | 'delete' = 'view'): Promise<boolean> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user?.email) return false;
-  
-  const { data: currentUser } = await supabase
-    .from('users')
-    .select('role')
-    .eq('msnv', user.email)
-    .single();
-  
-  if (currentUser?.role === 'admin') return true;
-  
-  const { data: perm } = await supabase
-    .from('user_permissions')
-    .select(`can_${action}`)
-    .eq('msnv', user.email)
-    .eq('module_key', 'du_an')
-    .single();
-  
-  return perm ? perm[`can_${action}`] : false;
-};
-
 export function ProjectManagement() {
+  const { user, hasPermission } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [canAdd, setCanAdd] = useState(false);
-  const [canEdit, setCanEdit] = useState(false);
-  const [canDelete, setCanDelete] = useState(false);
+  
+  const canAdd = user?.role === 'admin' || hasPermission('du_an', 'add');
+  const canEdit = user?.role === 'admin' || hasPermission('du_an', 'edit');
+  const canDelete = user?.role === 'admin' || hasPermission('du_an', 'delete');
+  const canView = user?.role === 'admin' || hasPermission('du_an', 'view');
+  
   const [formData, setFormData] = useState({
     maDuAn: '',
     tenDuAn: '',
@@ -61,19 +43,12 @@ export function ProjectManagement() {
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Kiểm tra quyền
+  // Check view permission and show error
   useEffect(() => {
-    const checkAccess = async () => {
-      setCanAdd(await checkPermission('add'));
-      setCanEdit(await checkPermission('edit'));
-      setCanDelete(await checkPermission('delete'));
-      const hasView = await checkPermission('view');
-      if (!hasView) {
-        toast.error('Bạn không có quyền xem danh sách dự án');
-      }
-    };
-    checkAccess();
-  }, []);
+    if (!canView) {
+      toast.error('Bạn không có quyền xem danh sách dự án');
+    }
+  }, [canView]);
 
   // Tải dữ liệu từ Supabase
   const loadProjects = async () => {

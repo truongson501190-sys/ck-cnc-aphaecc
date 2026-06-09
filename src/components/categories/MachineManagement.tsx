@@ -17,6 +17,7 @@ import {
   Download
 } from 'lucide-react';
 import { supabase } from '@/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import * as XLSX from 'xlsx';
 
 interface Machine {
@@ -33,66 +34,13 @@ interface Machine {
   updated_at?: string;
 }
 
-// ========== PHÂN QUYỀN ==========
-const checkPermission = async (action: 'view' | 'add' | 'edit' | 'delete' = 'view'): Promise<boolean> => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user?.email) {
-      console.log('No user email found');
-      return false;
-    }
-    
-    const { data: currentUser, error: userError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('msnv', user.email)
-      .maybeSingle();
-    
-    if (userError) {
-      console.error('Error fetching user role:', userError);
-      return false;
-    }
-    
-    // Admin luôn có toàn quyền
-    if (currentUser?.role === 'admin') {
-      console.log('User is admin, granted full permission');
-      return true;
-    }
-    
-    // Kiểm tra trong bảng user_permissions cho user thường
-    const { data: perm, error: permError } = await supabase
-      .from('user_permissions')
-      .select(`can_view, can_add, can_edit, can_delete`)
-      .eq('msnv', user.email)
-      .eq('module_key', 'may_moc')
-      .maybeSingle();
-    
-    if (permError) {
-      console.error('Error fetching permissions:', permError);
-      return false;
-    }
-    
-    if (!perm) return false;
-    
-    switch (action) {
-      case 'view': return perm.can_view === true;
-      case 'add': return perm.can_add === true;
-      case 'edit': return perm.can_edit === true;
-      case 'delete': return perm.can_delete === true;
-      default: return false;
-    }
-  } catch (error) {
-    console.error('Permission check error:', error);
-    return false;
-  }
-};
-
 const formatNumber = (value: number | undefined): string => {
   if (!value && value !== 0) return '—';
   return Math.round(value).toLocaleString('vi-VN');
 };
 
 export function MachineManagement() {
+  const { user, hasPermission } = useAuth();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,10 +48,11 @@ export function MachineManagement() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [canAdd, setCanAdd] = useState(false);
-  const [canEdit, setCanEdit] = useState(false);
-  const [canDelete, setCanDelete] = useState(false);
-  const [canView, setCanView] = useState(true);
+
+  const canAdd = user?.role === 'admin' || hasPermission('may_moc', 'add');
+  const canEdit = user?.role === 'admin' || hasPermission('may_moc', 'edit');
+  const canDelete = user?.role === 'admin' || hasPermission('may_moc', 'delete');
+  const canView = user?.role === 'admin' || hasPermission('may_moc', 'view');
 
   const [formData, setFormData] = useState({
     ma_may: '',
@@ -118,26 +67,12 @@ export function MachineManagement() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Kiểm tra quyền
+  // Check view permission and show error
   useEffect(() => {
-    const checkAccess = async () => {
-      const [add, edit, del, view] = await Promise.all([
-        checkPermission('add'),
-        checkPermission('edit'),
-        checkPermission('delete'),
-        checkPermission('view')
-      ]);
-      setCanAdd(add);
-      setCanEdit(edit);
-      setCanDelete(del);
-      setCanView(view);
-      
-      if (!view) {
-        toast.error('Bạn không có quyền xem danh sách máy móc');
-      }
-    };
-    checkAccess();
-  }, []);
+    if (!canView) {
+      toast.error('Bạn không có quyền xem danh sách máy móc');
+    }
+  }, [canView]);
 
   // Tải dữ liệu
   const loadMachines = useCallback(async () => {

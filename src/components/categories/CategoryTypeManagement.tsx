@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { supabase } from '@/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 
 interface Category {
   id: string
@@ -24,13 +25,13 @@ interface Category {
 }
 
 export function CategoryTypeManagement() {
+  const { user } = useAuth();
   const [categories, setCategories] = useState<Category[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
-  const [currentUser, setCurrentUser] = useState<{ msnv: string; role: string } | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
@@ -42,22 +43,6 @@ export function CategoryTypeManagement() {
   })
 
   const ITEMS_PER_PAGE = 10
-
-  // Lấy thông tin user hiện tại
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user?.email) {
-        const { data } = await supabase
-          .from('users')
-          .select('msnv, role')
-          .eq('msnv', user.email)
-          .single()
-        setCurrentUser(data)
-      }
-    }
-    getUser()
-  }, [])
 
   // Tải dữ liệu từ Supabase
   const loadCategories = async () => {
@@ -150,7 +135,7 @@ export function CategoryTypeManagement() {
       return
     }
 
-    const user = currentUser?.msnv || 'unknown'
+    const msnv = user?.msnv || 'unknown'
 
     if (editingId) {
       // Cập nhật
@@ -181,7 +166,7 @@ export function CategoryTypeManagement() {
           mo_ta: formData.ghiChu.trim(),
           loai: 'material',
           status: 'active',
-          created_by: user,
+          created_by: msnv,
           created_at: new Date().toISOString()
         })
 

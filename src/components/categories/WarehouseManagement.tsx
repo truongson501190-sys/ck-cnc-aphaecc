@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface Warehouse {
   id: string;
@@ -22,34 +23,18 @@ interface Warehouse {
 }
 
 export function WarehouseManagement() {
+  const { user } = useAuth();
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [currentUser, setCurrentUser] = useState<{ msnv: string; role: string } | null>(null);
   const [formData, setFormData] = useState({
     maKho: '',
     tenKho: '',
     ghiChu: '',
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Lấy thông tin user hiện tại
-  useEffect(() => {
-    const getUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        const { data } = await supabase
-          .from('users')
-          .select('msnv, role')
-          .eq('msnv', user.email)
-          .single();
-        setCurrentUser(data);
-      }
-    };
-    getUser();
-  }, []);
 
   // Tải dữ liệu từ Supabase
   const loadWarehouses = async () => {
@@ -112,7 +97,7 @@ export function WarehouseManagement() {
       return;
     }
 
-    const user = currentUser?.msnv || 'unknown';
+    const msnv = user?.msnv || 'unknown';
 
     if (editingId) {
       // Cập nhật
@@ -138,7 +123,7 @@ export function WarehouseManagement() {
           ten_kho: tenKho,
           mo_ta: formData.ghiChu.trim(),
           status: 'active',
-          created_by: user,
+          created_by: msnv,
           created_at: new Date().toISOString()
         });
 
