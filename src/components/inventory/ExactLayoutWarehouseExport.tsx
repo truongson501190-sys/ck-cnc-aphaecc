@@ -550,7 +550,7 @@ export function ExactLayoutWarehouseExport({ onSubmit }: ExactLayoutWarehouseExp
                         </SelectItem>
                       ))
                     ) : (
-                      <SelectItem value="" disabled>Vui lòng chọn người xuất trước</SelectItem>
+                      <SelectItem value="placeholder" disabled>Vui lòng chọn người xuất trước</SelectItem>
                     )}
                   </SelectContent>
                 </Select>

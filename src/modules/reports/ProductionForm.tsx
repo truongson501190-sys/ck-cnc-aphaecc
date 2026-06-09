@@ -703,7 +703,7 @@ const loadEmployees = useCallback(async () => {
                         );
                       })
                     ) : (
-                      <SelectItem value="" disabled>Chưa có dữ liệu máy</SelectItem>
+                     <SelectItem value="placeholder" disabled>Chưa có dữ liệu máy</SelectItem>
                     )}
                   </SelectContent>
                 </Select>
@@ -926,7 +926,7 @@ const loadEmployees = useCallback(async () => {
                               </SelectItem>
                             ))
                           ) : (
-                            <SelectItem value="" disabled>Chưa có dữ liệu dao cụ</SelectItem>
+                            <SelectItem value="placeholder" disabled>Chưa có dữ liệu dao cụ</SelectItem>
                           )}
                         </SelectContent>
                       </Select>
