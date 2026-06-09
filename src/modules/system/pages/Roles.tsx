@@ -12,7 +12,7 @@ const PERMISSION_GROUPS = {
   'Kho bãi (WMS)': ['nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich'],
   'Sản xuất (Manufacturing)': ['ke_hoach_san_xuat', 'nhat_ky_gia_cong', 'nhat_ky_qc', 'nhat_ky_bao_tri', 'theo_doi_tien_do'],
   'Báo cáo & Dashboard': ['dashboard_tong_hop', 'bao_cao_kho', 'bao_cao_gia_cong', 'bao_cao_qc', 'bao_cao_bao_tri', 'hieu_suat_may', 'cho_duyet'],
-  'Quản lý Danh mục': ['chung_loai', 'kho', 'may_moc', 'du_an'],
+  'Quản lý Danh mục': ['chung_loai', 'kho', 'may_moc', 'du_an', 'khach_hang', 'nha_cung_cap', 'nhan_vien'],
   'Hệ thống': ['quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong'],
 };
 
@@ -26,6 +26,9 @@ const PERMISSION_LABELS: Record<string, string> = {
   cho_duyet: 'Chờ duyệt', chung_loai: 'Chủng loại', kho: 'Kho', may_moc: 'Máy móc', du_an: 'Dự án',
   quan_ly_nguoi_dung: 'Quản lý người dùng', phan_quyen: 'Phân quyền', audit_log: 'Audit Log',
   backup_restore: 'Backup & Restore', cai_dat_he_thong: 'Cài đặt hệ thống',
+  khach_hang: 'Khách hàng',
+  nha_cung_cap: 'Nhà cung cấp',
+  nhan_vien: 'Nhân viên',
 };
 
 const INITIAL_PERMISSIONS: Record<string, 'none' | 'view' | 'full'> = {};
