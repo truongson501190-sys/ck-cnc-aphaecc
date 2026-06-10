@@ -7,16 +7,15 @@ export function CategoriesPage() {
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6 flex items-center gap-4">
-        {/* Nút quay lại - đã chỉnh màu sáng hơn */}
-        <Button 
-          variant="ghost" 
-          size="sm" 
-          onClick={() => window.location.href = '/'} 
-          className="gap-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 font-semibold"
-        >
-          <ArrowLeft className="h-4 w-4" />
-         
-        </Button>
+        {/* Nút quay lại */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => navigate('/trang-chu')}
+              className="mt-1 h-10 w-10 border-slate-300 hover:bg-slate-100 shadow-sm rounded-lg"
+            >
+              <ArrowLeft className="w-5 h-5 text-slate-600" />
+            </Button>
 
         {/* Tiêu đề */}
         <div>
