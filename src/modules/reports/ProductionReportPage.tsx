@@ -1,4 +1,4 @@
-// ProductionLogPage.tsx - NHẬT KÝ SẢN XUẤT (INPUT/CRUD)
+// ProductionReportPage.tsx - NHẬT KÝ SẢN XUẤT (ĐÃ SỬA HOÀN CHỈNH)
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -10,14 +10,14 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Filter, X, ArrowLeft, Upload, Download, Edit, Eye, Trash2, FileSpreadsheet, Search, CheckCircle } from 'lucide-react';
+import { Plus, Filter, X, ArrowLeft, Upload, Download, Edit, Eye, Trash2, FileSpreadsheet, Search, CheckCircle, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProductionForm } from './ProductionForm';
-import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 // ======================
-// TYPES
+// TYPES - KHỚP VỚI DB CAMELCASE
 // ======================
 
 interface ToolEntry {
@@ -32,101 +32,120 @@ interface ToolEntry {
 
 interface ProductionLog {
   id: string;
-  ngay: string;
-  may: string;
-  maDuAn: string;
-  tenDuAn: string;
+  ngayThang: string;
+  maySanXuat: string;
+  duAn: string;
+  khach_hang: string;
   banVeSo: string;
+  chiTietSo: string;
   tenChiTiet: string;
-  noiDung: string;
-  kichThuoc: string;
+  noiDungGiaCong: string;
+  soLuongHoanThanh: number;
   vatLieu: string;
-  ncSo: string;
-  sanLuong: number;
-  tgBdGa: string;
-  tgKtGa: string;
-  gioGa: number;
-  tgBdChay: string;
-  tgKtChay: string;
-  gioChay: number;
+  nguyenCongSo: string;
+  toolEntries: ToolEntry[];
   ca: string;
+  cpMay: number;
+  cpDaoCu: number;
   nguoiVanHanh: string;
   nguoiKiemTra: string;
-  chiPhiGa: number;
-  chiPhiChayMay: number;
-  chiPhiDao: number;
-  toolEntries: ToolEntry[];
+  tgTrenCa: string;
+  work_time_entries?: any[];
+  setup_time_entries?: any[];
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   updatedAt?: string;
-  workTimeEntries?: any[];
-  setupTimeEntries?: any[];
 }
 
-const STORAGE_KEY = 'PRODUCTION_LOGS_DATA';
-const hasSupabaseConfig = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+// ======================
+// HÀM KIỂM TRA QUYỀN - ĐÃ SỬA HOÀN CHỈNH
+// ======================
+
+const checkPermission = async (action: 'view' | 'add' | 'edit' | 'delete' | 'approve' = 'view'): Promise<boolean> => {
+  try {
+    // Lấy session user từ localStorage trước
+    const sessionUser = localStorage.getItem('sessionUser');
+    let currentMsnv = null;
+    
+    if (sessionUser) {
+      try {
+        const parsed = JSON.parse(sessionUser);
+        currentMsnv = parsed.msnv;
+        console.log('📱 User from sessionStorage:', currentMsnv);
+      } catch (e) {}
+    }
+    
+    // Nếu không có trong session, thử lấy từ supabase auth
+    if (!currentMsnv) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        currentMsnv = user.email;
+      }
+    }
+    
+    console.log('🔍 Checking permission for MSNV:', currentMsnv, 'Action:', action);
+    
+    if (!currentMsnv) {
+      console.log('❌ No MSNV found');
+      return false;
+    }
+    
+    // Lấy role từ bảng users
+    const { data: currentUser, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('msnv', currentMsnv)
+      .maybeSingle();
+    
+    if (userError) {
+      console.error('Error fetching user role:', userError);
+    }
+    
+    console.log('👤 User role:', currentUser?.role);
+    
+    // Admin luôn có toàn quyền
+    if (currentUser?.role === 'admin') {
+      console.log('✅ Admin user - granted permission');
+      return true;
+    }
+    
+    // Lấy permissions từ bảng user_permissions
+    const { data: perm, error: permError } = await supabase
+      .from('user_permissions')
+      .select('can_view, can_add, can_edit, can_delete, can_approve, can_export')
+      .eq('msnv', currentMsnv)
+      .eq('module_key', 'nhat_ky_san_xuat')
+      .maybeSingle();
+    
+    if (permError) {
+      console.error('Error fetching permissions:', permError);
+    }
+    
+    console.log('📋 User permissions:', perm);
+    
+    if (!perm) {
+      console.log('❌ No permissions found for user');
+      return false;
+    }
+    
+    switch (action) {
+      case 'view': return perm.can_view === true;
+      case 'add': return perm.can_add === true;
+      case 'edit': return perm.can_edit === true;
+      case 'delete': return perm.can_delete === true;
+      case 'approve': return perm.can_approve === true;
+      default: return false;
+    }
+  } catch (error) {
+    console.error('Permission check error:', error);
+    return false;
+  }
+};
+
 
 // ======================
 // HÀM CHUYỂN ĐỔI DỮ LIỆU
 // ======================
-
-const convertLogToDb = (log: ProductionLog) => {
-  return {
-    id: log.id,
-    ngay_thang: log.ngay,
-    may_san_xuat: log.may,
-    du_an: log.maDuAn,
-    khach_hang: log.tenDuAn,
-    ban_ve_so: log.banVeSo,
-    chi_tiet_so: log.ncSo,
-    ten_chi_tiet: log.tenChiTiet,
-    noi_dung_gia_cong: log.noiDung,
-    so_luong_hoan_thanh: log.sanLuong,
-    vat_lieu: log.vatLieu,
-    nguyen_cong_so: log.ncSo,
-    tool_entries: log.toolEntries,
-    ca: log.ca,
-    cp_may: log.chiPhiChayMay,
-    cp_dao_cu: log.chiPhiDao,
-    nguoi_van_hanh: log.nguoiVanHanh,
-    nguoi_kiem_tra: log.nguoiKiemTra || '',
-    tg_tren_ca: '',
-    status: log.status,
-    created_at: log.createdAt,
-  };
-};
-
-const convertDbToLog = (dbItem: any): ProductionLog => {
-  return {
-    id: dbItem.id,
-    ngay: dbItem.ngay_thang,
-    may: dbItem.may_san_xuat,
-    maDuAn: dbItem.du_an,
-    tenDuAn: dbItem.khach_hang,
-    banVeSo: dbItem.ban_ve_so,
-    tenChiTiet: dbItem.ten_chi_tiet,
-    noiDung: dbItem.noi_dung_gia_cong,
-    kichThuoc: '',
-    vatLieu: dbItem.vat_lieu,
-    ncSo: dbItem.nguyen_cong_so,
-    sanLuong: dbItem.so_luong_hoan_thanh,
-    tgBdGa: '',
-    tgKtGa: '',
-    gioGa: 0,
-    tgBdChay: '',
-    tgKtChay: '',
-    gioChay: 0,
-    ca: dbItem.ca,
-    nguoiVanHanh: dbItem.nguoi_van_hanh,
-    nguoiKiemTra: dbItem.nguoi_kiem_tra || '',
-    chiPhiGa: 0,
-    chiPhiChayMay: dbItem.cp_may,
-    chiPhiDao: dbItem.cp_dao_cu,
-    toolEntries: dbItem.tool_entries || [],
-    status: dbItem.status || 'pending',
-    createdAt: dbItem.created_at,
-  };
-};
 
 const formatDate = (value: any) => {
   if (!value) return '';
@@ -155,7 +174,7 @@ const formatCurrency = (value: number) => {
 
 export function ProductionReportPage() {
   const navigate = useNavigate();
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
   const [logs, setLogs] = useState<ProductionLog[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -168,389 +187,354 @@ export function ProductionReportPage() {
   const [dateFilterEnd, setDateFilterEnd] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const [useFallback, setUseFallback] = useState(!hasSupabaseConfig);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [permissions, setPermissions] = useState({
+    canView: true,
+    canAdd: false,
+    canEdit: false,
+    canDelete: false,
+    canApprove: false,
+  });
+  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
 
-  // Load dữ liệu
+  // Kiểm tra quyền khi component mount
+  useEffect(() => {
+    const checkAccess = async () => {
+      setIsCheckingPermission(true);
+      try {
+        const [view, add, edit, del, approve] = await Promise.all([
+          checkPermission('view'),
+          checkPermission('add'),
+          checkPermission('edit'),
+          checkPermission('delete'),
+          checkPermission('approve'),
+        ]);
+        
+        console.log('✅ Final permissions:', { view, add, edit, del, approve });
+        
+        setPermissions({
+          canView: view,
+          canAdd: add,
+          canEdit: edit,
+          canDelete: del,
+          canApprove: approve,
+        });
+      } catch (error) {
+        console.error('Error checking permissions:', error);
+      } finally {
+        setIsCheckingPermission(false);
+      }
+    };
+    checkAccess();
+  }, []);
+
+  // Tải dữ liệu - DÙNG TÊN CỘT CAMELCASE
   const loadLogs = async () => {
-    if (useFallback) {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) {
-          setLogs([]);
-          return;
-        }
-        const parsed: any[] = JSON.parse(raw);
-        const converted = parsed.map(item => ({
-          ...item,
-          chiPhiGa: item.chiPhiGa ?? item.tienGa ?? 0,
-          chiPhiChayMay: item.chiPhiChayMay ?? item.tienChay ?? 0,
-          chiPhiDao: item.chiPhiDao ?? 0,
-          nguoiKiemTra: item.nguoiKiemTra || '',
-        }));
-        setLogs(converted);
-      } catch (error) {
-        console.error('Error loading logs:', error);
-        setLogs([]);
-      }
-    } else {
-      try {
-        const { data, error } = await supabase
-          .from('production_reports')
-          .select('*')
-          .order('ngay_thang', { ascending: false });
-        
-        if (error) throw error;
-        
-        const converted = (data || []).map(convertDbToLog);
-        setLogs(converted);
-      } catch (error) {
-        console.error('Error loading from Supabase, falling back:', error);
-        setUseFallback(true);
-        loadLogs();
-      }
+    if (!permissions.canView) return;
+    
+    setIsLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('production_reports')
+        .select('*')
+        .order('ngayThang', { ascending: false });
+
+      if (error) throw error;
+      setLogs(data || []);
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      toast.error('Không thể tải dữ liệu');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadLogs();
-    const onSynced = () => loadLogs();
-    window.addEventListener('app-data-synced', onSynced);
-    return () => window.removeEventListener('app-data-synced', onSynced);
-  }, [useFallback]);
+    if (!isCheckingPermission && permissions.canView) {
+      loadLogs();
+    }
+  }, [isCheckingPermission, permissions.canView]);
 
-  const persistLogs = (updatedLogs: ProductionLog[]) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedLogs));
-    setLogs(updatedLogs);
-    window.dispatchEvent(new Event('app-data-synced'));
+  // Kiểm tra quyền duyệt
+  const canApprove = (log: ProductionLog) => {
+    const userRole = user?.role || '';
+    const userName = user?.fullName || user?.name || '';
+    
+    if (userRole === 'admin' || userRole === 'quan_ly_xuong') return true;
+    if ((userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') && log.nguoiKiemTra === userName) return true;
+    return false;
   };
-
- // Kiểm tra quyền duyệt
-const canApprove = (log: ProductionLog) => {
-  const userRole = (user?.role as string) || '';
-  const userName = user?.fullName || user?.name || '';
-  
-  // Admin và Quản lý xưởng có toàn quyền
-  if (userRole === 'admin' || userRole === 'quan_ly_xuong') return true;
-  
-  // Tổ trưởng, Tổ phó, Nhóm trưởng chỉ duyệt được nhật ký do mình kiểm tra
-  if ((userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') && log.nguoiKiemTra === userName) return true;
-  
-  return false;
-};
 
   // Hàm duyệt nhật ký
   const handleApproveLog = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const log = logs.find(l => l.id === id);
-    if (!log) return;
-    
-    if (!canApprove(log)) {
+    if (!permissions.canApprove && !canApprove(logs.find(l => l.id === id)!)) {
       toast.error('Bạn không có quyền duyệt nhật ký này');
       return;
     }
     
-    const updatedLogs = logs.map(l => 
-      l.id === id ? { ...l, status: 'approved' as const } : l
-    );
-    persistLogs(updatedLogs);
-    toast.success('Đã duyệt nhật ký');
+    try {
+      const { error } = await supabase
+        .from('production_reports')
+        .update({ status: 'approved', updatedAt: new Date().toISOString() })
+        .eq('id', id);
+      
+      if (error) throw error;
+      toast.success('Đã duyệt nhật ký');
+      await loadLogs();
+    } catch (error) {
+      console.error(error);
+      toast.error('Lỗi duyệt');
+    }
   };
 
   // CRUD Operations
   const handleAddLog = async (formData: any) => {
-    const newLog: ProductionLog = {
+    if (!permissions.canAdd) {
+      toast.error('Bạn không có quyền thêm nhật ký');
+      return;
+    }
+
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    const userId = authUser?.email || 'unknown';
+
+    const newLog: Partial<ProductionLog> = {
       id: crypto.randomUUID(),
-      ngay: formData.ngayThang,
-      may: formData.maySanXuat,
-      maDuAn: formData.duAn,
-      tenDuAn: formData.tenDuAn,
+      ngayThang: formData.ngayThang,
+      maySanXuat: formData.maySanXuat,
+      duAn: formData.duAn,
+      khach_hang: formData.tenDuAn,
       banVeSo: formData.banVeSo,
+      chiTietSo: formData.nguyenCongSo,
       tenChiTiet: formData.tenChiTiet,
-      noiDung: formData.noiDungGiaCong,
-      kichThuoc: '',
+      noiDungGiaCong: formData.noiDungGiaCong,
+      soLuongHoanThanh: formData.soLuongHoanThanh,
       vatLieu: formData.vatLieu,
-      ncSo: formData.nguyenCongSo,
-      sanLuong: formData.soLuongHoanThanh,
-      tgBdGa: '',
-      tgKtGa: '',
-      gioGa: formData.gioGa || 0,
-      tgBdChay: '',
-      tgKtChay: '',
-      gioChay: formData.gioChay || 0,
+      nguyenCongSo: formData.nguyenCongSo,
+      toolEntries: formData.toolEntries || [],
       ca: formData.ca,
+      cpMay: formData.chiPhiChayMay || 0,
+      cpDaoCu: formData.chiPhiDao || 0,
       nguoiVanHanh: formData.nguoiVanHanh,
       nguoiKiemTra: formData.nguoiKiemTra || '',
-      chiPhiGa: formData.chiPhiGa || 0,
-      chiPhiChayMay: formData.chiPhiChayMay || 0,
-      chiPhiDao: formData.chiPhiDao || 0,
-      toolEntries: formData.toolEntries || [],
       status: 'pending',
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     
-    if (useFallback) {
-      persistLogs([...logs, newLog]);
+    try {
+      const { error } = await supabase.from('production_reports').insert(newLog);
+      if (error) throw error;
+      toast.success('Thêm nhật ký thành công');
       setIsAddDialogOpen(false);
       setFormKey((k) => k + 1);
-      toast.success('Thêm nhật ký thành công');
-    } else {
-      try {
-        const dbItem = convertLogToDb(newLog);
-        const { error } = await supabase
-          .from('production_reports')
-          .insert(dbItem);
-        
-        if (error) throw error;
-        
-        await loadLogs(); // Reload từ DB
-        setIsAddDialogOpen(false);
-        setFormKey((k) => k + 1);
-        toast.success('Thêm nhật ký thành công');
-      } catch (error) {
-        console.error('Error adding to Supabase:', error);
-        setUseFallback(true);
-        persistLogs([...logs, newLog]);
-        setIsAddDialogOpen(false);
-        setFormKey((k) => k + 1);
-        toast.success('Thêm nhật ký thành công (chế độ offline)');
-      }
+      await loadLogs();
+    } catch (error) {
+      console.error('Error adding:', error);
+      toast.error('Lỗi thêm dữ liệu');
     }
   };
 
   const handleEditLog = async (formData: any) => {
+    if (!permissions.canEdit) {
+      toast.error('Bạn không có quyền sửa nhật ký');
+      return;
+    }
     if (!selectedLog) return;
     
-    const updatedLog: ProductionLog = {
-      ...selectedLog,
-      ngay: formData.ngayThang,
-      may: formData.maySanXuat,
-      maDuAn: formData.duAn,
-      tenDuAn: formData.tenDuAn,
+    const updatedLog: Partial<ProductionLog> = {
+      ngayThang: formData.ngayThang,
+      maySanXuat: formData.maySanXuat,
+      duAn: formData.duAn,
+      khach_hang: formData.tenDuAn,
       banVeSo: formData.banVeSo,
+      chiTietSo: formData.nguyenCongSo,
       tenChiTiet: formData.tenChiTiet,
-      noiDung: formData.noiDungGiaCong,
-      sanLuong: formData.soLuongHoanThanh,
+      noiDungGiaCong: formData.noiDungGiaCong,
+      soLuongHoanThanh: formData.soLuongHoanThanh,
       vatLieu: formData.vatLieu,
-      ncSo: formData.nguyenCongSo,
+      nguyenCongSo: formData.nguyenCongSo,
+      toolEntries: formData.toolEntries || [],
       ca: formData.ca,
+      cpMay: formData.cpMay || 0,
+      cpDaoCu: formData.cpDaoCu || 0,
       nguoiVanHanh: formData.nguoiVanHanh,
       nguoiKiemTra: formData.nguoiKiemTra || selectedLog.nguoiKiemTra,
-      chiPhiChayMay: formData.cpMay || 0,
-      chiPhiDao: formData.cpDaoCu || 0,
-      toolEntries: formData.toolEntries || [],
-      gioGa: formData.setupTimeEntries?.reduce((sum: number, entry: any) => sum + Number(entry.soGio), 0) || 0,
-      gioChay: formData.workTimeEntries?.reduce((sum: number, entry: any) => sum + Number(entry.soGio), 0) || 0,
+      updatedAt: new Date().toISOString()
     };
     
-    if (useFallback) {
-      persistLogs(logs.map(l => l.id === selectedLog.id ? updatedLog : l));
+    try {
+      const { error } = await supabase
+        .from('production_reports')
+        .update(updatedLog)
+        .eq('id', selectedLog.id);
+      
+      if (error) throw error;
+      toast.success('Cập nhật nhật ký thành công');
       setIsEditDialogOpen(false);
       setSelectedLog(null);
-      toast.success('Cập nhật nhật ký thành công');
-    } else {
-      try {
-        const dbItem = convertLogToDb(updatedLog);
-        const { error } = await supabase
-          .from('production_reports')
-          .update(dbItem)
-          .eq('id', selectedLog.id);
-        
-        if (error) throw error;
-        
-        await loadLogs(); // Reload từ DB
-        setIsEditDialogOpen(false);
-        setSelectedLog(null);
-        toast.success('Cập nhật nhật ký thành công');
-      } catch (error) {
-        console.error('Error updating to Supabase:', error);
-        setUseFallback(true);
-        persistLogs(logs.map(l => l.id === selectedLog.id ? updatedLog : l));
-        setIsEditDialogOpen(false);
-        setSelectedLog(null);
-        toast.success('Cập nhật nhật ký thành công (chế độ offline)');
-      }
+      await loadLogs();
+    } catch (error) {
+      console.error('Error updating:', error);
+      toast.error('Lỗi cập nhật');
     }
   };
 
   const handleDeleteLog = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const log = logs.find(l => l.id === id);
-    if (log && log.status === 'approved' && !isAdmin) {
-      toast.error('Không có quyền xóa nhật ký đã duyệt');
+    if (!permissions.canDelete) {
+      toast.error('Bạn không có quyền xóa nhật ký');
       return;
     }
-    if (confirm('Bạn có chắc chắn muốn xóa nhật ký này?')) {
-      if (useFallback) {
-        persistLogs(logs.filter(l => l.id !== id));
-        toast.success('Xóa nhật ký thành công');
-      } else {
-        try {
-          const { error } = await supabase
-            .from('production_reports')
-            .delete()
-            .eq('id', id);
-          
-          if (error) throw error;
-          
-          await loadLogs(); // Reload từ DB
-          toast.success('Xóa nhật ký thành công');
-        } catch (error) {
-          console.error('Error deleting from Supabase:', error);
-          setUseFallback(true);
-          persistLogs(logs.filter(l => l.id !== id));
-          toast.success('Xóa nhật ký thành công (chế độ offline)');
-        }
-      }
+    const log = logs.find(l => l.id === id);
+    if (log?.status === 'approved') {
+      toast.error('Không thể xóa nhật ký đã duyệt');
+      return;
+    }
+    if (!confirm('Bạn có chắc chắn muốn xóa nhật ký này?')) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('production_reports').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Xóa nhật ký thành công');
+      await loadLogs();
+    } catch (error) {
+      console.error('Error deleting:', error);
+      toast.error('Lỗi xóa dữ liệu');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   // IMPORT EXCEL
-const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
-  const file = event.target.files?.[0];
-  if (!file) return;
-
-  setIsImporting(true);
-  const reader = new FileReader();
-
-  reader.onload = async (e) => {
-    try {
-      const data = e.target?.result;
-      const workbook = XLSX.read(data, { type: 'binary' });
-      const sheetName = workbook.SheetNames[0];
-      const sheet = workbook.Sheets[sheetName];
-      const json = XLSX.utils.sheet_to_json(sheet);
-
-      const newLogs: ProductionLog[] = [];
-
-      for (let i = 0; i < json.length; i++) {
-        const item: any = json[i];
-        
-        let ngayRaw = item['Ngày'] || '';
-        let ngay = '';
-        if (ngayRaw) {
-          const parts = ngayRaw.toString().split('/');
-          if (parts.length === 3) {
-            ngay = `${parts[2]}-${parts[1]}-${parts[0]}`;
-          } else {
-            ngay = ngayRaw;
-          }
-        }
-        
-        const may = item['Máy Sản Xuất'] || item['Máy'] || '';
-        const maDuAn = item['Dự án'] || item['Mã dự án'] || '';
-        const tenDuAn = item['Tên dự án'] || '';
-        const banVeSo = item['Bản Vẽ Số'] || '';
-        const tenChiTiet = item['Tên Chi Tiết'] || '';
-        const noiDung = item['Nội dung Gia Công'] || '';
-        const sanLuong = Number(item['SL HT'] || 0);
-        const vatLieu = item['Vật Liệu'] || '';
-        const ncSo = item['NC Số'] || '';
-        
-        let gioGa = Number(item['Tổng TG gá (h)'] || 0);
-        let gioChay = Number(item['Tổng TG chạy (h)'] || 0);
-        
-        const ca = item['CA'] || '';
-        const nguoiVanHanh = item['Người vận hành (MSNV)'] || '';
-        const nguoiKiemTra = item['Người kiểm tra'] || '';
-        
-        const chiPhiChayMay = Number(String(item['Chi phí chạy máy (VND)'] || 0).replace(/[^0-9]/g, ''));
-        let chiPhiDao = Number(String(item['Chi phí dao cụ (VND)'] || 0).replace(/[^0-9]/g, ''));
-        
-        const tenDao = item['Tên dao'] || '';
-        const slCap = Number(item['SL cấp'] || 0);
-        const slSuDung = Number(item['sử dụng'] || 0);
-        const hong = Number(item['Hỏng'] || 0);
-        const donVi = item['ĐV'] || 'cái';
-        
-        const toolEntries = [];
-        if (tenDao) {
-          toolEntries.push({
-            tenDao: tenDao,
-            slCap: slCap,
-            slSuDung: slSuDung,
-            hong: hong,
-            donVi: donVi,
-            donGia: chiPhiDao / (slSuDung || 1),
-            thanhTien: chiPhiDao,
-          });
-        }
-        
-        if (maDuAn && ngay) {
-          newLogs.push({
-            id: crypto.randomUUID(),
-            ngay: ngay,
-            may: may,
-            maDuAn: maDuAn,
-            tenDuAn: tenDuAn,
-            banVeSo: banVeSo,
-            tenChiTiet: tenChiTiet,
-            noiDung: noiDung,
-            kichThuoc: '',
-            vatLieu: vatLieu,
-            ncSo: ncSo,
-            sanLuong: sanLuong,
-            tgBdGa: '',
-            tgKtGa: '',
-            gioGa: gioGa,
-            tgBdChay: '',
-            tgKtChay: '',
-            gioChay: gioChay,
-            ca: ca,
-            nguoiVanHanh: nguoiVanHanh,
-            nguoiKiemTra: nguoiKiemTra,
-            chiPhiGa: 0,
-            chiPhiChayMay: chiPhiChayMay,
-            chiPhiDao: chiPhiDao,
-            toolEntries: toolEntries,
-            status: 'pending',
-            createdAt: new Date().toISOString(),
-          });
-        }
-      }
-      
-      if (newLogs.length > 0) {
-        if (useFallback) {
-          persistLogs([...logs, ...newLogs]);
-        } else {
-          const dbItems = newLogs.map(convertLogToDb);
-          const { error } = await supabase
-            .from('production_reports')
-            .insert(dbItems);
-          if (!error) {
-            await loadLogs();
-          }
-        }
-        toast.success(`Import thành công ${newLogs.length} nhật ký`);
-      } else {
-        toast.error('Không có dữ liệu hợp lệ');
-      }
-      
-    } catch (error) {
-      console.error('Import error:', error);
-      toast.error('Lỗi xử lý file Excel');
-    } finally {
-      setIsImporting(false);
-      event.target.value = '';
+  const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!permissions.canAdd) {
+      toast.error('Bạn không có quyền thêm nhật ký');
+      return;
     }
-  };  // Đóng reader.onload
-  
-  reader.readAsBinaryString(file);
-};  
+    
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    const reader = new FileReader();
+
+    reader.onload = async (evt) => {
+      try {
+        const data = evt.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json<any>(sheet);
+
+        const { data: { user: authUser } } = await supabase.auth.getUser();
+        const userId = authUser?.email || 'unknown';
+        let addedCount = 0;
+
+        for (let i = 0; i < json.length; i++) {
+          const row = json[i];
+          try {
+            let ngayThang = row['Ngày'] || '';
+            if (ngayThang) {
+              const parts = ngayThang.toString().split('/');
+              if (parts.length === 3) {
+                ngayThang = `${parts[2]}-${parts[1]}-${parts[0]}`;
+              }
+            }
+            
+            const maySanXuat = row['Máy Sản Xuất'] || row['Máy'] || '';
+            const duAn = row['Dự án'] || row['Mã dự án'] || '';
+            const khach_hang = row['Tên dự án'] || '';
+            const banVeSo = row['Bản Vẽ Số'] || '';
+            const tenChiTiet = row['Tên Chi Tiết'] || '';
+            const noiDungGiaCong = row['Nội dung Gia Công'] || '';
+            const soLuongHoanThanh = Number(row['SL HT'] || 0);
+            const vatLieu = row['Vật Liệu'] || '';
+            const nguyenCongSo = row['NC Số'] || '';
+            const ca = row['CA'] || '';
+            const nguoiVanHanh = row['Người vận hành (MSNV)'] || '';
+            const nguoiKiemTra = row['Người kiểm tra'] || '';
+            
+            const cpMay = Number(String(row['Chi phí chạy máy (VND)'] || 0).replace(/[^0-9]/g, ''));
+            const cpDaoCu = Number(String(row['Chi phí dao cụ (VND)'] || 0).replace(/[^0-9]/g, ''));
+            
+            const toolEntries = [];
+            if (row['Tên dao']) {
+              toolEntries.push({
+                tenDao: row['Tên dao'],
+                slCap: Number(row['SL cấp'] || 0),
+                slSuDung: Number(row['sử dụng'] || 0),
+                hong: Number(row['Hỏng'] || 0),
+                donVi: row['ĐV'] || 'cái',
+                donGia: cpDaoCu / (Number(row['sử dụng'] || 1)),
+                thanhTien: cpDaoCu,
+              });
+            }
+            
+            if (duAn && ngayThang) {
+              const { error } = await supabase.from('production_reports').insert({
+                id: crypto.randomUUID(),
+                ngayThang,
+                maySanXuat,
+                duAn,
+                khach_hang,
+                banVeSo,
+                chiTietSo: nguyenCongSo,
+                tenChiTiet,
+                noiDungGiaCong,
+                soLuongHoanThanh,
+                vatLieu,
+                nguyenCongSo,
+                toolEntries,
+                ca,
+                cpMay,
+                cpDaoCu,
+                nguoiVanHanh,
+                nguoiKiemTra,
+                status: 'pending',
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              });
+              addedCount++;
+            }
+          } catch (err) {
+            console.error(`Dòng ${i + 2}: Lỗi xử lý:`, err);
+          }
+        }
+
+        if (addedCount > 0) {
+          toast.success(`Import thành công ${addedCount} nhật ký`);
+          await loadLogs();
+        } else {
+          toast.error('Không có dữ liệu hợp lệ');
+        }
+        
+      } catch (error) {
+        console.error('Import error:', error);
+        toast.error('Lỗi xử lý file Excel');
+      } finally {
+        setIsImporting(false);
+        event.target.value = '';
+      }
+    };
+    
+    reader.readAsBinaryString(file);
+  };
 
   // Export Excel
   const handleExportExcel = () => {
     const exportData = logs.map(log => ({
-      'Ngày': formatDate(log.ngay),
-      'Máy Sản Xuất': log.may,
-      'Dự án': log.maDuAn,
-      'Tên dự án': log.tenDuAn,
-      'SL HT': log.sanLuong,
-      'Giờ gá': log.gioGa,
-      'Giờ chạy': log.gioChay,
+      'Ngày': formatDate(log.ngayThang),
+      'Máy Sản Xuất': log.maySanXuat,
+      'Dự án': log.duAn,
+      'Tên dự án': log.khach_hang,
+      'SL HT': log.soLuongHoanThanh,
       'Người vận hành': log.nguoiVanHanh,
       'Người kiểm tra': log.nguoiKiemTra,
-      'Tên dao': log.toolEntries.map(t => t.tenDao).join(', '),
-      'Chi phí dao': formatCurrency(log.chiPhiDao),
+      'Tên dao': log.toolEntries?.map(t => t.tenDao).join(', ') || '',
+      'Chi phí dao': formatCurrency(log.cpDaoCu),
       'Trạng thái': log.status === 'approved' ? 'Đã duyệt' : log.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt',
     }));
     
@@ -559,45 +543,6 @@ const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => 
     XLSX.utils.book_append_sheet(wb, ws, 'NhatKySanXuat');
     XLSX.writeFile(wb, `nhat_ky_san_xuat_${new Date().toISOString().split('T')[0]}.xlsx`);
     toast.success('Xuất Excel thành công');
-  };
-
-  // Export 1 log chi tiết
-  const exportSingleLogToExcel = (log: ProductionLog | null) => {
-    if (!log) return;
-    
-    const exportData: any = {
-      'Ngày': formatDate(log.ngay),
-      'Máy Sản Xuất': log.may,
-      'Mã Dự Án': log.maDuAn,
-      'Tên Dự Án': log.tenDuAn,
-      'Bản Vẽ Số': log.banVeSo,
-      'Chi Tiết Số': log.ncSo,
-      'Tên Chi Tiết': log.tenChiTiet,
-      'Nội dung Gia Công': log.noiDung,
-      'Vật Liệu': log.vatLieu,
-      'Số Lượng': log.sanLuong,
-      'Giờ Gá': log.gioGa,
-      'Giờ Chạy': log.gioChay,
-      'Người Vận Hành': log.nguoiVanHanh,
-      'Người Kiểm Tra': log.nguoiKiemTra,
-      'Trạng Thái': log.status === 'approved' ? 'Đã duyệt' : log.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt',
-    };
-    
-    if (log.toolEntries && log.toolEntries.length > 0) {
-      log.toolEntries.forEach((tool, idx) => {
-        exportData[`Tên dao ${idx + 1}`] = tool.tenDao;
-        exportData[`SL cấp ${idx + 1}`] = tool.slCap;
-        exportData[`SL sử dụng ${idx + 1}`] = tool.slSuDung;
-        exportData[`SL hỏng ${idx + 1}`] = tool.hong;
-        exportData[`Đơn vị ${idx + 1}`] = tool.donVi;
-      });
-    }
-    
-    const ws = XLSX.utils.json_to_sheet([exportData]);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `NhatKy_${log.maDuAn}_${formatDate(log.ngay)}`);
-    XLSX.writeFile(wb, `nhat_ky_${log.maDuAn}_${formatDate(log.ngay)}.xlsx`);
-    toast.success('Đã tải xuống file Excel');
   };
 
   // Download template
@@ -610,7 +555,6 @@ const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => 
       'Bản Vẽ Số': 'BV-001',
       'Tên Chi Tiết': 'Chi tiết 1',
       'Nội dung Gia Công': 'Gia công thô',
-      'Kích thước': '100x50mm',
       'SL HT': 100,
       'Vật Liệu': 'Thép SS400',
       'NC Số': 'NC001',
@@ -619,16 +563,9 @@ const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => 
       'sử dụng': 2,
       'Hỏng': 0,
       'ĐV': 'cái',
-      'TG BĐgá': '08:00',
-      'TG KT gá': '09:30',
-      'Tổng TG gá (h)': 1.5,
-      'TG BĐ. chạy': '09:30',
-      'TG KT. chạy': '14:00',
-      'Tổng TG chạy (h)': 4.5,
       'CA': 'Ca 1',
       'Người vận hành (MSNV)': 'NV001',
       'Người kiểm tra': 'NV002',
-      'Chi phí gá (VND)': 500000,
       'Chi phí chạy máy (VND)': 3000000,
       'Chi phí dao cụ (VND)': 700000,
     }];
@@ -640,37 +577,23 @@ const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => 
     toast.success('Đã tải file mẫu');
   };
 
- // Trong filteredLogs, sửa dòng 663 và 665:
-const filteredLogs = useMemo(() => {
-  const userRole = (user?.role as string) || '';
-  const userName = user?.fullName || user?.name || '';
-  
-  return logs.filter(log => {
-    const searchMatch = !searchTerm || 
-      log.maDuAn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.tenDuAn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      log.may?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (log.toolEntries.some(tool => tool.tenDao?.toLowerCase().includes(searchTerm.toLowerCase())));
-    
-    const statusMatch = statusFilter === 'all' || log.status === statusFilter;
-    const logDate = new Date(log.ngay);
-    const startDate = dateFilterStart ? new Date(dateFilterStart) : null;
-    const endDate = dateFilterEnd ? new Date(dateFilterEnd) : null;
-    const dateMatch = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate);
-    
-    // Phân quyền - dùng as string để ép kiểu
-    let permissionMatch = false;
-    if (userRole === 'admin' || userRole === 'quan_ly_xuong') {
-      permissionMatch = true;
-    } else if (userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') {
-      permissionMatch = log.nguoiKiemTra === userName;
-    } else {
-      permissionMatch = log.nguoiVanHanh === userName;
-    }
-    
-    return searchMatch && statusMatch && dateMatch && permissionMatch;
-  });
-}, [logs, searchTerm, statusFilter, dateFilterStart, dateFilterEnd, user]);
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      const searchMatch = !searchTerm || 
+        log.duAn?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.khach_hang?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        log.maySanXuat?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (log.toolEntries?.some(tool => tool.tenDao?.toLowerCase().includes(searchTerm.toLowerCase())));
+      
+      const statusMatch = statusFilter === 'all' || log.status === statusFilter;
+      const logDate = new Date(log.ngayThang);
+      const startDate = dateFilterStart ? new Date(dateFilterStart) : null;
+      const endDate = dateFilterEnd ? new Date(dateFilterEnd) : null;
+      const dateMatch = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate);
+      
+      return searchMatch && statusMatch && dateMatch;
+    });
+  }, [logs, searchTerm, statusFilter, dateFilterStart, dateFilterEnd]);
 
   const stats = useMemo(() => ({
     total: logs.length,
@@ -696,12 +619,39 @@ const filteredLogs = useMemo(() => {
     setShowFilters(false);
   };
 
-  // Format máy cho hiển thị
-  const formatMay = (may: string) => {
-    if (!may) return '---';
-    if (may.length > 30) return may.substring(0, 27) + '...';
-    return may;
-  };
+  // Hiển thị loading khi đang kiểm tra quyền
+  if (isCheckingPermission) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
+
+  // Hiển thị thông báo nếu không có quyền
+  if (!permissions.canView) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <div className="text-center">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+            <FileSpreadsheet className="w-10 h-10 text-red-500" />
+          </div>
+          <h2 className="text-xl font-semibold text-gray-700 mb-2">Không có quyền truy cập</h2>
+          <p className="text-gray-500">Bạn không có quyền xem nhật ký sản xuất</p>
+          <p className="text-gray-400 text-sm mt-2">Vui lòng liên hệ quản trị viên để được cấp quyền</p>
+          <Button className="mt-4" onClick={() => navigate('/trang-chu')}>Về trang chủ</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-8">
@@ -714,35 +664,37 @@ const filteredLogs = useMemo(() => {
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Nhật ký Sản Xuất</h1>
-            <p className="text-gray-600">Nơi nhập, quản lý và chỉnh sửa dữ liệu gốc {useFallback && '(chế độ offline)'}</p>
+            <p className="text-gray-600">Quản lý nhật ký gia công, chi phí máy và dao cụ</p>
           </div>
         </div>
 
         {/* Action Buttons */}
         <div className="flex flex-wrap gap-3 justify-between">
           <div className="flex flex-wrap gap-3">
-            <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-blue-600 hover:bg-blue-700">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Thêm tay
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader><DialogTitle>Thêm nhật ký sản xuất mới</DialogTitle></DialogHeader>
-                <ProductionForm 
-                  key={formKey} 
-                  onSubmit={handleAddLog} 
-                  onCancel={() => setIsAddDialogOpen(false)} 
-                />
-              </DialogContent>
-            </Dialog>
+            {permissions.canAdd && (
+              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-blue-600 hover:bg-blue-700">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Thêm tay
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader><DialogTitle>Thêm nhật ký sản xuất mới</DialogTitle></DialogHeader>
+                  <ProductionForm key={formKey} onSubmit={handleAddLog} onCancel={() => setIsAddDialogOpen(false)} />
+                </DialogContent>
+              </Dialog>
+            )}
 
-            <Button variant="outline" onClick={() => document.getElementById('excel-import')?.click()} disabled={isImporting}>
-              <Upload className="w-4 h-4 mr-2" />
-              {isImporting ? 'Đang import...' : 'Import Excel'}
-            </Button>
-            <input id="excel-import" type="file" accept=".xlsx,.xls" onChange={handleImportExcel} className="hidden" />
+            {permissions.canAdd && (
+              <>
+                <Button variant="outline" onClick={() => document.getElementById('excel-import')?.click()} disabled={isImporting}>
+                  <Upload className="w-4 h-4 mr-2" />
+                  {isImporting ? 'Đang import...' : 'Import Excel'}
+                </Button>
+                <input id="excel-import" type="file" accept=".xlsx,.xls" onChange={handleImportExcel} className="hidden" />
+              </>
+            )}
 
             <Button variant="outline" onClick={handleDownloadTemplate}>
               <FileSpreadsheet className="w-4 h-4 mr-2" />
@@ -780,7 +732,17 @@ const filteredLogs = useMemo(() => {
             <CardContent className="space-y-4 border-t pt-4">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div><Label>Tìm kiếm</Label><Input placeholder="Máy, dự án, tên dao..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-                <div><Label>Trạng thái</Label><Select value={statusFilter} onValueChange={setStatusFilter}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="all">Tất cả</SelectItem><SelectItem value="approved">Đã duyệt</SelectItem><SelectItem value="pending">Chờ duyệt</SelectItem><SelectItem value="rejected">Từ chối</SelectItem></SelectContent></Select></div>
+                <div><Label>Trạng thái</Label>
+                  <Select value={statusFilter} onValueChange={setStatusFilter}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">Tất cả</SelectItem>
+                      <SelectItem value="approved">Đã duyệt</SelectItem>
+                      <SelectItem value="pending">Chờ duyệt</SelectItem>
+                      <SelectItem value="rejected">Từ chối</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div><Label>Từ ngày</Label><Input type="date" value={dateFilterStart} onChange={(e) => setDateFilterStart(e.target.value)} /></div>
                 <div><Label>Đến ngày</Label><Input type="date" value={dateFilterEnd} onChange={(e) => setDateFilterEnd(e.target.value)} /></div>
               </div>
@@ -829,8 +791,6 @@ const filteredLogs = useMemo(() => {
                     <TableHead className="font-semibold text-gray-700">Mã Dự Án</TableHead>
                     <TableHead className="font-semibold text-gray-700">Tên dự án</TableHead>
                     <TableHead className="font-semibold text-gray-700 text-center">SL</TableHead>
-                    <TableHead className="font-semibold text-gray-700 text-center">Giờ gá</TableHead>
-                    <TableHead className="font-semibold text-gray-700 text-center">Giờ chạy</TableHead>
                     <TableHead className="font-semibold text-gray-700">Người vận hành</TableHead>
                     <TableHead className="font-semibold text-gray-700">Người kiểm tra</TableHead>
                     <TableHead className="font-semibold text-gray-700">Tên dao</TableHead>
@@ -841,7 +801,7 @@ const filteredLogs = useMemo(() => {
                 <TableBody>
                   {filteredLogs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={12} className="text-center py-12">
+                      <TableCell colSpan={10} className="text-center py-12">
                         <div className="flex flex-col items-center gap-3 text-gray-400">
                           <FileSpreadsheet className="w-12 h-12" />
                           <p className="text-lg">Chưa có dữ liệu</p>
@@ -851,32 +811,27 @@ const filteredLogs = useMemo(() => {
                     </TableRow>
                   ) : (
                     filteredLogs.map((log, index) => {
-                      const canEdit = log.status !== 'approved' || isAdmin;
-                      const canDelete = log.status !== 'approved' || isAdmin;
-                      const showApprove = log.status === 'pending' && canApprove(log);
+                      const canEdit = (log.status !== 'approved' || user?.role === 'admin') && permissions.canEdit;
+                      const canDelete = (log.status !== 'approved' || user?.role === 'admin') && permissions.canDelete;
+                      const showApprove = log.status === 'pending' && (permissions.canApprove || canApprove(log));
                       
-                      // Lấy danh sách tên dao
-                      const daoList = log.toolEntries.map(t => t.tenDao).join(', ');
+                      const daoList = log.toolEntries?.map(t => t.tenDao).join(', ') || '';
                       
                       return (
                         <TableRow 
                           key={log.id}
-                          className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${
-                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'
-                          }`}
+                          className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
                           onClick={() => {
                             setSelectedLog(log);
                             setIsViewDialogOpen(true);
                           }}
                         >
-                          <TableCell className="font-medium">{formatDate(log.ngay)}</TableCell>
-                          <TableCell><Badge variant="outline" className="bg-gray-50 max-w-[150px] truncate" title={log.may}>{formatMay(log.may)}</Badge></TableCell>
-                          <TableCell><code className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-mono font-semibold">{log.maDuAn}</code></TableCell>
-                          <TableCell><div className="max-w-[150px]"><p className="text-sm font-medium truncate" title={log.tenDuAn}>{log.tenDuAn}</p></div></TableCell>
-                          <TableCell className="text-center"><span className="font-mono font-semibold text-gray-700">{log.sanLuong?.toLocaleString() || 0}</span></TableCell>
-                          <TableCell className="text-center"><span className="inline-flex items-center gap-1 px-2 py-1 bg-amber-50 rounded-md"><span className="text-amber-600">⏱</span><span className="font-mono text-sm">{log.gioGa}h</span></span></TableCell>
-                          <TableCell className="text-center"><span className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 rounded-md"><span className="text-green-600">▶</span><span className="font-mono text-sm">{log.gioChay}h</span></span></TableCell>
-                          <TableCell><div className="flex items-center gap-1.5"><div className="w-6 h-6 rounded-full bg-purple-100 flex items-center justify-center"><span className="text-xs font-bold text-purple-600">{log.nguoiVanHanh?.charAt(0) || 'NV'}</span></div><span className="text-sm truncate max-w-[100px]" title={log.nguoiVanHanh}>{log.nguoiVanHanh}</span></div></TableCell>
+                          <TableCell className="font-medium">{formatDate(log.ngayThang)}</TableCell>
+                          <TableCell><Badge variant="outline" className="bg-gray-50 max-w-[150px] truncate">{log.maySanXuat}</Badge></TableCell>
+                          <TableCell><code className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-mono font-semibold">{log.duAn}</code></TableCell>
+                          <TableCell><div className="max-w-[150px]"><p className="text-sm font-medium truncate" title={log.khach_hang}>{log.khach_hang}</p></div></TableCell>
+                          <TableCell className="text-center"><span className="font-mono font-semibold text-gray-700">{log.soLuongHoanThanh?.toLocaleString() || 0}</span></TableCell>
+                          <TableCell><span className="text-sm truncate max-w-[100px]" title={log.nguoiVanHanh}>{log.nguoiVanHanh}</span></TableCell>
                           <TableCell><span className="text-sm">{log.nguoiKiemTra || '---'}</span></TableCell>
                           <TableCell><span className="text-sm truncate max-w-[120px] block" title={daoList}>{daoList || '---'}</span></TableCell>
                           <TableCell>{getStatusBadge(log.status)}</TableCell>
@@ -896,7 +851,7 @@ const filteredLogs = useMemo(() => {
                                 </Button>
                               )}
                               {canDelete && (
-                                <Button variant="ghost" size="sm" onClick={(e) => handleDeleteLog(log.id, e)} className="hover:bg-red-100 hover:text-red-700 text-red-600" title="Xóa">
+                                <Button variant="ghost" size="sm" onClick={(e) => handleDeleteLog(log.id, e)} className="hover:bg-red-100 hover:text-red-700 text-red-600" title="Xóa" disabled={isDeleting}>
                                   <Trash2 className="w-4 h-4" />
                                 </Button>
                               )}
@@ -910,7 +865,6 @@ const filteredLogs = useMemo(() => {
               </Table>
             </div>
             
-            {/* Hiển thị tổng quan */}
             {filteredLogs.length > 0 && (
               <div className="flex items-center justify-between px-6 py-3 bg-gray-50 border-t text-sm text-gray-600">
                 <div className="flex items-center gap-4">
@@ -929,62 +883,33 @@ const filteredLogs = useMemo(() => {
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader className="flex flex-row items-center justify-between">
               <DialogTitle>CHI TIẾT NHẬT KÝ SẢN XUẤT</DialogTitle>
-              <Button variant="outline" size="sm" onClick={() => exportSingleLogToExcel(selectedLog)}>
-                <Download className="w-4 h-4 mr-2" />
-                Tải xuống
-              </Button>
             </DialogHeader>
             
             {selectedLog && (
               <div className="space-y-4">
-                {/* Thông tin chính - 2 cột */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <div className="flex"><span className="w-32 text-gray-600">Ngày tháng:</span><span className="font-medium">{formatDate(selectedLog.ngay)}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Máy Sản Xuất:</span><span className="font-medium">{selectedLog.may || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Mã Dự Án:</span><span className="font-medium text-blue-600">{selectedLog.maDuAn || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Tên Dự Án:</span><span className="font-medium">{selectedLog.tenDuAn || '---'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Ngày tháng:</span><span className="font-medium">{formatDate(selectedLog.ngayThang)}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Máy Sản Xuất:</span><span className="font-medium">{selectedLog.maySanXuat || '---'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Mã Dự Án:</span><span className="font-medium text-blue-600">{selectedLog.duAn || '---'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Tên Dự Án:</span><span className="font-medium">{selectedLog.khach_hang || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Bản Vẽ Số:</span><span>{selectedLog.banVeSo || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Chi Tiết Số:</span><span>{selectedLog.ncSo || '---'}</span></div>
                   </div>
                   <div className="space-y-2">
                     <div className="flex"><span className="w-32 text-gray-600">Tên Chi Tiết:</span><span>{selectedLog.tenChiTiet || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Nội dung Gia Công:</span><span>{selectedLog.noiDung || '---'}</span></div>
+                    <div className="flex"><span className="w-32 text-gray-600">Nội dung Gia Công:</span><span>{selectedLog.noiDungGiaCong || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Vật Liệu:</span><span>{selectedLog.vatLieu || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Nguyên Công Số:</span><span>{selectedLog.ncSo || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Người Vận Hành:</span><span>{selectedLog.nguoiVanHanh || '---'}</span></div>
                     <div className="flex"><span className="w-32 text-gray-600">Người Kiểm Tra:</span><span>{selectedLog.nguoiKiemTra || '---'}</span></div>
                   </div>
                 </div>
 
-                {/* Số lượng và thời gian */}
                 <div className="grid grid-cols-3 gap-4 border-t pt-4">
-                  <div className="text-center"><p className="text-gray-600 text-sm">Số lượng</p><p className="text-xl font-bold">{selectedLog.sanLuong?.toLocaleString() || 0}</p></div>
-                  <div className="text-center"><p className="text-gray-600 text-sm">Giờ gá</p><p className="text-xl font-bold">{selectedLog.gioGa}h</p></div>
-                  <div className="text-center"><p className="text-gray-600 text-sm">Giờ chạy</p><p className="text-xl font-bold">{selectedLog.gioChay}h</p></div>
+                  <div className="text-center"><p className="text-gray-600 text-sm">Số lượng</p><p className="text-xl font-bold">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</p></div>
+                  <div className="text-center"><p className="text-gray-600 text-sm">Chi phí máy</p><p className="text-xl font-bold">{formatCurrency(selectedLog.cpMay)}</p></div>
+                  <div className="text-center"><p className="text-gray-600 text-sm">Chi phí dao</p><p className="text-xl font-bold">{formatCurrency(selectedLog.cpDaoCu)}</p></div>
                 </div>
 
-                {/* Thời gian chi tiết */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-                  <div>
-                    <h3 className="font-semibold mb-2">Thời gian gá phôi</h3>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-600">Giờ bắt đầu:</span><span>{selectedLog.tgBdGa || '--:--'}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600">Giờ kết thúc:</span><span>{selectedLog.tgKtGa || '--:--'}</span></div>
-                      <div className="flex justify-between font-medium"><span>Số giờ:</span><span>{selectedLog.gioGa}h</span></div>
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold mb-2">Thời gian gia công</h3>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between"><span className="text-gray-600">Giờ bắt đầu:</span><span>{selectedLog.tgBdChay || '--:--'}</span></div>
-                      <div className="flex justify-between"><span className="text-gray-600">Giờ kết thúc:</span><span>{selectedLog.tgKtChay || '--:--'}</span></div>
-                      <div className="flex justify-between font-medium"><span>Số giờ:</span><span>{selectedLog.gioChay}h</span></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Thông tin Dao cụ */}
                 {selectedLog.toolEntries && selectedLog.toolEntries.length > 0 && (
                   <div className="border-t pt-4">
                     <h3 className="font-semibold mb-2">Thông tin Dao Cụ</h3>
@@ -1015,7 +940,6 @@ const filteredLogs = useMemo(() => {
                   </div>
                 )}
 
-                {/* Trạng thái */}
                 <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
                   <div>Trạng thái: {getStatusBadge(selectedLog.status)}</div>
                   <div>Ngày tạo: {new Date(selectedLog.createdAt).toLocaleString('vi-VN')}</div>
@@ -1029,7 +953,7 @@ const filteredLogs = useMemo(() => {
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Chỉnh sửa nhật ký sản xuất</DialogTitle></DialogHeader>
-            {selectedLog && (
+            {selectedLog && permissions.canEdit && (
               <ProductionForm 
                 key={`edit-${selectedLog.id}`} 
                 initialData={selectedLog} 

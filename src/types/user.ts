@@ -18,7 +18,7 @@ export interface User {
   trangThai?: string;
   department: string;
   roleGroup: string;
-  role?: 'user' | 'manager' | 'admin';
+  role?: 'user' | 'manager' | 'admin' | 'quan_ly_xuong' | 'to_truong' | 'to_pho' | 'nhom_truong';
   permissions?: UserPermissions;
   email?: string;
   phone?: string;
