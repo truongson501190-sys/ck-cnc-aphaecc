@@ -1,10 +1,18 @@
 import { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import { Sidebar } from '@/components/Sidebar';
 
 export const MainLayout = () => {
+  const { isAuthenticated } = useAuth();
+  
   // Quản lý trạng thái đóng/mở Sidebar tập trung tại Layout
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
+
+  // Redirect to login if not authenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-slate-50">

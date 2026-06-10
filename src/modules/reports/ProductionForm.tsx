@@ -383,12 +383,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
             const selectedCategory = categoryTypes.find(cat => cat.tenLoai === value);
             if (selectedCategory) {
               updatedEntry.donVi = selectedCategory.donVi ?? '';
-              updatedEntry.donGia = selectedCategory.gia ?? 0;
-              updatedEntry.thanhTien = entry.slSuDung * (selectedCategory.gia ?? 0);
             }
-          }
-          if (field === 'slSuDung' && typeof value === 'number') {
-            updatedEntry.thanhTien = value * (entry.donGia || 0);
           }
           return updatedEntry;
         }
@@ -430,11 +425,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       const runAmount = totalRunHours * pricePerHour;
       const setupAmount = totalSetupHours * (pricePerHour / 2);
 
-      const updatedToolEntries = validToolEntries.map((tool: ToolEntry) => {
-        const matchedCategory = categoryTypes.find(cat => cat.tenLoai === tool.tenDao);
-        const donGia = Number(matchedCategory?.gia) || tool.donGia || 0;
-        return { ...tool, donGia, thanhTien: tool.slSuDung * donGia };
-      });
+      const updatedToolEntries = validToolEntries;
 
       onSubmit({
         ...formData,
@@ -443,7 +434,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         status: initialData?.status || 'pending',
         chiPhiGa: setupAmount,
         chiPhiChayMay: runAmount,
-        chiPhiDao: updatedToolEntries.reduce((sum: number, tool: ToolEntry) => sum + tool.thanhTien, 0),
+        chiPhiDao: 0,
         gioGa: totalSetupHours,
         gioChay: totalRunHours,
       });

@@ -1,17 +1,20 @@
 import React, { useState, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { LogOut, User, ChevronDown, Settings, Shield, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { SyncStatus } from './SyncStatus';
 
 const Header: React.FC = () => {
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = useState(false);
 
   const handleLogout = useCallback(() => {
     logout();
     toast.success('Đã đăng xuất thành công');
-  }, [logout]);
+    setTimeout(() => navigate('/login'), 500);
+  }, [logout, navigate]);
 
   const getRoleIcon = useCallback((role: string) => {
     switch (role) {
