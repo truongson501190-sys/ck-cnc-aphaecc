@@ -1,7 +1,7 @@
-//Quản lý danh mục -> kho (ĐÃ SỬA DÙNG SUPABASE)
+//Quản lý danh mục -> kho (ĐÃ SỬA DÙNG SUPABASE - CAMELCASE)
 import { useEffect, useRef, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { Edit2, Package, Plus, Search, Trash2, Upload } from 'lucide-react';
+import { Edit2, Package, Plus, Search, Trash2, Upload, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +29,7 @@ export function WarehouseManagement() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [formData, setFormData] = useState({
     maKho: '',
     tenKho: '',
@@ -40,24 +41,14 @@ export function WarehouseManagement() {
   const loadWarehouses = async () => {
     setIsLoading(true);
     try {
+      // Dùng đúng tên cột trong database (camelCase)
       const { data, error } = await supabase
         .from('warehouses')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('createdAt', { ascending: false });
 
       if (error) throw error;
-      
-      // Chuyển đổi từ snake_case sang camelCase cho UI
-      const mappedData = (data || []).map((item: any) => ({
-        id: item.id,
-        maKho: item.ma_kho,
-        tenKho: item.ten_kho,
-        ghiChu: item.mo_ta,
-        created_by: item.created_by,
-        createdAt: item.created_at,
-      }));
-      
-      setWarehouses(mappedData);
+      setWarehouses(data || []);
     } catch (error) {
       console.error('Error loading warehouses:', error);
       toast.error('Không thể tải dữ liệu kho');
@@ -80,11 +71,9 @@ export function WarehouseManagement() {
   };
 
   const generateWarehouseCode = async () => {
-    // Lấy số lượng kho hiện tại để tạo mã
     const { count } = await supabase
       .from('warehouses')
       .select('*', { count: 'exact', head: true });
-    
     const nextNumber = (count || 0) + 1;
     return `KHO${String(nextNumber).padStart(3, '0')}`;
   };
@@ -100,31 +89,30 @@ export function WarehouseManagement() {
     const msnv = user?.msnv || 'unknown';
 
     if (editingId) {
-      // Cập nhật
       const { error } = await supabase
         .from('warehouses')
         .update({
-          ten_kho: tenKho,
-          mo_ta: formData.ghiChu.trim(),
-          updated_at: new Date().toISOString()
+          tenKho: tenKho,
+          ghiChu: formData.ghiChu.trim(),
+          updatedAt: new Date().toISOString()
         })
         .eq('id', editingId);
 
       if (error) throw error;
       toast.success('Cập nhật kho thành công');
     } else {
-      // Thêm mới
       const newMaKho = await generateWarehouseCode();
       const { error } = await supabase
         .from('warehouses')
         .insert({
           id: crypto.randomUUID(),
-          ma_kho: newMaKho,
-          ten_kho: tenKho,
-          mo_ta: formData.ghiChu.trim(),
+          maKho: newMaKho,
+          tenKho: tenKho,
+          ghiChu: formData.ghiChu.trim(),
           status: 'active',
           created_by: msnv,
-          created_at: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         });
 
       if (error) throw error;
@@ -146,15 +134,15 @@ export function WarehouseManagement() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc muốn xóa kho này?')) return;
-    
-    const { error } = await supabase
-      .from('warehouses')
-      .delete()
-      .eq('id', id);
-    
-    if (error) throw error;
-    toast.success('Đã xóa kho');
-    await loadWarehouses();
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase.from('warehouses').delete().eq('id', id);
+      if (error) throw error;
+      toast.success('Đã xóa kho');
+      await loadWarehouses();
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const handleDeleteSelected = async () => {
@@ -162,16 +150,19 @@ export function WarehouseManagement() {
       toast.error('Vui lòng chọn kho cần xóa');
       return;
     }
-    
     if (!confirm(`Bạn có chắc muốn xóa ${selectedIds.length} kho?`)) return;
     
-    for (const id of selectedIds) {
-      await supabase.from('warehouses').delete().eq('id', id);
+    setIsDeleting(true);
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('warehouses').delete().eq('id', id);
+      }
+      setSelectedIds([]);
+      toast.success('Đã xóa nhiều kho');
+      await loadWarehouses();
+    } finally {
+      setIsDeleting(false);
     }
-    
-    setSelectedIds([]);
-    toast.success('Đã xóa nhiều kho');
-    await loadWarehouses();
   };
 
   const toggleSelect = (id: string) => {
@@ -200,60 +191,82 @@ export function WarehouseManagement() {
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
 
-        const user = currentUser?.msnv || 'unknown';
+        const msnv = user?.msnv || 'unknown';
         let added = 0;
-        let updated = 0;
+        let errorCount = 0;
 
-        // Lấy số lượng hiện tại để tạo mã mới
         const { count: currentCount } = await supabase
           .from('warehouses')
           .select('*', { count: 'exact', head: true });
         
         let nextNumber = (currentCount || 0) + 1;
 
-        for (const row of jsonData) {
-          const maKho = String(row.maKho || row['Mã kho'] || row['Mã Kho'] || '').trim();
-          const tenKho = String(row.tenKho || row['Tên kho'] || row['Tên Kho'] || '').trim();
-          const ghiChu = String(row.ghiChu || row['Ghi chú'] || row['Ghi Chú'] || '').trim();
+        for (let i = 0; i < jsonData.length; i++) {
+          const row = jsonData[i];
+          try {
+            // Lấy tên kho từ nhiều tên cột khác nhau
+            let tenKho = row['Tên kho'] || row['tenKho'] || row['ten_kho'] || '';
+            if (!tenKho) {
+              errorCount++;
+              continue;
+            }
+            
+            tenKho = tenKho.toString().trim();
+            let maKho = row['Mã kho'] || row['maKho'] || row['ma_kho'] || '';
+            maKho = maKho.toString().trim();
+            let ghiChu = row['Ghi chú'] || row['ghiChu'] || row['ghi_chu'] || '';
+            ghiChu = ghiChu.toString().trim();
 
-          if (!tenKho) continue;
+            // Kiểm tra mã kho đã tồn tại chưa
+            let finalMaKho = maKho;
+            if (!finalMaKho) {
+              finalMaKho = `KHO${String(nextNumber).padStart(3, '0')}`;
+            }
 
-          // Kiểm tra xem mã kho đã tồn tại chưa
-          const { data: existing } = await supabase
-            .from('warehouses')
-            .select('id')
-            .eq('ma_kho', maKho)
-            .maybeSingle();
-
-          if (existing && maKho) {
-            // Cập nhật
-            await supabase
+            const { data: existing } = await supabase
               .from('warehouses')
-              .update({
-                ten_kho: tenKho,
-                mo_ta: ghiChu,
-                updated_at: new Date().toISOString()
-              })
-              .eq('ma_kho', maKho);
-            updated++;
-          } else {
-            // Thêm mới
-            const finalMaKho = maKho || `KHO${String(nextNumber).padStart(3, '0')}`;
-            await supabase.from('warehouses').insert({
-              id: crypto.randomUUID(),
-              ma_kho: finalMaKho,
-              ten_kho: tenKho,
-              mo_ta: ghiChu,
-              status: 'active',
-              created_by: user,
-              created_at: new Date().toISOString()
-            });
-            added++;
-            nextNumber++;
+              .select('id')
+              .eq('maKho', finalMaKho)
+              .maybeSingle();
+
+            if (existing) {
+              // Cập nhật
+              await supabase
+                .from('warehouses')
+                .update({
+                  tenKho: tenKho,
+                  ghiChu: ghiChu,
+                  updatedAt: new Date().toISOString()
+                })
+                .eq('maKho', finalMaKho);
+            } else {
+              // Thêm mới
+              await supabase.from('warehouses').insert({
+                id: crypto.randomUUID(),
+                maKho: finalMaKho,
+                tenKho: tenKho,
+                ghiChu: ghiChu,
+                status: 'active',
+                created_by: msnv,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              });
+              added++;
+              nextNumber++;
+            }
+          } catch (err) {
+            console.error(`Dòng ${i + 2}: Lỗi xử lý:`, err);
+            errorCount++;
           }
         }
 
-        toast.success(`Import thành công: ${added} thêm mới, ${updated} cập nhật`);
+        if (added > 0) {
+          toast.success(`Import thành công: ${added} thêm mới${errorCount > 0 ? `, ${errorCount} lỗi` : ''}`);
+        } else if (errorCount > 0) {
+          toast.warning(`Import hoàn tất: ${errorCount} dòng lỗi, không có dòng mới`);
+        } else {
+          toast.info('Không có dữ liệu mới để import');
+        }
         await loadWarehouses();
       } catch (error) {
         console.error(error);
@@ -272,7 +285,11 @@ export function WarehouseManagement() {
   );
 
   if (isLoading) {
-    return <div className="flex justify-center items-center h-64">Đang tải dữ liệu...</div>;
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    );
   }
 
   return (
@@ -280,8 +297,8 @@ export function WarehouseManagement() {
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Quản lý Kho</h2>
-          <p className="text-sm text-muted-foreground">Danh mục kho trong hệ thống</p>
+          <h2 className="text-2xl font-bold"></h2>
+          <p className="text-sm text-muted-foreground"></p>
         </div>
         <Badge variant="secondary">
           <Package className="w-4 h-4 mr-1" />
@@ -357,7 +374,7 @@ export function WarehouseManagement() {
             <div className="flex items-center justify-between">
               <CardTitle>Danh sách kho</CardTitle>
               {selectedIds.length > 0 && (
-                <Button variant="destructive" size="sm" onClick={handleDeleteSelected}>
+                <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={isDeleting}>
                   <Trash2 className="w-4 h-4 mr-2" />
                   Xóa ({selectedIds.length})
                 </Button>
@@ -385,7 +402,7 @@ export function WarehouseManagement() {
                         <Checkbox
                           checked={selectedIds.length === filteredWarehouses.length && filteredWarehouses.length > 0}
                           onCheckedChange={toggleSelectAll}
-                          className="h-3.5 w-3.5 rounded-[3px]"
+                          className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
                         />
                       </th>
                       <th className="text-left py-3">Mã kho</th>
@@ -401,7 +418,7 @@ export function WarehouseManagement() {
                           <Checkbox
                             checked={selectedIds.includes(warehouse.id)}
                             onCheckedChange={() => toggleSelect(warehouse.id)}
-                            className="h-3.5 w-3.5 rounded-[3px]"
+                            className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
                           />
                         </td>
                         <td className="py-3">
@@ -414,7 +431,7 @@ export function WarehouseManagement() {
                             <Button size="icon" variant="ghost" onClick={() => handleEdit(warehouse)}>
                               <Edit2 className="w-4 h-4 text-blue-600" />
                             </Button>
-                            <Button size="icon" variant="ghost" onClick={() => handleDelete(warehouse.id)}>
+                            <Button size="icon" variant="ghost" onClick={() => handleDelete(warehouse.id)} disabled={isDeleting}>
                               <Trash2 className="w-4 h-4 text-red-600" />
                             </Button>
                           </div>

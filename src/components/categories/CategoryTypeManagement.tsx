@@ -1,7 +1,7 @@
-//Quản lý danh mục -> chủng loại (ĐÃ SỬA DÙNG SUPABASE)
+//Quản lý danh mục -> chủng loại (ĐÃ SỬA DÙNG SUPABASE - CAMELCASE)
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import * as XLSX from 'xlsx'
-import { Edit, Search, Trash2, Upload, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Edit, Search, Trash2, Upload, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -32,6 +32,7 @@ export function CategoryTypeManagement() {
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [isLoading, setIsLoading] = useState(true)
+  const [isDeleting, setIsDeleting] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
@@ -42,19 +43,21 @@ export function CategoryTypeManagement() {
     ghiChu: '',
   })
 
-  const ITEMS_PER_PAGE = 10
+  const ITEMS_PER_PAGE = 20
 
   // Tải dữ liệu từ Supabase
   const loadCategories = async () => {
     setIsLoading(true)
     try {
-      // Lấy tất cả categories (RLS sẽ tự filter theo quyền)
+      // Dùng đúng tên cột camelCase
       const { data, error } = await supabase
         .from('categories')
         .select('*')
-        .order('created_at', { ascending: false })
+        .order('createdAt', { ascending: false })
 
       if (error) throw error
+      
+      // Data từ Supabase đã có sẵn camelCase
       setCategories(data || [])
     } catch (error) {
       console.error('Error loading categories:', error)
@@ -68,38 +71,12 @@ export function CategoryTypeManagement() {
     loadCategories()
   }, [])
 
-  // Lưu dữ liệu xuống Supabase
-  const saveData = async (data: Category[]) => {
-    // Đồng bộ lên Supabase
-    for (const item of data) {
-      const { error } = await supabase
-        .from('categories')
-        .upsert({
-          id: item.id,
-          ma_loai: item.maLoai,
-          ten_loai: item.tenLoai,
-          don_vi: item.donVi,
-          gia: item.gia,
-          mo_ta: item.ghiChu,
-          status: 'active',
-          updated_at: new Date().toISOString()
-        })
-      
-      if (error) console.error('Upsert error:', error)
-    }
-    
-    setCategories(data)
-    setSelectedIds([])
-    await loadCategories() // Reload để lấy dữ liệu mới nhất
-  }
-
   // Xóa category
   const deleteCategory = async (id: string) => {
     const { error } = await supabase
       .from('categories')
       .delete()
       .eq('id', id)
-    
     if (error) throw error
     await loadCategories()
   }
@@ -138,36 +115,37 @@ export function CategoryTypeManagement() {
     const msnv = user?.msnv || 'unknown'
 
     if (editingId) {
-      // Cập nhật
+      // Cập nhật - dùng camelCase
       const { error } = await supabase
         .from('categories')
         .update({
-          ten_loai: formData.tenLoai.trim(),
-          don_vi: formData.donVi.trim(),
+          tenLoai: formData.tenLoai.trim(),
+          donVi: formData.donVi.trim(),
           gia: formData.gia,
-          mo_ta: formData.ghiChu.trim(),
-          updated_at: new Date().toISOString()
+          ghiChu: formData.ghiChu.trim(),
+          updatedAt: new Date().toISOString()
         })
         .eq('id', editingId)
 
       if (error) throw error
       toast.success('Đã cập nhật chủng loại thành công')
     } else {
-      // Thêm mới
+      // Thêm mới - dùng camelCase
       const finalMaLoai = generateCode(categories)
       const { error } = await supabase
         .from('categories')
         .insert({
           id: crypto.randomUUID(),
-          ma_loai: finalMaLoai,
-          ten_loai: formData.tenLoai.trim(),
-          don_vi: formData.donVi.trim(),
+          maLoai: finalMaLoai,
+          tenLoai: formData.tenLoai.trim(),
+          donVi: formData.donVi.trim(),
           gia: formData.gia,
-          mo_ta: formData.ghiChu.trim(),
+          ghiChu: formData.ghiChu.trim(),
           loai: 'material',
           status: 'active',
           created_by: msnv,
-          created_at: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         })
 
       if (error) throw error
@@ -191,10 +169,15 @@ export function CategoryTypeManagement() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Bạn có chắc chắn muốn xóa chủng loại này không?')) return
-    await deleteCategory(id)
-    toast.success('Đã xóa thành công')
-    if (paginatedData.length === 1 && currentPage > 1) {
-      setCurrentPage(currentPage - 1)
+    setIsDeleting(true)
+    try {
+      await deleteCategory(id)
+      toast.success('Đã xóa thành công')
+      if (paginatedData.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1)
+      }
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -205,12 +188,18 @@ export function CategoryTypeManagement() {
     }
     if (!confirm(`Bạn có chắc chắn muốn xóa ${selectedIds.length} mục đã chọn?`)) return
 
-    for (const id of selectedIds) {
-      await deleteCategory(id)
+    setIsDeleting(true)
+    try {
+      for (const id of selectedIds) {
+        await supabase.from('categories').delete().eq('id', id)
+      }
+      setCurrentPage(1)
+      setSelectedIds([])
+      toast.success('Đã xóa các mục được chọn')
+      await loadCategories()
+    } finally {
+      setIsDeleting(false)
     }
-    setCurrentPage(1)
-    toast.success('Đã xóa các mục được chọn')
-    await loadCategories()
   }
 
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -225,33 +214,73 @@ export function CategoryTypeManagement() {
         const worksheet = workbook.Sheets[workbook.SheetNames[0]]
         const json = XLSX.utils.sheet_to_json<any>(worksheet)
 
-        const user = currentUser?.msnv || 'unknown'
+        const msnv = user?.msnv || 'unknown'
         let imported = 0
+        let errorCount = 0
 
-        for (const row of json) {
-          const finalMaLoai = row['Mã loại'] || generateCode(categories)
-          const { error } = await supabase
-            .from('categories')
-            .insert({
-              id: crypto.randomUUID(),
-              ma_loai: finalMaLoai,
-              ten_loai: row['Tên loại'] || 'Chưa đặt tên',
-              don_vi: row['Đơn vị'] || '',
-              gia: Number(row['Giá']) || 0,
-              mo_ta: row['Ghi chú'] || '',
-              loai: 'material',
-              status: 'active',
-              created_by: user,
-              created_at: new Date().toISOString()
-            })
-          
-          if (!error) imported++
+        // Lấy số lượng hiện tại
+        const { count } = await supabase
+          .from('categories')
+          .select('*', { count: 'exact', head: true })
+        
+        let nextNumber = (count || 0) + 1
+
+        for (let i = 0; i < json.length; i++) {
+          const row = json[i]
+          try {
+            let tenLoai = row['Tên loại'] || row['tenLoai'] || ''
+            if (!tenLoai) {
+              errorCount++
+              continue
+            }
+            
+            tenLoai = tenLoai.toString().trim()
+            let donVi = row['Đơn vị'] || row['donVi'] || ''
+            donVi = donVi.toString().trim()
+            let gia = Number(row['Giá'] || row['gia'] || 0)
+            let ghiChu = row['Ghi chú'] || row['ghiChu'] || ''
+            ghiChu = ghiChu.toString().trim()
+
+            const finalMaLoai = `LO${String(nextNumber).padStart(3, '0')}`
+            
+            const { error } = await supabase
+              .from('categories')
+              .insert({
+                id: crypto.randomUUID(),
+                maLoai: finalMaLoai,
+                tenLoai: tenLoai,
+                donVi: donVi,
+                gia: gia,
+                ghiChu: ghiChu,
+                loai: 'material',
+                status: 'active',
+                created_by: msnv,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              })
+            
+            if (error) {
+              console.error('Insert error:', error)
+              errorCount++
+            } else {
+              imported++
+              nextNumber++
+            }
+          } catch (err) {
+            console.error('Row error:', err)
+            errorCount++
+          }
         }
 
-        toast.success(`Import thành công ${imported} dòng dữ liệu`)
-        await loadCategories()
+        if (imported > 0) {
+          toast.success(`Import thành công ${imported} dòng${errorCount > 0 ? `, ${errorCount} lỗi` : ''}`)
+          await loadCategories()
+          setCurrentPage(1)
+        } else {
+          toast.error('Import thất bại. Kiểm tra định dạng file Excel.')
+        }
       } catch (error) {
-        console.error(error)
+        console.error('Import error:', error)
         toast.error('Lỗi định dạng file Excel')
       }
     }
@@ -280,114 +309,123 @@ export function CategoryTypeManagement() {
     )
   }, [filteredData, currentPage])
 
+  const startItem = filteredData.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0
+  const endItem = Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)
+
   if (isLoading) {
-    return <div className="flex justify-center items-center h-64">Đang tải dữ liệu...</div>
+    return (
+      <div className="flex justify-center items-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      </div>
+    )
   }
 
   return (
     <div className="p-1 space-y-6 bg-slate-50/30 min-h-screen">
-      {/* Phần còn lại giữ nguyên giao diện */}
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* FORM NHẬP LIỆU */}
+        
+        {/* FORM NHẬP LIỆU - CỐ ĐỊNH VỊ TRÍ */}
         <div className="xl:col-span-1 space-y-4">
-          <Card className="rounded-xl border border-slate-100 shadow-sm bg-white">
-            <CardHeader className="pb-4 pt-5 px-5">
-              <CardTitle className="text-lg font-bold text-slate-800">
-                {editingId ? 'Sửa chủng loại' : 'Thêm chủng loại'}
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-5 pb-5 pt-0">
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-slate-700">Mã loại</Label>
-                  <Input
-                    value={editingId ? formData.maLoai : ""}
-                    disabled
-                    placeholder="Tự động tạo"
-                    className="bg-slate-50 text-slate-500"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-slate-700">Tên loại <span className="text-red-500">*</span></Label>
-                  <Input
-                    value={formData.tenLoai}
-                    onChange={(e) => setFormData({ ...formData, tenLoai: e.target.value })}
-                    placeholder="Nhập tên loại"
-                    className="border-slate-200"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-slate-700">Đơn vị</Label>
-                  <Input
-                    value={formData.donVi}
-                    onChange={(e) => setFormData({ ...formData, donVi: e.target.value })}
-                    placeholder="VD: Cái, Kg, m, Lít..."
-                    className="border-slate-200"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-slate-700">Giá</Label>
-                  <Input
-                    type="number"
-                    value={formData.gia}
-                    onChange={(e) => setFormData({ ...formData, gia: Number(e.target.value) })}
-                    className="border-slate-200"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-sm font-medium text-slate-700">Ghi chú</Label>
-                  <Textarea
-                    rows={3}
-                    value={formData.ghiChu}
-                    onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
-                    placeholder="Nhập ghi chú (nếu có)"
-                    className="border-slate-200 resize-none"
-                  />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg">
-                    Lưu
-                  </Button>
-                  <Button type="button" variant="outline" onClick={resetForm} className="flex-1 border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50">
-                    Hủy
-                  </Button>
-                </div>
-              </form>
-            </CardContent>
-          </Card>
+          <div className="sticky top-6">
+            <Card className="rounded-xl border border-slate-100 shadow-sm bg-white">
+              <CardHeader className="pb-4 pt-5 px-5">
+                <CardTitle className="text-lg font-bold text-slate-800">
+                  {editingId ? 'Sửa chủng loại' : 'Thêm chủng loại'}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="px-5 pb-5 pt-0">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-slate-700">Mã loại</Label>
+                    <Input
+                      value={editingId ? formData.maLoai : ""}
+                      disabled
+                      placeholder="Tự động tạo"
+                      className="bg-slate-50 text-slate-500"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-slate-700">Tên loại <span className="text-red-500">*</span></Label>
+                    <Input
+                      value={formData.tenLoai}
+                      onChange={(e) => setFormData({ ...formData, tenLoai: e.target.value })}
+                      placeholder="Nhập tên loại"
+                      className="border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-slate-700">Đơn vị</Label>
+                    <Input
+                      value={formData.donVi}
+                      onChange={(e) => setFormData({ ...formData, donVi: e.target.value })}
+                      placeholder="VD: Cái, Kg, m, Lít..."
+                      className="border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-slate-700">Giá</Label>
+                    <Input
+                      type="number"
+                      value={formData.gia}
+                      onChange={(e) => setFormData({ ...formData, gia: Number(e.target.value) })}
+                      className="border-slate-200"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-medium text-slate-700">Ghi chú</Label>
+                    <Textarea
+                      rows={3}
+                      value={formData.ghiChu}
+                      onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
+                      placeholder="Nhập ghi chú (nếu có)"
+                      className="border-slate-200 resize-none"
+                    />
+                  </div>
+                  <div className="flex gap-3 pt-2">
+                    <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg">
+                      Lưu
+                    </Button>
+                    <Button type="button" variant="outline" onClick={resetForm} className="flex-1 border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50">
+                      Hủy
+                    </Button>
+                  </div>
+                </form>
+              </CardContent>
+            </Card>
 
-          {/* IMPORT EXCEL */}
-          <Card className="rounded-xl border border-slate-100 shadow-sm bg-white">
-            <CardHeader className="pb-2 pt-4 px-5">
-              <CardTitle className="text-base font-bold text-slate-800">Import Excel</CardTitle>
-            </CardHeader>
-            <CardContent className="px-5 pb-5 pt-1 space-y-3">
-              <p className="text-xs text-slate-400 leading-relaxed">
-                File Excel gồm các cột: Mã loại, Tên loại, Đơn vị, Giá, Ghi chú
-              </p>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleImportExcel}
-              />
-              <Button
-                variant="outline"
-                className="w-full h-24 border-dashed border-2 border-slate-200 hover:bg-slate-50/80 rounded-xl transition-all"
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <div className="flex flex-col items-center gap-2 text-slate-500">
-                  <Upload className="w-5 h-5 text-slate-400" />
-                  <span className="text-sm font-medium text-slate-600">Chọn file Excel</span>
-                  <span className="text-[10px] text-slate-400">(.xlsx, .xls)</span>
-                </div>
-              </Button>
-            </CardContent>
-          </Card>
+            {/* IMPORT EXCEL */}
+            <Card className="rounded-xl border border-slate-100 shadow-sm bg-white mt-4">
+              <CardHeader className="pb-2 pt-4 px-5">
+                <CardTitle className="text-base font-bold text-slate-800">Import Excel</CardTitle>
+              </CardHeader>
+              <CardContent className="px-5 pb-5 pt-1 space-y-3">
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  File Excel gồm các cột: Tên loại, Đơn vị, Giá, Ghi chú
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".xlsx,.xls"
+                  className="hidden"
+                  onChange={handleImportExcel}
+                />
+                <Button
+                  variant="outline"
+                  className="w-full h-24 border-dashed border-2 border-slate-200 hover:bg-slate-50/80 rounded-xl transition-all"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <div className="flex flex-col items-center gap-2 text-slate-500">
+                    <Upload className="w-5 h-5 text-slate-400" />
+                    <span className="text-sm font-medium text-slate-600">Chọn file Excel</span>
+                    <span className="text-[10px] text-slate-400">(.xlsx, .xls)</span>
+                  </div>
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
-        {/* BẢNG DANH SÁCH - giữ nguyên phần giao diện cũ */}
+        {/* BẢNG DANH SÁCH */}
         <div className="xl:col-span-3">
           <Card className="rounded-xl border border-slate-100 shadow-sm bg-white overflow-hidden">
             <CardHeader className="bg-white border-b border-slate-100 py-4 px-5">
@@ -413,6 +451,7 @@ export function CategoryTypeManagement() {
                       variant="outline" 
                       className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 h-9 rounded-lg px-3 flex items-center gap-1.5"
                       onClick={handleDeleteSelected}
+                      disabled={isDeleting}
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>Xóa đã chọn ({selectedIds.length})</span>
@@ -422,28 +461,28 @@ export function CategoryTypeManagement() {
               </div>
             </CardHeader>
 
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader className="bg-slate-50/70 border-b border-slate-100">
-                    <TableRow>
-                      <TableHead className="w-12 text-center py-2 h-10">
-                        <Checkbox
-                          className="h-3.5 w-3.5 rounded-sm border-slate-300 data-[state=checked]:bg-blue-600"
-                          checked={
-                            paginatedData.length > 0 &&
-                            paginatedData.every((item) => selectedIds.includes(item.id))
+           <CardContent className="p-0">
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="bg-slate-50/70 border-b border-slate-100">
+                  <TableRow>
+                    <TableHead className="w-10 text-center py-2 h-10">
+                      <Checkbox
+                        className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
+                        checked={
+                          paginatedData.length > 0 &&
+                          paginatedData.every((item) => selectedIds.includes(item.id))
+                        }
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            const pageIds = paginatedData.map((item) => item.id)
+                            setSelectedIds(prev => Array.from(new Set([...prev, ...pageIds])))
+                          } else {
+                            const pageIds = paginatedData.map((item) => item.id)
+                            setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)))
                           }
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              const pageIds = paginatedData.map((item) => item.id)
-                              setSelectedIds(prev => Array.from(new Set([...prev, ...pageIds])))
-                            } else {
-                              const pageIds = paginatedData.map((item) => item.id)
-                              setSelectedIds(prev => prev.filter(id => !pageIds.includes(id)))
-                            }
-                          }}
-                        />
+                        }}
+                      />
                       </TableHead>
                       <TableHead className="font-semibold text-slate-700 h-10 py-2">Mã loại</TableHead>
                       <TableHead className="font-semibold text-slate-700 h-10 py-2">Tên loại</TableHead>
@@ -465,7 +504,7 @@ export function CategoryTypeManagement() {
                         <TableRow key={item.id} className="hover:bg-slate-50/50 border-b border-slate-100">
                           <TableCell className="text-center py-2">
                             <Checkbox
-                              className="h-3.5 w-3.5 rounded-sm border-slate-300 data-[state=checked]:bg-blue-600"
+                               className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
                               checked={selectedIds.includes(item.id)}
                               onCheckedChange={(checked) => {
                                 if (checked) setSelectedIds([...selectedIds, item.id])
@@ -485,7 +524,7 @@ export function CategoryTypeManagement() {
                               <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(item)}>
                                 <Edit className="w-3.5 h-3.5" />
                               </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:bg-red-50" onClick={() => handleDelete(item.id)}>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:bg-red-50" onClick={() => handleDelete(item.id)} disabled={isDeleting}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>
@@ -500,18 +539,23 @@ export function CategoryTypeManagement() {
               {/* PHÂN TRANG */}
               <div className="flex items-center justify-between p-4 bg-white border-t border-slate-100">
                 <p className="text-sm text-slate-500">
-                  Hiển thị {filteredData.length > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0} đến{' '}
-                  {Math.min(currentPage * ITEMS_PER_PAGE, filteredData.length)} của {filteredData.length} dòng
+                  Hiển thị {startItem} đến {endItem} của {filteredData.length} dòng
                 </p>
                 <div className="flex items-center gap-2">
-                  <select className="bg-white border border-slate-200 rounded px-2 py-1 text-sm text-slate-600 focus:outline-none" value={`${ITEMS_PER_PAGE} / trang`} disabled>
-                    <option>{ITEMS_PER_PAGE} / trang</option>
-                  </select>
+                  <div className="text-sm text-slate-500 bg-slate-100 px-2 py-1 rounded">
+                    {ITEMS_PER_PAGE} / trang
+                  </div>
                   <div className="flex items-center gap-1">
-                    <Button variant="outline" size="icon" className="h-8 w-8 rounded-md border-slate-200" disabled={currentPage === 1} onClick={() => setCurrentPage(currentPage - 1)}>
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-md border-slate-200" 
+                      disabled={currentPage === 1} 
+                      onClick={() => setCurrentPage(currentPage - 1)}
+                    >
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
-                    {Array.from({ length: totalPages || 1 }, (_, i) => i + 1).map((page) => (
+                    {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => i + 1).map((page) => (
                       <Button
                         key={page}
                         variant={currentPage === page ? "default" : "outline"}
@@ -523,7 +567,27 @@ export function CategoryTypeManagement() {
                         {page}
                       </Button>
                     ))}
-                    <Button variant="outline" size="icon" className="h-8 w-8 rounded-md border-slate-200" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(currentPage + 1)}>
+                    {totalPages > 5 && (
+                      <>
+                        <span className="text-slate-400">...</span>
+                        <Button
+                          variant={currentPage === totalPages ? "default" : "outline"}
+                          className={`h-8 w-8 p-0 font-medium text-sm rounded-md ${
+                            currentPage === totalPages ? "bg-blue-600 hover:bg-blue-700 text-white" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                          }`}
+                          onClick={() => setCurrentPage(totalPages)}
+                        >
+                          {totalPages}
+                        </Button>
+                      </>
+                    )}
+                    <Button 
+                      variant="outline" 
+                      size="icon" 
+                      className="h-8 w-8 rounded-md border-slate-200" 
+                      disabled={currentPage === totalPages || totalPages === 0} 
+                      onClick={() => setCurrentPage(currentPage + 1)}
+                    >
                       <ChevronRight className="w-4 h-4" />
                     </Button>
                   </div>

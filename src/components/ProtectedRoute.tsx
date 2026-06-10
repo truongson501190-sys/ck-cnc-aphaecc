@@ -33,6 +33,12 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   // Check role requirement via hierarchy
   if (requiredRole) {
+    // ✅ Kiểm tra user.role có tồn tại không
+    if (!user.role) {
+      console.log('❌ User has no role assigned');
+      return <Navigate to="/" replace />;
+    }
+    
     const hasRequiredRole = checkRolePermission(user.role, requiredRole);
     if (!hasRequiredRole) {
       console.log('❌ Insufficient role permissions:', {
@@ -61,13 +67,13 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
 // Helper function to check role permissions
 function checkRolePermission(userRole: string, requiredRole: string): boolean {
-  const roleHierarchy = {
+  const roleHierarchy: Record<string, string[]> = {
     admin: ['admin', 'manager', 'user'],
     manager: ['manager', 'user'],
     user: ['user'],
   };
 
-  const allowedRoles = roleHierarchy[userRole as keyof typeof roleHierarchy] || [];
+  const allowedRoles = roleHierarchy[userRole] || [];
   return allowedRoles.includes(requiredRole);
 }
 

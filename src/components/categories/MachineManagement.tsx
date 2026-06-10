@@ -1,4 +1,4 @@
-// MachineManagement.tsx - Quản lý Máy móc (FULL CHỨC NĂNG)
+// MachineManagement.tsx - Quản lý Máy móc (KHỚP VỚI CẤU TRÚC DB)
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,7 +14,7 @@ import {
   Upload,
   DollarSign,
   Loader2,
-  Download
+  Briefcase,
 } from 'lucide-react';
 import { supabase } from '@/supabase';
 import { useAuth } from '@/contexts/AuthContext';
@@ -22,16 +22,17 @@ import * as XLSX from 'xlsx';
 
 interface Machine {
   id: string;
-  ma_may: string;
-  ten_may: string;
+  maMay: string;      // ← Đã sửa từ ma_may
+  tenMay: string;     // ← Đã sửa từ ten_may
   gia_8h_1ca: number;
   gia_10h_1ca: number;
   gia_8h_2ca: number;
   gia_10h_2ca: number;
   gia_12h_1ca: number;
   gia_12h_2ca: number;
-  created_at?: string;
-  updated_at?: string;
+  ghi_chu?: string;   // ← Thêm cột ghi_chu
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 const formatNumber = (value: number | undefined): string => {
@@ -40,7 +41,7 @@ const formatNumber = (value: number | undefined): string => {
 };
 
 export function MachineManagement() {
-  const { user, hasPermission } = useAuth();
+  const { user } = useAuth();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,20 +50,22 @@ export function MachineManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  const canAdd = user?.role === 'admin' || hasPermission('may_moc', 'add');
-  const canEdit = user?.role === 'admin' || hasPermission('may_moc', 'edit');
-  const canDelete = user?.role === 'admin' || hasPermission('may_moc', 'delete');
-  const canView = user?.role === 'admin' || hasPermission('may_moc', 'view');
+  // Kiểm tra quyền dựa trên role
+  const canAdd = user?.role === 'admin';
+  const canEdit = user?.role === 'admin';
+  const canDelete = user?.role === 'admin';
+  const canView = user?.role === 'admin';
 
   const [formData, setFormData] = useState({
-    ma_may: '',
-    ten_may: '',
+    maMay: '',
+    tenMay: '',
     gia_8h_1ca: 0,
     gia_10h_1ca: 0,
     gia_8h_2ca: 0,
     gia_10h_2ca: 0,
     gia_12h_1ca: 0,
     gia_12h_2ca: 0,
+    ghi_chu: '',
   });
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -74,7 +77,7 @@ export function MachineManagement() {
     }
   }, [canView]);
 
-  // Tải dữ liệu
+  // Tải dữ liệu - DÙNG đúng tên cột trong DB
   const loadMachines = useCallback(async () => {
     if (!canView) return;
     
@@ -83,7 +86,7 @@ export function MachineManagement() {
       const { data, error } = await supabase
         .from('machines')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('createdAt', { ascending: false });
 
       if (error) throw error;
       setMachines(data || []);
@@ -113,12 +116,12 @@ export function MachineManagement() {
         (payload) => {
           if (payload.eventType === 'INSERT') {
             setMachines((prev) => [payload.new as Machine, ...prev]);
-            toast.success(`Đã thêm máy mới: ${(payload.new as Machine).ten_may}`);
+            toast.success(`Đã thêm máy mới: ${(payload.new as Machine).tenMay}`);
           } else if (payload.eventType === 'UPDATE') {
             setMachines((prev) =>
               prev.map((item) => item.id === payload.new.id ? (payload.new as Machine) : item)
             );
-            toast.info(`Đã cập nhật máy: ${(payload.new as Machine).ten_may}`);
+            toast.info(`Đã cập nhật máy: ${(payload.new as Machine).tenMay}`);
           } else if (payload.eventType === 'DELETE') {
             setMachines((prev) => prev.filter((item) => item.id !== payload.old.id));
             toast.warning('Đã xóa một máy khỏi danh sách');
@@ -136,13 +139,13 @@ export function MachineManagement() {
     try {
       const { data, error } = await supabase
         .from('machines')
-        .select('ma_may')
-        .order('ma_may', { ascending: false })
+        .select('maMay')
+        .order('maMay', { ascending: false })
         .limit(1);
       
       if (error || !data || data.length === 0) return 'MAY001';
       
-      const lastCode = data[0].ma_may;
+      const lastCode = data[0].maMay;
       const num = parseInt(lastCode.replace('MAY', ''), 10);
       const nextNum = (isNaN(num) ? 0 : num) + 1;
       return `MAY${String(nextNum).padStart(3, '0')}`;
@@ -154,21 +157,22 @@ export function MachineManagement() {
   const resetForm = () => {
     setEditingId(null);
     setFormData({
-      ma_may: '',
-      ten_may: '',
+      maMay: '',
+      tenMay: '',
       gia_8h_1ca: 0,
       gia_10h_1ca: 0,
       gia_8h_2ca: 0,
       gia_10h_2ca: 0,
       gia_12h_1ca: 0,
       gia_12h_2ca: 0,
+      ghi_chu: '',
     });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formData.ten_may.trim()) {
+    if (!formData.tenMay.trim()) {
       toast.error('Vui lòng nhập Tên Máy');
       return;
     }
@@ -190,14 +194,15 @@ export function MachineManagement() {
         const { error } = await supabase
           .from('machines')
           .update({
-            ten_may: formData.ten_may.trim(),
+            tenMay: formData.tenMay.trim(),
             gia_8h_1ca: formData.gia_8h_1ca,
             gia_10h_1ca: formData.gia_10h_1ca,
             gia_8h_2ca: formData.gia_8h_2ca,
             gia_10h_2ca: formData.gia_10h_2ca,
             gia_12h_1ca: formData.gia_12h_1ca,
             gia_12h_2ca: formData.gia_12h_2ca,
-            updated_at: new Date().toISOString()
+            ghi_chu: formData.ghi_chu,
+            updatedAt: new Date().toISOString()
           })
           .eq('id', editingId);
 
@@ -209,16 +214,18 @@ export function MachineManagement() {
           .from('machines')
           .insert({
             id: crypto.randomUUID(),
-            ma_may: newMaMay,
-            ten_may: formData.ten_may.trim(),
+            maMay: newMaMay,
+            tenMay: formData.tenMay.trim(),
             gia_8h_1ca: formData.gia_8h_1ca,
             gia_10h_1ca: formData.gia_10h_1ca,
             gia_8h_2ca: formData.gia_8h_2ca,
             gia_10h_2ca: formData.gia_10h_2ca,
             gia_12h_1ca: formData.gia_12h_1ca,
             gia_12h_2ca: formData.gia_12h_2ca,
+            ghi_chu: formData.ghi_chu,
             status: 'active',
-            created_at: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           });
 
         if (error) throw error;
@@ -242,14 +249,15 @@ export function MachineManagement() {
     }
     setEditingId(machine.id);
     setFormData({
-      ma_may: machine.ma_may || '',
-      ten_may: machine.ten_may || '',
+      maMay: machine.maMay || '',
+      tenMay: machine.tenMay || '',
       gia_8h_1ca: machine.gia_8h_1ca || 0,
       gia_10h_1ca: machine.gia_10h_1ca || 0,
       gia_8h_2ca: machine.gia_8h_2ca || 0,
       gia_10h_2ca: machine.gia_10h_2ca || 0,
       gia_12h_1ca: machine.gia_12h_1ca || 0,
       gia_12h_2ca: machine.gia_12h_2ca || 0,
+      ghi_chu: machine.ghi_chu || '',
     });
   };
 
@@ -265,7 +273,6 @@ export function MachineManagement() {
       if (error) throw error;
       toast.success('Đã xóa máy thành công');
       await loadMachines();
-      // Xóa khỏi selectedIds nếu có
       setSelectedIds(prev => prev.filter(pid => pid !== id));
     } catch (error) {
       console.error('Error deleting machine:', error);
@@ -315,46 +322,6 @@ export function MachineManagement() {
     }
   };
 
-  const handleDownloadTemplate = () => {
-    const template = [
-      { 'Tên máy': 'Máy CNC 1', '8h/1Ca': 500000, '10h/1Ca': 600000, '8h/2Ca': 550000, '10h/2Ca': 650000, '12h/1Ca': 700000, '12h/2Ca': 800000 },
-      { 'Tên máy': 'Máy CNC 2', '8h/1Ca': 450000, '10h/1Ca': 540000, '8h/2Ca': 495000, '10h/2Ca': 585000, '12h/1Ca': 630000, '12h/2Ca': 720000 },
-    ];
-    const ws = XLSX.utils.json_to_sheet(template);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Mau_Nhap_May');
-    XLSX.writeFile(wb, 'mau_nhap_may_moc.xlsx');
-    toast.success('Đã tải file mẫu');
-  };
-
-  const handleExportExcel = async () => {
-    try {
-      const { data: machinesData } = await supabase
-        .from('machines')
-        .select('*')
-        .order('created_at', { ascending: false });
-      
-      const exportData = (machinesData || []).map(machine => ({
-        'Mã máy': machine.ma_may,
-        'Tên máy': machine.ten_may,
-        '8h/1Ca': formatNumber(machine.gia_8h_1ca),
-        '10h/1Ca': formatNumber(machine.gia_10h_1ca),
-        '8h/2Ca': formatNumber(machine.gia_8h_2ca),
-        '10h/2Ca': formatNumber(machine.gia_10h_2ca),
-        '12h/1Ca': formatNumber(machine.gia_12h_1ca),
-        '12h/2Ca': formatNumber(machine.gia_12h_2ca),
-      }));
-      const ws = XLSX.utils.json_to_sheet(exportData);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, 'DanhSachMay');
-      XLSX.writeFile(wb, `danh_sach_may_${new Date().toISOString().split('T')[0]}.xlsx`);
-      toast.success('Xuất Excel thành công');
-    } catch (error) {
-      console.error('Export error:', error);
-      toast.error('Lỗi xuất Excel');
-    }
-  };
-
   const handleImportExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canAdd) {
       toast.error('Bạn không có quyền thêm máy móc');
@@ -385,7 +352,6 @@ export function MachineManagement() {
         let addedCount = 0;
         let errorCount = 0;
 
-        // Lấy số lượng máy hiện tại
         const { count: currentCount } = await supabase
           .from('machines')
           .select('*', { count: 'exact', head: true });
@@ -439,8 +405,8 @@ export function MachineManagement() {
             const newMaMay = `MAY${String(nextNumber).padStart(3, '0')}`;
             const { error } = await supabase.from('machines').insert({
               id: crypto.randomUUID(),
-              ma_may: newMaMay,
-              ten_may: tenMay,
+              maMay: newMaMay,
+              tenMay: tenMay,
               gia_8h_1ca: gia8h1Ca,
               gia_10h_1ca: gia10h1Ca,
               gia_8h_2ca: gia8h2Ca,
@@ -448,7 +414,8 @@ export function MachineManagement() {
               gia_12h_1ca: gia12h1Ca,
               gia_12h_2ca: gia12h2Ca,
               status: 'active',
-              created_at: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
             });
             
             if (error) throw error;
@@ -486,8 +453,8 @@ export function MachineManagement() {
   const filteredMachines = machines.filter((machine) => {
     const keyword = searchTerm.toLowerCase().trim();
     return (
-      (machine.ma_may || '').toLowerCase().includes(keyword) ||
-      (machine.ten_may || '').toLowerCase().includes(keyword)
+      (machine.maMay || '').toLowerCase().includes(keyword) ||
+      (machine.tenMay || '').toLowerCase().includes(keyword)
     );
   });
 
@@ -516,52 +483,22 @@ export function MachineManagement() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex gap-2 flex-wrap">
-          {/* Nút Download Template */}
-          <Button variant="outline" size="sm" onClick={handleDownloadTemplate} className="text-xs">
-            <Download className="w-3.5 h-3.5 mr-1" />
-            Tải file mẫu
-          </Button>
-          
-          {/* Nút Export Excel */}
-          <Button variant="outline" size="sm" onClick={handleExportExcel} className="text-xs">
-            <Download className="w-3.5 h-3.5 mr-1" />
-            Export Excel
-          </Button>
-          
-          {/* Nút Import Excel - CHỈ HIỆN KHI CÓ QUYỀN ADD */}
-          {canAdd && (
-            <>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept=".xlsx,.xls"
-                className="hidden"
-                onChange={handleImportExcel}
-              />
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={() => fileInputRef.current?.click()} 
-                className="text-xs"
-                disabled={isImporting}
-              >
-                <Upload className="w-3.5 h-3.5 mr-1" />
-                {isImporting ? 'Đang import...' : 'Import Excel'}
-              </Button>
-            </>
-          )}
+       
+    <div className="space-y-6 max-w-full overflow-hidden">
+      {/* Header tổng */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800"></h2>
+          <p className="text-gray-500 text-sm"></p>
         </div>
-        
-        <Badge className="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-100 font-bold shadow-sm">
+        <Badge className="px-3 py-1 bg-blue-50 text-blue-600 border border-blue-100 font-bold shadow-sm text-sm">
+          <Briefcase className="w-4 h-4 mr-1.5" />
           Tổng số: {machines.length} máy
         </Badge>
       </div>
-
+ 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
-        {/* FORM NHẬP - CHỈ HIỆN KHI CÓ QUYỀN ADD HOẶC EDIT */}
+        {/* FORM NHẬP */}
         {(canAdd || canEdit) && (
           <div className="xl:col-span-1">
             <Card className="rounded-xl border border-slate-100 shadow-sm bg-white sticky top-6">
@@ -574,14 +511,14 @@ export function MachineManagement() {
                 <form onSubmit={handleSubmit} className="space-y-3.5">
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-slate-600">Mã máy</Label>
-                    <Input value={editingId ? formData.ma_may : "Hệ thống tự động sinh"} disabled className="h-9 bg-slate-50 text-xs font-mono text-slate-500" />
+                    <Input value={editingId ? formData.maMay : "Hệ thống tự động sinh"} disabled className="h-9 bg-slate-50 text-xs font-mono text-slate-500" />
                   </div>
 
                   <div className="space-y-1">
                     <Label className="text-xs font-semibold text-slate-600">Tên Máy *</Label>
                     <Input
-                      value={formData.ten_may}
-                      onChange={(e) => setFormData({ ...formData, ten_may: e.target.value })}
+                      value={formData.tenMay}
+                      onChange={(e) => setFormData({ ...formData, tenMay: e.target.value })}
                       placeholder="Nhập tên thiết bị máy móc"
                       className="h-9 text-sm border-slate-200 focus:border-blue-500"
                       required
@@ -616,6 +553,16 @@ export function MachineManagement() {
                     </div>
                   </div>
 
+                  <div className="space-y-1">
+                    <Label className="text-xs font-semibold text-slate-600">Ghi chú</Label>
+                    <Input
+                      value={formData.ghi_chu}
+                      onChange={(e) => setFormData({ ...formData, ghi_chu: e.target.value })}
+                      placeholder="Nhập ghi chú (nếu có)"
+                      className="h-8 text-xs bg-white"
+                    />
+                  </div>
+
                   <div className="flex gap-2 pt-1">
                     <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs h-9" disabled={isSubmitting}>
                       {isSubmitting ? 'Đang lưu...' : (editingId ? 'Cập nhật' : 'Lưu máy')}
@@ -627,6 +574,28 @@ export function MachineManagement() {
                     )}
                   </div>
                 </form>
+
+                {/* IMPORT EXCEL */}
+                {canAdd && (
+                  <div className="border-t border-slate-100 mt-4 pt-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".xlsx,.xls"
+                      className="hidden"
+                      onChange={handleImportExcel}
+                    />
+                    <Button 
+                      variant="outline" 
+                      className="w-full h-10 border-dashed border-2 text-xs text-slate-600"
+                      onClick={() => fileInputRef.current?.click()} 
+                      disabled={isImporting}
+                    >
+                      <Upload className="w-3.5 h-3.5 mr-2 text-slate-400" /> 
+                      {isImporting ? 'Đang import...' : 'Import Excel'}
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -672,7 +641,7 @@ export function MachineManagement() {
                       <Checkbox 
                         checked={filteredMachines.length > 0 && selectedIds.length === filteredMachines.length} 
                         onCheckedChange={toggleSelectAll} 
-                        className="h-3.5 w-3.5" 
+                        className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
                       />
                     </div>
                   )}
@@ -699,17 +668,17 @@ export function MachineManagement() {
                           <Checkbox 
                             checked={selectedIds.includes(machine.id)} 
                             onCheckedChange={() => toggleSelect(machine.id)} 
-                            className="h-3.5 w-3.5" 
+                            className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
                           />
                         </div>
                       )}
                       <div className="text-left font-mono">
                         <Badge variant="outline" className="text-[10px] px-1.5 bg-slate-50 font-bold">
-                          {machine.ma_may}
+                          {machine.maMay}
                         </Badge>
                       </div>
-                      <div className="text-left font-semibold text-slate-900 truncate pr-1" title={machine.ten_may}>
-                        {machine.ten_may}
+                      <div className="text-left font-semibold text-slate-900 truncate pr-1" title={machine.tenMay}>
+                        {machine.tenMay}
                       </div>
                       <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_8h_1ca)}</div>
                       <div className="text-right font-medium text-slate-800 font-mono">{formatNumber(machine.gia_10h_1ca)}</div>
