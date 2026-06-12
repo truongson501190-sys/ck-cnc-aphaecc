@@ -145,7 +145,10 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
 
   const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
 
+  // ======================
   // LOAD DỮ LIỆU TỪ SUPABASE
+  // ======================
+
   const loadMachinesFromSupabase = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -180,30 +183,83 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     }
   }, []);
 
-  const loadCategoriesFromSupabase = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from('categories')
-        .select('*')
-        .eq('status', 'active')
-        .eq('loai', 'tool');
-      if (error) throw error;
-      if (data && data.length > 0) {
-        const formattedCategories: CategoryType[] = data.map((c: any) => ({
-          id: c.id,
-          maLoai: c.maLoai || c.ma_loai,
-          tenLoai: c.tenLoai || c.ten_loai,
-          donVi: c.donVi || c.don_vi || 'cái',
-          gia: c.gia || 0,
-          createdAt: c.createdAt || c.created_at || new Date().toISOString(),
-        }));
-        setCategoryTypes(formattedCategories);
-      }
-    } catch (error) {
-      console.error('Error loading categories:', error);
-    }
-  }, []);
+ const loadCategoriesFromSupabase = useCallback(async () => {
+  console.log('🟢 [DEBUG] Bắt đầu load categories...');
+  let categoriesData: any[] = [];
 
+  try {
+    const { data, error } = await supabase
+      .from('categories')
+      .select('*')
+      .eq('status', 'active');
+
+    if (error) {
+      console.error('🔴 [DEBUG] Lỗi Supabase:', error);
+      throw error;
+    }
+
+    console.log('🟢 [DEBUG] All active categories:', data);
+    categoriesData = Array.isArray(data) ? data : [];
+  } catch (error) {
+    console.error('🔴 Lỗi load categories từ Supabase:', error);
+  }
+
+  if (categoriesData.length === 0) {
+    const localKeys = ['categoryTypes', 'categories'];
+    for (const key of localKeys) {
+      if (categoriesData.length > 0) break;
+      try {
+        const stored = localStorage.getItem(key);
+        if (!stored) continue;
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          categoriesData = parsed;
+          console.log(`🟡 [DEBUG] Đã load categories từ localStorage key=${key}:`, categoriesData);
+          break;
+        }
+      } catch (err) {
+        console.warn(`⚠️ Không thể parse ${key} từ localStorage`, err);
+      }
+    }
+  }
+
+  if (categoriesData.length === 0 && masterData.tools.length > 0) {
+    categoriesData = masterData.tools.map((tool: any) => ({
+      id: tool.id || crypto.randomUUID(),
+      maLoai: tool.id || '',
+      tenLoai: tool.name || '',
+      donVi: tool.unit || 'cái',
+      gia: 0,
+      createdAt: new Date().toISOString(),
+    }));
+    console.log('🟡 [DEBUG] Đã load categories từ masterData.tools:', categoriesData);
+  }
+
+  if (categoriesData.length === 0) {
+    const hardcodeCategories: CategoryType[] = [
+      { id: '1', maLoai: 'DAO001', tenLoai: 'Dao phay mặt đầu', donVi: 'cái', gia: 500000, createdAt: new Date().toISOString() },
+      { id: '2', maLoai: 'DAO002', tenLoai: 'Dao phay ngón', donVi: 'cái', gia: 450000, createdAt: new Date().toISOString() },
+      { id: '3', maLoai: 'DAO003', tenLoai: 'Mũi khoan', donVi: 'cái', gia: 300000, createdAt: new Date().toISOString() },
+    ];
+    categoriesData = hardcodeCategories;
+    console.log('🟡 [DEBUG] Dùng fallback hardcode categories:', categoriesData);
+  }
+
+  const formattedCategories: CategoryType[] = categoriesData
+    .map((c: any) => ({
+      id: c.id || c.maLoai || c.ma_loai || crypto.randomUUID(),
+      maLoai: c.maLoai || c.ma_loai || c.id || '',
+      tenLoai: c.tenLoai || c.ten_loai || c.name || c.tenChungLoai || '',
+      donVi: c.donVi || c.don_vi || c.donVi || c.unit || 'cái',
+      gia: c.gia || 0,
+      createdAt: c.createdAt || c.created_at || new Date().toISOString(),
+    }))
+    .filter((cat) => !!cat.tenLoai);
+
+  console.log('🟢 [DEBUG] Formatted categories:', formattedCategories);
+  setCategoryTypes(formattedCategories);
+  console.log('🟢 [DEBUG] Đã set categoryTypes, độ dài:', formattedCategories.length);
+}, [masterData.tools]);
   const loadEmployees = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -230,6 +286,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   }, []);
 
   const loadAllMasterData = useCallback(async () => {
+    console.log('🟢 [DEBUG] loadAllMasterData - BẮT ĐẦU');
     setIsLoadingData(true);
     try {
       await Promise.all([
@@ -238,12 +295,32 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         loadCategoriesFromSupabase(),
         loadEmployees(),
       ]);
+      console.log('🟢 [DEBUG] loadAllMasterData - HOÀN THÀNH');
     } catch (error) {
       console.error('Error loading master data:', error);
     } finally {
       setIsLoadingData(false);
+      console.log('🟢 [DEBUG] isLoadingData = false');
     }
   }, [loadMachinesFromSupabase, loadProjectsFromSupabase, loadCategoriesFromSupabase, loadEmployees]);
+
+  useEffect(() => {
+    console.log('🟢 [DEBUG] useEffect - GỌI loadAllMasterData');
+    loadAllMasterData();
+    
+    const handleStorageChange = () => {
+      console.log('🟢 [DEBUG] Storage changed - reload');
+      loadAllMasterData();
+    };
+    
+    window.addEventListener('app-data-synced', handleStorageChange);
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('app-data-synced', handleStorageChange);
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [loadAllMasterData]);
 
   useEffect(() => {
     if (user?.fullName || user?.name) {
@@ -300,17 +377,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   }, [employees]);
 
   useEffect(() => {
-    loadAllMasterData();
-    const handleStorageChange = () => loadAllMasterData();
-    window.addEventListener('app-data-synced', handleStorageChange);
-    window.addEventListener('storage', handleStorageChange);
-    return () => {
-      window.removeEventListener('app-data-synced', handleStorageChange);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, [loadAllMasterData]);
-
-  useEffect(() => {
     if (employees.length > 0) getInspectorsByRole();
   }, [employees, getInspectorsByRole]);
 
@@ -354,20 +420,20 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   };
 
   const addToolEntry = () => {
-  console.log('🔧 Current tool entries:', formData.toolEntries.length);
-  
-  if (formData.toolEntries.length < 20) {
-    setFormData(prev => ({ 
-      ...prev, 
-      toolEntries: [...prev.toolEntries, createEmptyToolEntry()] 
-    }));
-    console.log('✅ Added successfully, new length:', formData.toolEntries.length + 1);
-    toast.success(`Đã thêm dao cụ (${formData.toolEntries.length + 1}/20)`);
-  } else {
-    console.log('❌ Cannot add, limit reached (20/20)');
-    toast.warning('Đã đạt giới hạn tối đa');
-  }
-};
+    console.log('🔧 Current tool entries:', formData.toolEntries.length);
+    
+    if (formData.toolEntries.length < 20) {
+      setFormData(prev => ({ 
+        ...prev, 
+        toolEntries: [...prev.toolEntries, createEmptyToolEntry()] 
+      }));
+      console.log('✅ Added successfully, new length:', formData.toolEntries.length + 1);
+      toast.success(`Đã thêm dao cụ (${formData.toolEntries.length + 1}/20)`);
+    } else {
+      console.log('❌ Cannot add, limit reached (20/20)');
+      toast.warning('Đã đạt giới hạn tối đa');
+    }
+  };
 
   const removeToolEntry = (index: number) => {
     setFormData(prev => ({ ...prev, toolEntries: prev.toolEntries.filter((_: ToolEntry, i: number) => i !== index) }));
@@ -383,7 +449,12 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
             const selectedCategory = categoryTypes.find(cat => cat.tenLoai === value);
             if (selectedCategory) {
               updatedEntry.donVi = selectedCategory.donVi ?? '';
+              updatedEntry.donGia = selectedCategory.gia ?? 0;
+              updatedEntry.thanhTien = (entry.slSuDung || 0) * (selectedCategory.gia ?? 0);
             }
+          }
+          if (field === 'slSuDung' && typeof value === 'number') {
+            updatedEntry.thanhTien = value * (entry.donGia || 0);
           }
           return updatedEntry;
         }
@@ -425,7 +496,10 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       const runAmount = totalRunHours * pricePerHour;
       const setupAmount = totalSetupHours * (pricePerHour / 2);
 
-      const updatedToolEntries = validToolEntries;
+      const updatedToolEntries = validToolEntries.map((tool: ToolEntry) => ({
+        ...tool,
+        thanhTien: (tool.slSuDung || 0) * (tool.donGia || 0),
+      }));
 
       onSubmit({
         ...formData,
@@ -434,7 +508,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         status: initialData?.status || 'pending',
         chiPhiGa: setupAmount,
         chiPhiChayMay: runAmount,
-        chiPhiDao: 0,
+        chiPhiDao: updatedToolEntries.reduce((sum: number, tool: ToolEntry) => sum + (tool.thanhTien || 0), 0),
         gioGa: totalSetupHours,
         gioChay: totalRunHours,
       });
@@ -486,7 +560,8 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     return Array.from(machineMap.values());
   }, [machines]);
 
-  if (isLoadingData && machines.length === 0 && projects.length === 0) {
+  // Hiển thị loading nếu đang load và chưa có dữ liệu
+  if (isLoadingData && machines.length === 0 && projects.length === 0 && categoryTypes.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-center">
@@ -497,7 +572,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     );
   }
 
- return (
+  return (
     <div className="min-h-screen bg-gray-50 p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
@@ -509,18 +584,17 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                   Người dùng: {user?.fullName || user?.name}
                 </Badge>
                 {canApprove() && (
-              <Badge variant="outline" className="px-3 py-1 text-sm text-green-600 border-green-300 bg-green-50">
-                <ShieldCheck className="w-3.5 h-3.5 mr-1" />
-                Có quyền duyệt
-              </Badge>
-            )}
+                  <Badge variant="outline" className="px-3 py-1 text-sm text-green-600 border-green-300 bg-green-50">
+                    <ShieldCheck className="w-3.5 h-3.5 mr-1" />
+                    Có quyền duyệt
+                  </Badge>
+                )}
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mt-2">
+                {initialData ? 'Chỉnh sửa nhật ký sản xuất' : 'Thêm mới nhật ký sản xuất'}
               </h1>
               <p className="text-gray-500 text-sm mt-1">Nhập đầy đủ thông tin sản xuất, dao cụ và thời gian gia công</p>
             </div>
-            
-            
           </div>
         </div>
 
@@ -592,7 +666,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
           {/* Thông tin dự án */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-              <CardTitle className="text-base font-bold text-slate-800">Thông tin dự án</CardTitle>
+              <CardTitle className="text-base font-bold text-slate-800">🎯 Thông tin dự án</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -710,7 +784,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
           {/* Số lượng và vật liệu */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-              <CardTitle className="text-base font-bold text-slate-800"> Số lượng & Vật liệu</CardTitle>
+              <CardTitle className="text-base font-bold text-slate-800">📦 Số lượng & Vật liệu</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -779,7 +853,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                         </Button>
                       )}
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                       <div className="lg:col-span-2">
                         <Label className="text-sm">Tên dao</Label>
                         <Select value={entry.tenDao} onValueChange={(value: string) => updateToolEntry(index, 'tenDao', value)}>
@@ -790,7 +864,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                             {categoryTypes.length > 0 ? (
                               categoryTypes.map((category: CategoryType) => (
                                 <SelectItem key={category.id} value={category.tenLoai}>
-                                  {category.tenLoai} - {category.donVi} - {category.gia?.toLocaleString()}đ
+                                  {category.tenLoai} 
                                 </SelectItem>
                               ))
                             ) : (
@@ -821,8 +895,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                           className="mt-1"
                         />
                       </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
                       <div>
                         <Label className="text-sm">SL hỏng</Label>
                         <Input
@@ -838,7 +910,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                         <Label className="text-sm">Đơn vị</Label>
                         <Input value={entry.donVi} readOnly className="mt-1 bg-gray-50" />
                       </div>
-                               
                     </div>
                   </div>
                 ))}
@@ -857,7 +928,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
           {/* Nhân sự */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-              <CardTitle className="text-base font-bold text-slate-800">Nhân sự</CardTitle>
+              <CardTitle className="text-base font-bold text-slate-800">👥 Nhân sự</CardTitle>
             </CardHeader>
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
