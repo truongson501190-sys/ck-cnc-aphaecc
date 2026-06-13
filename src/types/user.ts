@@ -2,8 +2,10 @@
 
 // src/types/user.ts
 
+export type PermissionFlag = boolean | { view: boolean; create?: boolean; edit?: boolean; delete?: boolean };
+
 export interface UserPermissions {
-  [key: string]: boolean; // Phẳng: { nhap_kho: true, xuat_kho: false, ... }
+  [key: string]: PermissionFlag; // Backwards-compatible: boolean or structured { view, edit }
 }
 
 export interface User {

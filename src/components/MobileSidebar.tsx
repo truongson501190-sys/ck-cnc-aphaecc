@@ -52,8 +52,8 @@ export function MobileSidebar() {
     }
   };
 
-  const menuItems = ERP_NAVIGATION.flatMap((group) => group.items);
-  const filteredItems = menuItems.filter((item) => isNavItemVisible(item, user));
+  const menuItems = ERP_NAVIGATION.flatMap((group) => group.items || []);
+  const filteredItems = menuItems.filter((item) => isNavItemVisible(item, user as any));
 
   return (
     <>

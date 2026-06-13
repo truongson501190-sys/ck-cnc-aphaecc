@@ -88,7 +88,7 @@ export default function SystemSettings() {
     const reader = new FileReader();
     reader.onload = () => {
       if (typeof reader.result === 'string') {
-        setSettings((prev) => ({ ...prev, logoUrl: reader.result }));
+        setSettings((prev) => ({ ...prev, logoUrl: String(reader.result) }));
       }
     };
     reader.readAsDataURL(file);

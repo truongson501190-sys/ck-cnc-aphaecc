@@ -196,7 +196,7 @@ export function StockCard() {
                   onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-              <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as 'all' | StockCardEntry['transactionType'])}>
                 <SelectTrigger className="min-w-[160px]">
                   <SelectValue />
                 </SelectTrigger>

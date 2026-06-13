@@ -3,16 +3,39 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Shield, Save, RefreshCw, Search, AlertCircle, User, Building2, SlidersHorizontal, Eye, Edit3, ShieldAlert } from 'lucide-react';
+import {
+  Shield,
+  Save,
+  RefreshCw,
+  Search,
+  AlertCircle,
+  User,
+  Building2,
+  SlidersHorizontal,
+  Eye,
+  Edit3,
+  ShieldAlert,
+  AlertTriangle,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/supabase';
 
 const PERMISSION_GROUPS: Record<string, string[]> = {
-  'Kho bãi (WMS)': ['nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich'],
-  'Sản xuất (Manufacturing)': ['ke_hoach_san_xuat', 'nhat_ky_gia_cong', 'nhat_ky_qc', 'nhat_ky_bao_tri', 'theo_doi_tien_do'],
-  'Báo cáo & Dashboard': ['dashboard_tong_hop', 'bao_cao_kho', 'bao_cao_gia_cong', 'bao_cao_qc', 'bao_cao_bao_tri', 'hieu_suat_may', 'cho_duyet'],
-  'Quản lý Danh mục': ['chung_loai', 'kho', 'may_moc', 'du_an', 'khach_hang', 'nha_cung_cap', 'nhan_vien'],
-  'Hệ thống': ['quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong'],
+  'Kho bãi (WMS)': [
+    'nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich',
+  ],
+  'Sản xuất (Manufacturing)': [
+    'ke_hoach_san_xuat', 'nhat_ky_gia_cong', 'nhat_ky_qc', 'nhat_ky_bao_tri', 'theo_doi_tien_do',
+  ],
+  'Báo cáo & Dashboard': [
+    'dashboard_tong_hop', 'bao_cao_kho', 'bao_cao_gia_cong', 'bao_cao_qc', 'bao_cao_bao_tri', 'hieu_suat_may', 'cho_duyet',
+  ],
+  'Quản lý Danh mục': [
+    'chung_loai', 'kho', 'may_moc', 'du_an', 
+  ],
+  'Hệ thống': [
+    'quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong',
+  ],
 };
 
 const PERMISSION_LABELS: Record<string, string> = {
@@ -25,7 +48,6 @@ const PERMISSION_LABELS: Record<string, string> = {
   cho_duyet: 'Chờ duyệt', chung_loai: 'Chủng loại', kho: 'Kho', may_moc: 'Máy móc', du_an: 'Dự án',
   quan_ly_nguoi_dung: 'Quản lý người dùng', phan_quyen: 'Phân quyền', audit_log: 'Audit Log',
   backup_restore: 'Backup & Restore', cai_dat_he_thong: 'Cài đặt hệ thống',
-  khach_hang: 'Khách hàng', nha_cung_cap: 'Nhà cung cấp', nhan_vien: 'Nhân viên',
 };
 
 const INITIAL_PERMISSIONS: Record<string, 'none' | 'view' | 'full'> = {};
@@ -53,7 +75,6 @@ interface UserProfile {
 
 type PermissionLevel = 'none' | 'view' | 'full';
 
-// Helper functions
 const convertToSupabase = (level: PermissionLevel): Omit<SupabasePermission, 'msnv' | 'module_key'> => ({
   can_view: level !== 'none',
   can_add: level === 'full',
@@ -70,8 +91,24 @@ const convertFromSupabase = (perm: Partial<SupabasePermission>): PermissionLevel
   return 'none';
 };
 
+// Kiểm tra lỗi liên quan đến schema/bảng không tồn tại
+const isSchemaError = (error: any): boolean => {
+  if (!error) return false;
+  const code = error?.code;
+  const message = error?.message || '';
+  const details = error?.details || '';
+
+  return (
+    code === 'PGRST301' || // Không tìm thấy bảng
+    code === '42P01' ||    // PostgreSQL: undefined_table
+    message.includes('relation') ||
+    message.includes('does not exist') ||
+    details.includes('relation') ||
+    details.includes('does not exist')
+  );
+};
+
 export function Roles() {
-  // State
   const [userList, setUserList] = useState<UserProfile[]>([]);
   const [selectedUserMsnv, setSelectedUserMsnv] = useState<string>('');
   const [searchUserTerm, setSearchUserTerm] = useState<string>('');
@@ -81,8 +118,8 @@ export function Roles() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const hasSupabaseConfig = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
   const [useFallback, setUseFallback] = useState<boolean>(!hasSupabaseConfig);
+  const [schemaError, setSchemaError] = useState<string>(''); // Thêm state lưu lỗi schema
 
-  // Memoized filtered user list
   const filteredUsers = useMemo(() => {
     if (!searchUserTerm.trim()) return userList;
     const lowerSearch = searchUserTerm.toLowerCase();
@@ -93,15 +130,12 @@ export function Roles() {
     );
   }, [userList, searchUserTerm]);
 
-  // Current selected user object
   const currentUser = useMemo(() => userList.find(u => u.msnv === selectedUserMsnv), [userList, selectedUserMsnv]);
 
-  // Permission statistics
   const viewOnlyCount = useMemo(() => Object.values(userPermissions).filter(v => v === 'view').length, [userPermissions]);
   const fullAccessCount = useMemo(() => Object.values(userPermissions).filter(v => v === 'full').length, [userPermissions]);
   const totalPermissions = Object.keys(INITIAL_PERMISSIONS).length;
 
-  // Group and filter permissions based on search term
   const filteredGroups = useMemo(() => {
     return Object.entries(PERMISSION_GROUPS)
       .map(([groupName, permKeys]) => {
@@ -115,7 +149,6 @@ export function Roles() {
       .filter(g => g.filteredKeys.length > 0);
   }, [searchPermTerm]);
 
-  // Load permissions for a specific user
   const loadUserPermissions = useCallback(
     async (msnv: string) => {
       if (!msnv) return;
@@ -137,13 +170,20 @@ export function Roles() {
             .select('*')
             .eq('msnv', msnv);
 
-          if (error) throw error;
+          if (error) {
+            if (isSchemaError(error)) {
+              setSchemaError(`Bảng 'user_permissions' không tồn tại. Vui lòng tạo bảng theo migration.`);
+              setUseFallback(true); // Chuyển về fallback nếu bảng chưa có
+            }
+            throw error;
+          }
 
           const permMap: Record<string, PermissionLevel> = { ...INITIAL_PERMISSIONS };
           (perms as SupabasePermission[]).forEach(p => {
             permMap[p.module_key] = convertFromSupabase(p);
           });
           setUserPermissions(permMap);
+          setSchemaError(''); // Xóa lỗi cũ nếu thành công
         }
       } catch (error: any) {
         console.error('Error loading permissions:', error);
@@ -158,9 +198,8 @@ export function Roles() {
         } else {
           setUserPermissions({ ...INITIAL_PERMISSIONS });
         }
-        if (!useFallback && error?.code === 'PGRST301') {
-          toast.error('Bảng user_permissions không tồn tại. Vui lòng chạy migration.');
-        } else if (!useFallback) {
+
+        if (!useFallback && !isSchemaError(error)) {
           setUseFallback(true);
           toast.warning('Không thể kết nối database, chuyển sang chế độ offline.');
         }
@@ -169,7 +208,6 @@ export function Roles() {
     [useFallback]
   );
 
-  // Initialize user list
   const initializeUserList = useCallback(
     (users: UserProfile[], defaultMsnv?: string) => {
       setUserList(users);
@@ -183,7 +221,6 @@ export function Roles() {
     [selectedUserMsnv]
   );
 
-  // Load all data (users + permissions for selected)
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -208,7 +245,13 @@ export function Roles() {
           .select('*')
           .order('msnv', { ascending: true });
 
-        if (error) throw error;
+        if (error) {
+          if (isSchemaError(error)) {
+            setSchemaError(`Bảng 'users' không tồn tại. Vui lòng tạo bảng users.`);
+            setUseFallback(true);
+          }
+          throw error;
+        }
 
         const nonAdminUsers: UserProfile[] = (users as any[])
           .filter(u => u.msnv !== '1118')
@@ -221,28 +264,24 @@ export function Roles() {
 
         const defaultMsnv = initializeUserList(nonAdminUsers);
         if (defaultMsnv) await loadUserPermissions(defaultMsnv);
+        setSchemaError(''); // Thành công
       }
     } catch (error: any) {
       console.error('Error loading data:', error);
-      if (error?.code === 'PGRST301' || error?.code === '42P01') {
-        toast.error('Cấu trúc database chưa đúng. Vui lòng chạy migration.');
-      } else if (!useFallback) {
+      if (!useFallback && !isSchemaError(error)) {
         setUseFallback(true);
         toast.warning('Không thể kết nối server. Dùng dữ liệu offline.');
-        // Attempt fallback load after state change
-        // We will call loadData again via useEffect that watches useFallback
       }
+      // Nếu là lỗi schema, đã set trong loadUserPermissions hoặc ở trên
     } finally {
       setIsLoading(false);
     }
   }, [useFallback, initializeUserList, loadUserPermissions]);
 
-  // Reload data when useFallback changes
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Handle user selection from list
   const handleUserSelect = useCallback(
     async (msnv: string) => {
       setSelectedUserMsnv(msnv);
@@ -251,12 +290,10 @@ export function Roles() {
     [loadUserPermissions]
   );
 
-  // Set individual permission level
   const handleSetPermission = useCallback((permKey: string, level: PermissionLevel) => {
     setUserPermissions(prev => ({ ...prev, [permKey]: level }));
   }, []);
 
-  // Batch set permissions for a group
   const handleBatchGroupPermission = useCallback(
     (groupPermissions: string[], level: PermissionLevel) => {
       setUserPermissions(prev => {
@@ -270,12 +307,10 @@ export function Roles() {
     []
   );
 
-  // Save permissions with atomicity attempt
   const handleSavePermissions = useCallback(async () => {
     if (!selectedUserMsnv) return;
     setIsSaving(true);
 
-    // Backup current permissions for rollback
     const previousPermissions = { ...userPermissions };
 
     try {
@@ -286,7 +321,24 @@ export function Roles() {
         );
         toast.success(`Đã lưu cấu hình phân quyền cho ${currentUser?.fullName} (offline).`);
       } else {
-        // Prepare insert data
+        // Kiểm tra bảng user_permissions có tồn tại không bằng cách thử select nhẹ
+        const { error: checkError } = await supabase
+          .from('user_permissions')
+          .select('msnv', { count: 'exact', head: true })
+          .limit(1);
+
+        if (checkError && isSchemaError(checkError)) {
+          setSchemaError(`Bảng 'user_permissions' chưa được tạo. Vui lòng chạy migration: CREATE TABLE user_permissions (...);`);
+          setUseFallback(true);
+          // Lưu offline và thông báo
+          localStorage.setItem(
+            `wms_user_permissions_${selectedUserMsnv}`,
+            JSON.stringify(userPermissions)
+          );
+          toast.warning('Bảng quyền chưa có, đã lưu vào bộ nhớ tạm.');
+          return;
+        }
+
         const permInserts: SupabasePermission[] = Object.entries(userPermissions).map(
           ([module_key, level]) => ({
             msnv: selectedUserMsnv,
@@ -295,30 +347,39 @@ export function Roles() {
           })
         );
 
-        // Try using a transactional RPC if available
+        // Thử RPC, nếu không có thì dùng delete + insert
         const { error: rpcError } = await supabase.rpc('replace_user_permissions', {
           p_msnv: selectedUserMsnv,
           p_permissions: permInserts,
         });
 
         if (rpcError) {
-          // Fallback to delete + insert manually with rollback on failure
           console.warn('RPC not available, using manual delete+insert with rollback.');
-          // Delete existing permissions
+
+          // Xóa
           const { error: deleteError } = await supabase
             .from('user_permissions')
             .delete()
             .eq('msnv', selectedUserMsnv);
 
-          if (deleteError) throw new Error(`Xóa thất bại: ${deleteError.message}`);
+          if (deleteError) {
+            if (isSchemaError(deleteError)) {
+              setSchemaError('Bảng user_permissions chưa tồn tại. Vui lòng chạy migration.');
+              setUseFallback(true);
+              localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
+              toast.warning('Đã lưu offline do thiếu bảng.');
+              return;
+            }
+            throw new Error(`Xóa quyền cũ thất bại: ${deleteError.message}`);
+          }
 
-          // Insert new permissions
+          // Chèn mới
           const { error: insertError } = await supabase
             .from('user_permissions')
             .insert(permInserts);
 
           if (insertError) {
-            // Rollback: re-insert previous permissions
+            // Rollback
             const rollbackData: SupabasePermission[] = Object.entries(previousPermissions).map(
               ([module_key, level]) => ({
                 msnv: selectedUserMsnv,
@@ -331,7 +392,7 @@ export function Roles() {
           }
         }
 
-        // Backup to localStorage
+        // Backup localStorage
         localStorage.setItem(
           `wms_user_permissions_${selectedUserMsnv}`,
           JSON.stringify(userPermissions)
@@ -341,16 +402,23 @@ export function Roles() {
       }
     } catch (error: any) {
       console.error('Error saving permissions:', error);
-      // Restore previous permissions in state if online failure
+      // Nếu là lỗi schema, đã xử lý ở trên và return sớm
       if (!useFallback) {
+        // Khôi phục state về trước lỗi
         setUserPermissions(previousPermissions);
-        // Also revert localStorage backup to be safe
         localStorage.setItem(
           `wms_user_permissions_${selectedUserMsnv}`,
           JSON.stringify(previousPermissions)
         );
+        toast.error(error.message || 'Lưu thất bại');
+      } else {
+        // Nếu fallback thì vẫn lưu localStorage
+        localStorage.setItem(
+          `wms_user_permissions_${selectedUserMsnv}`,
+          JSON.stringify(userPermissions)
+        );
+        toast.success('Đã lưu vào bộ nhớ cục bộ (offline).');
       }
-      toast.error(error.message || 'Lưu thất bại');
     } finally {
       setIsSaving(false);
     }
@@ -358,7 +426,6 @@ export function Roles() {
 
   return (
     <div className="w-full space-y-5">
-      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2 tracking-tight">
@@ -369,6 +436,12 @@ export function Roles() {
           </p>
           {useFallback && (
             <p className="text-xs text-amber-600 mt-1">Đang sử dụng chế độ offline (localStorage)</p>
+          )}
+          {schemaError && (
+            <div className="mt-2 flex items-start gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-2">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{schemaError}</span>
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2 self-end md:self-auto">
@@ -394,9 +467,7 @@ export function Roles() {
         </div>
       </div>
 
-      {/* Main layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        {/* User list sidebar */}
         <div className="lg:col-span-4 space-y-3">
           <Card className="border-slate-200 shadow-sm h-[calc(100vh-180px)] flex flex-col overflow-hidden bg-white">
             <div className="p-3 bg-slate-50/70 border-b border-slate-100">
@@ -454,11 +525,9 @@ export function Roles() {
           </Card>
         </div>
 
-        {/* Permission matrix */}
         <div className="lg:col-span-8 space-y-4">
           {currentUser ? (
             <>
-              {/* User summary & stats */}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="sm:col-span-2 bg-white border border-slate-200 rounded-xl p-3.5 flex items-center gap-3 shadow-sm">
                   <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm shrink-0 border border-slate-200">
@@ -492,7 +561,6 @@ export function Roles() {
                 </div>
               </div>
 
-              {/* Permission search filter */}
               <div className="relative">
                 <SlidersHorizontal className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 <Input
@@ -503,7 +571,6 @@ export function Roles() {
                 />
               </div>
 
-              {/* Permission groups */}
               <div className="space-y-3 max-h-[calc(100vh-340px)] overflow-y-auto pr-1">
                 {filteredGroups.map(({ groupName, filteredKeys }) => (
                   <Card key={groupName} className="border border-slate-200 shadow-sm overflow-hidden bg-white">
@@ -596,7 +663,6 @@ export function Roles() {
                 ))}
               </div>
 
-              {/* Info box */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex gap-2.5">
                 <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-900 leading-normal font-medium">

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Search, UserPlus, Trash2, UserCheck, RefreshCw, Key, Edit, X, FileSpreadsheet } from 'lucide-react';
+import { Search, UserPlus, Trash2, UserCheck, RefreshCw, Key, Edit, X, FileSpreadsheet, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/supabase';
 import * as XLSX from 'xlsx';
@@ -57,16 +57,29 @@ const saveUsersToLocalStorage = (users: UserRecord[]) => {
   localStorage.setItem('wms_users', JSON.stringify(users));
 };
 
+// Kiểm tra lỗi schema (bảng/cột không tồn tại)
+const isSchemaError = (error: any): boolean => {
+  if (!error) return false;
+  const code = error?.code;
+  const msg = error?.message || '';
+  return (
+    code === 'PGRST204' ||
+    code === 'PGRST301' ||
+    code === '42P01' ||
+    msg.includes('column') ||
+    msg.includes('does not exist')
+  );
+};
+
 export function UserManagement() {
   const [users, setUsers] = useState<UserRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const hasSupabaseConfig = import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const hasSupabaseConfig = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
   const [useFallback, setUseFallback] = useState(!hasSupabaseConfig);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form State
   const [msnv, setMsnv] = useState('');
   const [fullName, setFullName] = useState('');
   const [department, setDepartment] = useState('');
@@ -74,6 +87,7 @@ export function UserManagement() {
   const [password, setPassword] = useState('');
   const [status, setStatus] = useState<'active' | 'inactive'>('active');
   const [isEditing, setIsEditing] = useState(false);
+  const [schemaError, setSchemaError] = useState('');
 
   useEffect(() => {
     loadUsers();
@@ -89,21 +103,28 @@ export function UserManagement() {
           .order('msnv', { ascending: true });
         
         if (error) {
-          console.warn('Supabase error, falling back to localStorage:', error);
-          setUseFallback(true);
+          if (isSchemaError(error)) {
+            setSchemaError("Bảng 'users' không đúng cấu trúc. Vui lòng kiểm tra migration.");
+            setUseFallback(true);
+          } else {
+            console.warn('Supabase error, falling back to localStorage:', error);
+            setUseFallback(true);
+          }
           setUsers(loadUsersFromLocalStorage());
           return;
         }
         
+        // Mapping: giả sử bảng users dùng camelCase: fullName, roleGroup, status (text)
         const mappedUsers: UserRecord[] = (data || []).map((u: any) => ({
           msnv: u.msnv,
-          fullName: u.full_name,
+          fullName: u.fullName,        // camelCase
           department: u.department,
           position: u.position,
           status: u.status === 'active' ? 'active' : 'inactive'
         }));
         
         setUsers(mappedUsers);
+        setSchemaError('');
       } else {
         setUsers(loadUsersFromLocalStorage());
       }
@@ -116,7 +137,6 @@ export function UserManagement() {
     }
   };
 
-  // 💡 HÀM XỬ LÝ IMPORT EXCEL
   const handleImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -130,7 +150,6 @@ export function UserManagement() {
         const wb = XLSX.read(bstr, { type: 'binary' });
         const wsname = wb.SheetNames[0];
         const ws = wb.Sheets[wsname];
-        
         const rawData = XLSX.utils.sheet_to_json(ws) as any[];
 
         if (rawData.length === 0) {
@@ -149,24 +168,13 @@ export function UserManagement() {
           let excelPos = String(row['Chức vụ'] || '').trim();
           const excelPass = String(row['Mật khẩu'] || '').trim();
 
-          if (!excelMsnv || !excelName) {
-            skippedCount++;
-            continue;
-          }
+          if (!excelMsnv || !excelName) { skippedCount++; continue; }
 
           const isExist = users.some(u => u.msnv === excelMsnv) || validNewUsers.some(u => u.msnv === excelMsnv);
-          if (isExist) {
-            skippedCount++;
-            continue; 
-          }
+          if (isExist) { skippedCount++; continue; }
 
-          if (!DEPARTMENTS.includes(excelDept)) {
-            excelDept = DEPARTMENTS[0]; 
-          }
-
-          if (!POSITIONS.includes(excelPos)) {
-            excelPos = 'Thợ CNC';
-          }
+          if (!DEPARTMENTS.includes(excelDept)) excelDept = DEPARTMENTS[0];
+          if (!POSITIONS.includes(excelPos)) excelPos = 'Thợ CNC';
 
           validNewUsers.push({
             msnv: excelMsnv,
@@ -179,7 +187,7 @@ export function UserManagement() {
         }
 
         if (validNewUsers.length === 0) {
-          toast.warning(`Không import được nhân sự mới nào. (Bỏ qua: ${skippedCount} dòng trùng lặp hoặc lỗi)`);
+          toast.warning(`Không import được nhân sự mới nào. (Bỏ qua: ${skippedCount} dòng)`);
           setIsLoading(false);
           return;
         }
@@ -191,35 +199,64 @@ export function UserManagement() {
           toast.success(`Import thành công ${validNewUsers.length} nhân viên! (Bỏ qua: ${skippedCount})`);
         } else {
           try {
+            // Insert users (camelCase)
             const usersInsertData = validNewUsers.map(u => ({
               msnv: u.msnv,
-              full_name: u.fullName,
+              fullName: u.fullName,
               department: u.department,
               position: u.position,
               role: 'user',
-              role_group: u.position,
+              roleGroup: u.position,
               status: 'active',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
             }));
 
             const { error: errUsers } = await supabase.from('users').insert(usersInsertData);
-            if (errUsers) throw errUsers;
+            if (errUsers) {
+              if (isSchemaError(errUsers)) {
+                setSchemaError("Bảng 'users' không đúng cấu trúc (có thể cần camelCase).");
+                setUseFallback(true);
+                const updatedLocalUsers = [...users, ...validNewUsers.map(({password, ...rest}) => rest)];
+                saveUsersToLocalStorage(updatedLocalUsers);
+                setUsers(updatedLocalUsers);
+                toast.warning('Đã lưu offline do lỗi schema.');
+                return;
+              }
+              throw errUsers;
+            }
 
+            // Insert user_records (camelCase)
             const recordsInsertData = validNewUsers.map(u => ({
               msnv: u.msnv,
-              full_name: u.fullName,
+              fullName: u.fullName,
               department: u.department,
               position: u.position,
               role: 'user',
               status: true,
-              password_hash: u.password,
-              created_at: new Date().toISOString()
+              passwordHash: u.password,
+              createdAt: new Date().toISOString()
             }));
 
             const { error: errRecords } = await supabase.from('user_records').insert(recordsInsertData);
-            if (errRecords) throw errRecords;
+            if (errRecords) {
+              // Rollback users đã insert
+              const msnvsToDelete = validNewUsers.map(u => u.msnv);
+              await supabase.from('users').delete().in('msnv', msnvsToDelete);
+              
+              if (isSchemaError(errRecords)) {
+                setSchemaError("Bảng 'user_records' không đúng cấu trúc (có thể cần camelCase).");
+                setUseFallback(true);
+                const updatedLocalUsers = [...users, ...validNewUsers.map(({password, ...rest}) => rest)];
+                saveUsersToLocalStorage(updatedLocalUsers);
+                setUsers(updatedLocalUsers);
+                toast.warning('Đã lưu offline do lỗi schema.');
+                return;
+              }
+              throw errRecords;
+            }
 
+            // Insert permissions
             const permissionInserts: any[] = [];
             validNewUsers.forEach(u => {
               ALL_PERMISSIONS_KEYS.forEach(key => {
@@ -232,22 +269,22 @@ export function UserManagement() {
                   can_delete: false,
                   can_approve: false,
                   can_export: true,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
+                  createdAt: new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
                 });
               });
             });
 
             if (permissionInserts.length > 0) {
               const { error: errPerms } = await supabase.from('user_permissions').insert(permissionInserts);
-              if (errPerms) console.warn('Lỗi thiết lập phân quyền phụ:', errPerms);
+              if (errPerms) console.warn('Lỗi thiết lập phân quyền:', errPerms);
             }
 
             toast.success(`Import thành công ${validNewUsers.length} nhân viên lên Cloud! (Bỏ qua: ${skippedCount})`);
             await loadUsers();
-          } catch (cloudErr) {
+          } catch (cloudErr: any) {
             console.error("Lỗi đồng bộ Cloud khi import:", cloudErr);
-            toast.error("Quá trình ghi nhận database Cloud thất bại, kiểm tra kết nối mạng!");
+            toast.error(`Lỗi: ${cloudErr?.message || 'Không thể kết nối database'}`);
           }
         }
       } catch (err) {
@@ -272,6 +309,7 @@ export function UserManagement() {
     const trimmedMsnv = msnv.trim().toUpperCase();
 
     if (isEditing) {
+      // Cập nhật
       if (useFallback) {
         const updatedUsers = users.map(u => {
           if (u.msnv === trimmedMsnv) {
@@ -286,29 +324,43 @@ export function UserManagement() {
       } else {
         try {
           setIsLoading(true);
+          // Cập nhật users (camelCase)
           const { error: userError } = await supabase
             .from('users')
             .update({
-              full_name: fullName.trim(),
+              fullName: fullName.trim(),
               department,
               position,
               status,
-              updated_at: new Date().toISOString()
+              updatedAt: new Date().toISOString()
             })
             .eq('msnv', trimmedMsnv);
           
-          if (userError) throw userError;
+          if (userError) {
+            if (isSchemaError(userError)) {
+              setSchemaError("Bảng 'users' không đúng cấu trúc.");
+              setUseFallback(true);
+              const updatedUsers = users.map(u => u.msnv === trimmedMsnv ? { ...u, fullName: fullName.trim(), department, position, status } : u);
+              saveUsersToLocalStorage(updatedUsers);
+              setUsers(updatedUsers);
+              toast.warning('Đã cập nhật offline.');
+              resetForm();
+              return;
+            }
+            throw userError;
+          }
           
+          // Cập nhật user_records
           const recordUpdatePayload: any = {
-            full_name: fullName.trim(),
+            fullName: fullName.trim(),
             department,
             position,
             status: status === 'active',
-            updated_at: new Date().toISOString()
+            updatedAt: new Date().toISOString()
           };
 
           if (password.trim() !== '') {
-            recordUpdatePayload.password_hash = password.trim();
+            recordUpdatePayload.passwordHash = password.trim();
           }
 
           const { error: recordError } = await supabase
@@ -316,26 +368,38 @@ export function UserManagement() {
             .update(recordUpdatePayload)
             .eq('msnv', trimmedMsnv);
           
-          if (recordError) throw recordError;
+          if (recordError) {
+            if (isSchemaError(recordError)) {
+              setSchemaError("Bảng 'user_records' không đúng cấu trúc.");
+              setUseFallback(true);
+              const updatedUsers = users.map(u => u.msnv === trimmedMsnv ? { ...u, fullName: fullName.trim(), department, position, status } : u);
+              saveUsersToLocalStorage(updatedUsers);
+              setUsers(updatedUsers);
+              toast.warning('Đã cập nhật offline.');
+              resetForm();
+              return;
+            }
+            throw recordError;
+          }
           
           toast.success(`Đã cập nhật thông tin nhân viên ${fullName.trim()} thành công.`);
           resetForm();
           await loadUsers();
           
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error updating user:', error);
-          toast.error('Lỗi cập nhật dữ liệu.');
+          toast.error(error?.message || 'Lỗi cập nhật dữ liệu.');
         } finally {
           setIsLoading(false);
         }
       }
     } else {
+      // Thêm mới
       if (useFallback) {
         if (users.some(u => u.msnv.toLowerCase() === trimmedMsnv.toLowerCase())) {
           toast.error('Mã số nhân viên (MSNV) này đã tồn tại trên hệ thống!');
           return;
         }
-        
         const newUser: UserRecord = { msnv: trimmedMsnv, fullName: fullName.trim(), department, position, status: 'active' };
         const updatedUsers = [...users, newUser];
         saveUsersToLocalStorage(updatedUsers);
@@ -351,44 +415,86 @@ export function UserManagement() {
             .eq('msnv', trimmedMsnv)
             .maybeSingle();
           
-          if (checkError) throw checkError;
+          if (checkError) {
+            if (isSchemaError(checkError)) {
+              setSchemaError("Bảng 'users' không đúng cấu trúc.");
+              setUseFallback(true);
+              const newUser: UserRecord = { msnv: trimmedMsnv, fullName: fullName.trim(), department, position, status: 'active' };
+              saveUsersToLocalStorage([...users, newUser]);
+              setUsers(prev => [...prev, newUser]);
+              toast.warning('Đã lưu offline.');
+              resetForm();
+              return;
+            }
+            throw checkError;
+          }
           if (existing) {
-            toast.error('Mã số nhân viên (MSNV) này đã tồn tại trên hệ thống!');
+            toast.error('Mã số nhân viên này đã tồn tại!');
             setIsLoading(false);
             return;
           }
           
+          // Insert users (camelCase)
           const { error: insertUserError } = await supabase
             .from('users')
             .insert({
               msnv: trimmedMsnv,
-              full_name: fullName.trim(),
+              fullName: fullName.trim(),
               department,
               position,
               role: 'user',
-              role_group: position,
+              roleGroup: position,
               status: 'active',
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString()
             });
           
-          if (insertUserError) throw insertUserError;
+          if (insertUserError) {
+            if (isSchemaError(insertUserError)) {
+              setSchemaError("Bảng 'users' không đúng cấu trúc.");
+              setUseFallback(true);
+              const newUser: UserRecord = { msnv: trimmedMsnv, fullName: fullName.trim(), department, position, status: 'active' };
+              saveUsersToLocalStorage([...users, newUser]);
+              setUsers(prev => [...prev, newUser]);
+              toast.warning('Đã lưu offline.');
+              resetForm();
+              return;
+            }
+            throw insertUserError;
+          }
           
+          // Insert user_records (camelCase)
           const { error: insertRecordError } = await supabase
             .from('user_records')
             .insert({
               msnv: trimmedMsnv,
-              full_name: fullName.trim(),
+              fullName: fullName.trim(),
               department,
               position,
               role: 'user',
               status: true,
-              password_hash: password.trim() !== '' ? password.trim() : trimmedMsnv,
-              created_at: new Date().toISOString()
+              passwordHash: password.trim() !== '' ? password.trim() : trimmedMsnv,
+              createdAt: new Date().toISOString()
             });
           
-          if (insertRecordError) throw insertRecordError;
+          if (insertRecordError) {
+            // Rollback user vừa insert
+            await supabase.from('users').delete().eq('msnv', trimmedMsnv);
+            
+            if (isSchemaError(insertRecordError)) {
+              setSchemaError("Bảng 'user_records' không đúng cấu trúc.");
+              setUseFallback(true);
+              const newUser: UserRecord = { msnv: trimmedMsnv, fullName: fullName.trim(), department, position, status: 'active' };
+              saveUsersToLocalStorage([...users, newUser]);
+              setUsers(prev => [...prev, newUser]);
+              toast.warning('Đã lưu offline.');
+              resetForm();
+              return;
+            }
+            throw insertRecordError;
+          }
           
+          // Insert permissions
           const permissionInserts = ALL_PERMISSIONS_KEYS.map(key => ({
             msnv: trimmedMsnv,
             module_key: key,
@@ -398,8 +504,8 @@ export function UserManagement() {
             can_delete: false,
             can_approve: false,
             can_export: true,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
           }));
           
           await supabase.from('user_permissions').insert(permissionInserts);
@@ -408,9 +514,9 @@ export function UserManagement() {
           resetForm();
           await loadUsers();
           
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error adding user:', error);
-          toast.error('Có lỗi xảy ra khi lưu nhân sự.');
+          toast.error(error?.message || 'Có lỗi xảy ra khi lưu nhân sự.');
         } finally {
           setIsLoading(false);
         }
@@ -437,14 +543,22 @@ export function UserManagement() {
           setIsLoading(true);
           const { error } = await supabase
             .from('user_records')
-            .update({ password_hash: targetMsnv, updated_at: new Date().toISOString() })
+            .update({ passwordHash: targetMsnv, updatedAt: new Date().toISOString() })
             .eq('msnv', targetMsnv);
           
-          if (error) throw error;
+          if (error) {
+            if (isSchemaError(error)) {
+              setSchemaError("Bảng 'user_records' không có cột 'passwordHash'.");
+              setUseFallback(true);
+              toast.warning('Đã reset offline.');
+              return;
+            }
+            throw error;
+          }
           toast.success(`Đã reset mật khẩu của nhân viên ${name} về mặc định thành công!`);
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error resetting password:', error);
-          toast.error('Thất bại khi cập nhật dữ liệu.');
+          toast.error(error?.message || 'Thất bại khi cập nhật dữ liệu.');
         } finally {
           setIsLoading(false);
         }
@@ -472,14 +586,25 @@ export function UserManagement() {
           await supabase.from('user_records').delete().eq('msnv', targetMsnv);
           const { error: userError } = await supabase.from('users').delete().eq('msnv', targetMsnv);
           
-          if (userError) throw userError;
+          if (userError) {
+            if (isSchemaError(userError)) {
+              setSchemaError("Không thể xóa do lỗi schema.");
+              setUseFallback(true);
+              const updatedUsers = users.filter(u => u.msnv !== targetMsnv);
+              saveUsersToLocalStorage(updatedUsers);
+              setUsers(updatedUsers);
+              toast.warning('Đã xóa offline.');
+              return;
+            }
+            throw userError;
+          }
           
           toast.success('Đã xóa tài khoản và thu hồi quyền truy cập thành công.');
           if (isEditing && msnv === targetMsnv) resetForm();
           await loadUsers();
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error deleting user:', error);
-          toast.error('Lỗi khi thực hiện xóa tài khoản.');
+          toast.error(error?.message || 'Lỗi khi thực hiện xóa tài khoản.');
         } finally {
           setIsLoading(false);
         }
@@ -504,13 +629,7 @@ export function UserManagement() {
 
   return (
     <div className="w-full space-y-5">
-      <input 
-        type="file" 
-        ref={fileInputRef} 
-        onChange={handleImportExcel} 
-        accept=".xlsx, .xls" 
-        className="hidden" 
-      />
+      <input type="file" ref={fileInputRef} onChange={handleImportExcel} accept=".xlsx, .xls" className="hidden" />
 
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4 gap-2">
         <div>
@@ -518,34 +637,33 @@ export function UserManagement() {
             <UserCheck className="w-5 h-5 text-indigo-600" /> Quản lý Hồ sơ Nhân sự hệ thống WMS
           </h1>
           <p className="text-xs text-slate-500">Thiết lập nhân viên xưởng, điều chỉnh chức vụ, đổi mật khẩu và quản lý quyền hạn.</p>
-          {useFallback && (
-            <p className="text-xs text-amber-600 mt-1">Đang sử dụng chế độ offline (localStorage)</p>
+          {useFallback && <p className="text-xs text-amber-600 mt-1">Đang sử dụng chế độ offline (localStorage)</p>}
+          {schemaError && (
+            <div className="mt-2 flex items-start gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-2">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+              <span>{schemaError}</span>
+            </div>
           )}
         </div>
         
         <div className="flex items-center gap-2">
           <Button 
-            variant="outline" 
-            size="sm" 
-            onClick={() => fileInputRef.current?.click()} 
-            disabled={isLoading} 
+            variant="outline" size="sm" onClick={() => fileInputRef.current?.click()} disabled={isLoading} 
             className="h-9 border-emerald-200 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800"
           >
             <FileSpreadsheet className="w-3.5 h-3.5 mr-1.5" /> Import từ Excel
           </Button>
-
           <Button variant="outline" size="sm" onClick={loadUsers} disabled={isLoading} className="h-9">
             <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} /> Làm mới dữ liệu
           </Button>
         </div>
       </div>
 
-      {/* Cấu trúc Grid chia cột */}
+      {/* Grid layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        
-        {/* Form nhập liệu đứng yên khi cuộn màn hình lớn */}
         <div className="lg:col-span-4 lg:sticky lg:top-5 self-start">
           <Card className="bg-white border-slate-200 shadow-sm">
+            {/* Form giữ nguyên, chỉ đổi label nếu cần */}
             <CardHeader className="pb-4">
               <CardTitle className="text-sm font-bold flex items-center justify-between text-slate-800">
                 <span className="flex items-center gap-1.5">
@@ -558,53 +676,41 @@ export function UserManagement() {
                   </Button>
                 )}
               </CardTitle>
-              <CardDescription className="text-xs">
-                {isEditing ? `Đang chỉnh sửa nhân viên mã số ${msnv}` : 'Thiết lập tài khoản đăng nhập trực tiếp cho nhân viên.'}
-              </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleSaveUser} className="space-y-4">
+                {/* Form inputs giữ nguyên như cũ */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="msnv" className="text-xs font-semibold text-slate-700">Mã số nhân viên (MSNV) *</Label>
-                  <Input id="msnv" placeholder="Ví dụ: 1245" value={msnv} onChange={e => setMsnv(e.target.value)} className="h-9 text-sm focus-visible:ring-indigo-500 border-slate-200 bg-slate-50 disabled:opacity-75 disabled:cursor-not-allowed font-mono font-bold" disabled={isEditing} required />
+                  <Label className="text-xs font-semibold text-slate-700">Mã số nhân viên (MSNV) *</Label>
+                  <Input value={msnv} onChange={e => setMsnv(e.target.value)} disabled={isEditing} className="h-9 text-sm" required />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="fullName" className="text-xs font-semibold text-slate-700">Họ và tên *</Label>
-                  <Input id="fullName" placeholder="Nhập tên nhân viên" value={fullName} onChange={e => setFullName(e.target.value)} className="h-9 text-sm focus-visible:ring-indigo-500 border-slate-200" required />
+                  <Label className="text-xs font-semibold text-slate-700">Họ và tên *</Label>
+                  <Input value={fullName} onChange={e => setFullName(e.target.value)} className="h-9 text-sm" required />
                 </div>
                 <div className="space-y-1.5">
-                  <Label htmlFor="password" className="text-xs font-semibold text-slate-700">Mật khẩu {isEditing ? '(Bỏ trống nếu giữ nguyên)' : ''}</Label>
-                  <Input id="password" type="text" placeholder={isEditing ? "Nhập mật khẩu mới tại đây" : "Bỏ trống sẽ tự động lấy MSNV"} value={password} onChange={e => setPassword(e.target.value)} className="h-9 text-sm focus-visible:ring-indigo-500 border-slate-200 font-mono" />
+                  <Label className="text-xs font-semibold text-slate-700">Mật khẩu {isEditing ? '(Bỏ trống nếu giữ nguyên)' : ''}</Label>
+                  <Input type="text" value={password} onChange={e => setPassword(e.target.value)} className="h-9 text-sm font-mono" />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Tổ / Bộ phận làm việc *</Label>
-                  <Select value={department} onValueChange={setDepartment} required>
-                    <SelectTrigger className="h-9 text-sm border-slate-200 focus:ring-indigo-500">
-                      <SelectValue placeholder="Chọn tổ / bộ phận" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {DEPARTMENTS.map(d => <SelectItem key={d} value={d} className="text-sm">{d}</SelectItem>)}
-                    </SelectContent>
+                  <Label className="text-xs font-semibold text-slate-700">Tổ / Bộ phận *</Label>
+                  <Select value={department} onValueChange={setDepartment}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Chọn tổ / bộ phận" /></SelectTrigger>
+                    <SelectContent>{DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-slate-700">Chức vụ tác nghiệp *</Label>
-                  <Select value={position} onValueChange={setPosition} required>
-                    <SelectTrigger className="h-9 text-sm border-slate-200 focus:ring-indigo-500">
-                      <SelectValue placeholder="Chọn chức vụ" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {POSITIONS.map(p => <SelectItem key={p} value={p} className="text-sm">{p}</SelectItem>)}
-                    </SelectContent>
+                  <Label className="text-xs font-semibold text-slate-700">Chức vụ *</Label>
+                  <Select value={position} onValueChange={setPosition}>
+                    <SelectTrigger className="h-9 text-sm"><SelectValue placeholder="Chọn chức vụ" /></SelectTrigger>
+                    <SelectContent>{POSITIONS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
                 {isEditing && (
                   <div className="space-y-1.5">
                     <Label className="text-xs font-semibold text-slate-700">Trạng thái *</Label>
-                    <Select value={status} onValueChange={(v: any) => setStatus(v)} required>
-                      <SelectTrigger className="h-9 text-sm border-slate-200 focus:ring-indigo-500">
-                        <SelectValue placeholder="Chọn trạng thái" />
-                      </SelectTrigger>
+                    <Select value={status} onValueChange={(v: any) => setStatus(v)}>
+                      <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="active">Hoạt động</SelectItem>
                         <SelectItem value="inactive">Tạm khóa</SelectItem>
@@ -612,7 +718,7 @@ export function UserManagement() {
                     </Select>
                   </div>
                 )}
-                <Button type="submit" className={`w-full h-9 text-white font-semibold shadow-sm text-sm mt-2 ${isEditing ? 'bg-amber-600 hover:bg-amber-700' : 'bg-indigo-600 hover:bg-indigo-700'}`} disabled={isLoading}>
+                <Button type="submit" className="w-full h-9" disabled={isLoading}>
                   {isLoading ? 'Đang xử lý...' : (isEditing ? 'Xác nhận cập nhật' : 'Kích hoạt & Cấp tài khoản')}
                 </Button>
               </form>
@@ -620,7 +726,9 @@ export function UserManagement() {
           </Card>
         </div>
 
-        {/* Danh sách nhân sự bên phải */}
+      
+
+        {/* Danh sách phải */}
         <Card className="lg:col-span-8 bg-white border-slate-200 shadow-sm overflow-hidden">
           <div className="p-3.5 bg-slate-50/70 border-b border-slate-200 flex flex-col sm:flex-row items-center gap-2 justify-between">
             <div className="relative w-full sm:max-w-xs">

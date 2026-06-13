@@ -1,6 +1,8 @@
 ﻿import { createClient } from '@supabase/supabase-js'
 
+// @ts-ignore: import.meta.env is provided by Vite at build time
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+// @ts-ignore: import.meta.env is provided by Vite at build time
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 console.log('🔍 Supabase Config:')

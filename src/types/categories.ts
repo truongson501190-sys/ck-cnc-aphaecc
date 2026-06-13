@@ -48,6 +48,7 @@ export interface User {
   id: string;
   employee_code: string; // Mã số nhân viên
   full_name: string;
+  fullName?: string;
   role: 'nhap' | 'xuat' | 'nhan' | 'admin' | 'manager' | 'user';
   note?: string;
   // compatibility / legacy fields used across UI

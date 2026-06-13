@@ -1,9 +1,11 @@
 import { CategoryTypeManagement } from '@/components/categories/CategoryTypeManagement';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 /** Chủng loại — material / inventory / product / tooling categories only. */
 export function CategoriesPage() {
+  const navigate = useNavigate();
   return (
     <div className="container mx-auto py-6">
       <div className="mb-6 flex items-center gap-4">

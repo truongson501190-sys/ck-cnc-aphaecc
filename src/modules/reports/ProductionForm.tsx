@@ -9,12 +9,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Lock, QrCode, Search, ShieldCheck, Loader2, X } from 'lucide-react';
+import { Plus, Lock, QrCode, Search, ShieldCheck, Loader2, X, Check, ChevronsUpDown } from 'lucide-react';
 import { ProductionReport, ToolEntry, WorkTimeEntry } from '@/types/production';
 import { useMasterData } from '@/hooks/useMasterData';
 import { useAuth } from '@/contexts/AuthContext';
 import { OptimizedTimeInput } from '@/components/OptimizedTimeInput';
 import { supabase } from '@/supabase';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 interface ProductionFormProps {
   onSubmit: (report: Omit<ProductionReport, 'id' | 'createdAt'>) => void;
@@ -142,6 +155,8 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   const [scannerOpen, setScannerOpen] = useState(false);
   const [projectSearch, setProjectSearch] = useState('');
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+  // State cho Combobox mở/đóng cho từng dòng dao cụ
+  const [openCombobox, setOpenCombobox] = useState<Record<number, boolean>>({});
 
   const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
 
@@ -260,6 +275,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   setCategoryTypes(formattedCategories);
   console.log('🟢 [DEBUG] Đã set categoryTypes, độ dài:', formattedCategories.length);
 }, [masterData.tools]);
+
   const loadEmployees = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -437,6 +453,12 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
 
   const removeToolEntry = (index: number) => {
     setFormData(prev => ({ ...prev, toolEntries: prev.toolEntries.filter((_: ToolEntry, i: number) => i !== index) }));
+    // Xóa state mở của combobox tương ứng
+    setOpenCombobox(prev => {
+      const newState = { ...prev };
+      delete newState[index];
+      return newState;
+    });
   };
 
   const updateToolEntry = (index: number, field: keyof ToolEntry, value: string | number) => {
@@ -824,7 +846,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
             </CardContent>
           </Card>
 
-          {/* Thông tin dao cụ */}
+          {/* Thông tin dao cụ - ĐÃ SỬA DÙNG COMBOBOX */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 bg-slate-50/50">
               <div className="flex justify-between items-center">
@@ -854,24 +876,49 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                       )}
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                      {/* Cột Tên dao - dùng Combobox thay vì Select */}
                       <div className="lg:col-span-2">
                         <Label className="text-sm">Tên dao</Label>
-                        <Select value={entry.tenDao} onValueChange={(value: string) => updateToolEntry(index, 'tenDao', value)}>
-                          <SelectTrigger className="mt-1">
-                            <SelectValue placeholder="Chọn dao" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {categoryTypes.length > 0 ? (
-                              categoryTypes.map((category: CategoryType) => (
-                                <SelectItem key={category.id} value={category.tenLoai}>
-                                  {category.tenLoai} 
-                                </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="placeholder" disabled>Chưa có dữ liệu dao cụ</SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
+                        <Popover open={openCombobox[index]} onOpenChange={(open) => setOpenCombobox(prev => ({ ...prev, [index]: open }))}>
+                          <PopoverTrigger asChild>
+                            <Button
+                              variant="outline"
+                              role="combobox"
+                              className="w-full justify-between mt-1 font-normal"
+                            >
+                              {entry.tenDao
+                                ? categoryTypes.find((cat) => cat.tenLoai === entry.tenDao)?.tenLoai
+                                : "Chọn dao"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[--radix-popover-trigger-width] p-0">
+                            <Command>
+                              <CommandInput placeholder="Nhập tên dao để tìm..." />
+                              <CommandEmpty>Không tìm thấy dao cụ.</CommandEmpty>
+                              <CommandGroup>
+                                {categoryTypes.map((category) => (
+                                  <CommandItem
+                                    key={category.id}
+                                    value={category.tenLoai}
+                                    onSelect={(currentValue) => {
+                                      updateToolEntry(index, 'tenDao', currentValue);
+                                      setOpenCombobox(prev => ({ ...prev, [index]: false }));
+                                    }}
+                                  >
+                                    <Check
+                                      className={cn(
+                                        "mr-2 h-4 w-4",
+                                        entry.tenDao === category.tenLoai ? "opacity-100" : "opacity-0"
+                                      )}
+                                    />
+                                    {category.tenLoai}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       <div>
                         <Label className="text-sm">SL cấp</Label>

@@ -16,7 +16,7 @@ const Header: React.FC = () => {
     setTimeout(() => navigate('/login'), 500);
   }, [logout, navigate]);
 
-  const getRoleIcon = useCallback((role: string) => {
+  const getRoleIcon = useCallback((role?: string) => {
     switch (role) {
       case 'admin':
         return <Shield className="w-4 h-4 text-red-500" />;
@@ -27,7 +27,7 @@ const Header: React.FC = () => {
     }
   }, []);
 
-  const getRoleLabel = useCallback((role: string) => {
+  const getRoleLabel = useCallback((role?: string) => {
     switch (role) {
       case 'admin':
         return 'Quản trị viên';

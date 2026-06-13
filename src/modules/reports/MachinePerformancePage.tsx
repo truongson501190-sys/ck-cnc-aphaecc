@@ -70,7 +70,7 @@ export function MachinePerformancePage() {
       const matchesSearch =
         !searchTerm ||
         entry.machine.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.note.toLowerCase().includes(searchTerm.toLowerCase());
+        (entry.note || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesMachine = machineFilter === 'Tất cả' || entry.machine === machineFilter;
       return matchesSearch && matchesMachine;
     });
@@ -245,7 +245,7 @@ export function MachinePerformancePage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <Label htmlFor="machine">Máy</Label>
-                <Select id="machine" value={formData.machine} onValueChange={(value) => setFormData({ ...formData, machine: value })}>
+                <Select value={formData.machine} onValueChange={(value) => setFormData({ ...formData, machine: value })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="Máy CNC 1">Máy CNC 1</SelectItem>

@@ -53,6 +53,9 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
     }
   ]);
 
+  // derived total for rendering (fixes missing `totalValue` in footer)
+  const totalValue = items.reduce((sum, item) => sum + (item.totalValue || 0), 0);
+
   useEffect(() => {
     loadData();
   }, []);
@@ -277,8 +280,8 @@ export function ExactLayoutOilExport({ onSubmit }: ExactLayoutOilExportProps) {
                           onValueChange={(v) => handleItemChange(item.id, 'itemId', v)}
                           placeholder="Chọn chủng loại..."
                           options={categories.map(c => ({
-                            label: c.tenLoai || c.tenChungLoai || c.maLoai || c.id,
-                            value: c.id
+                            label: String(c.tenLoai || c.tenChungLoai || c.maLoai || c.id || ''),
+                            value: String(c.id || '')
                           }))}
                           allowCustom={true}
                         />

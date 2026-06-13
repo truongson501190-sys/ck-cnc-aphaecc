@@ -119,15 +119,15 @@ export function OilExport() {
         if (field === 'chungLoaiId') {
           const selectedCategory = categories.find(cat => cat.id === value);
           if (selectedCategory) {
-            updatedItem.tenChungLoai = selectedCategory.tenChungLoai;
-            updatedItem.donVi = selectedCategory.donVi;
-            updatedItem.donGia = selectedCategory.gia;
+            updatedItem.tenChungLoai = selectedCategory.tenChungLoai || selectedCategory.tenLoai || '';
+            updatedItem.donVi = selectedCategory.donVi || '';
+            updatedItem.donGia = selectedCategory.gia ?? 0;
           }
         }
         
         // Recalculate total when quantity or price changes
         if (field === 'soLuong' || field === 'donGia') {
-          updatedItem.thanhTien = updatedItem.soLuong * updatedItem.donGia;
+          updatedItem.thanhTien = (updatedItem.soLuong || 0) * (updatedItem.donGia || 0);
         }
         
         return updatedItem;

@@ -1,8 +1,10 @@
-import React, { createContext, useState, useCallback, useEffect, ReactNode } from 'react';
-import { supabase } from '@/supabase';
-import type { User } from '@/types/user';
-import { DEFAULT_PERMISSIONS } from '@/types/user';
-import { dataSync } from '@/lib/dataSync';
+import * as React from 'react';
+const { createContext, useState, useCallback, useEffect } = React;
+type ReactNode = React.ReactNode;
+import { supabase } from '../supabase';
+import type { User } from '../types/user';
+import { DEFAULT_PERMISSIONS } from '../types/user';
+import { dataSync } from '../lib/dataSync';
 
 type UserRecord = {
   id: string;
@@ -36,6 +38,7 @@ interface AuthContextType {
   login: (msnv: string, password: string, rememberMe?: boolean) => Promise<boolean>;
   logout: () => void;
   updateProfile: (updatedUser: Partial<User>) => void;
+  hasPermission: (module: string, level: 'view' | 'edit') => boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -57,9 +60,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const userRecordsStr = localStorage.getItem('userRecords');
         const usersStr = localStorage.getItem('users');
         
-        // LUÔN RESET VỀ DỮ LIỆU MẶC ĐỊNH NẾU CÓ LỖI!
+        // Chỉ seed dữ liệu mặc định khi localStorage chưa có dữ liệu
         console.log('📦 Đảm bảo dữ liệu mặc định...');
-        const forceReset = true; // Đặt true để reset về mặc định
+        const forceReset = false; // set false để giữ lại dữ liệu đã có
         
         if (!userRecordsStr || !usersStr || forceReset) {
           console.log('📦 Initializing localStorage with default data...');
@@ -412,7 +415,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           const { data: record, error: err1 } = await supabase
             .from('user_records')
             .select('*')
-            .eq('employee_code', msnv)
+            .eq('msnv', msnv)
             .eq('status', true)
             .single();
 
@@ -448,7 +451,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               const { data: userData, error: err2 } = await supabase
                 .from('users')
                 .select('*')
-                .eq('employee_code', msnv)
+                .eq('msnv', msnv)
                 .single();
 
               if (!err2 && userData) {
@@ -456,7 +459,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 let normalizedUser: User = {
                   ...userData,
                   fullName: userData.full_name || userData.fullName,
-                  msnv: userData.employee_code || userData.msnv
+                  msnv: userData.msnv
                 };
                 
                 // Load permissions từ localStorage
@@ -540,7 +543,24 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     localStorage.removeItem('sessionUser');
     sessionStorage.removeItem('sessionUser');
     localStorage.removeItem('rememberedLogin');
+    localStorage.removeItem('rememberedUser');
   }, []);
+
+  const hasPermission = useCallback((module: string, level: 'view' | 'edit') => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (!user.permissions) return false;
+
+    if (level === 'view') {
+      return !!user.permissions[module];
+    }
+
+    if (level === 'edit') {
+      return !!user.permissions[module];
+    }
+
+    return false;
+  }, [user]);
 
   const value: AuthContextType = {
     user,
@@ -549,17 +569,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     login,
     logout,
     updateProfile,
+    hasPermission,
   };
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
-      </div>
+    return React.createElement('div', { className: 'flex items-center justify-center h-screen' },
+      React.createElement('div', { className: 'animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600' })
     );
   }
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return React.createElement(AuthContext.Provider, { value }, children);
 };
 
 // ================= HOOK =================

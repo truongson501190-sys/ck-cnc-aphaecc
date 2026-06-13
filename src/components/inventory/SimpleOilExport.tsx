@@ -165,9 +165,9 @@ export function SimpleOilExport({ onSubmit }: SimpleOilExportProps) {
                 value={formData.loaiDau}
                 onValueChange={(value) => handleInputChange('loaiDau', value)}
                 placeholder="Nhập hoặc chọn loại dầu..."
-                options={categories.map((c) => ({
-                  label: c.tenLoai || c.tenChungLoai || c.maLoai || c.id,
-                  value: c.id
+                  options={categories.map((c) => ({
+                    label: String(c.tenLoai || c.tenChungLoai || c.maLoai || ''),
+                    value: String(c.id)
                 }))}
                 allowCustom={true}
               />

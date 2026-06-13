@@ -370,9 +370,9 @@ export function ExactLayoutWarehouseImport({ onSubmit }: ExactLayoutWarehouseImp
                         value={formData.chungLoai}
                         onValueChange={(value) => handleInputChange('chungLoai', value)}
                         placeholder="Nhập hoặc chọn chủng loại"
-                        options={categories.map((c) => ({
-                          label: c.tenLoai || c.tenChungLoai || c.maLoai || '',
-                          value: c.id
+                          options={categories.map((c) => ({
+                            label: String(c.tenLoai || c.tenChungLoai || c.maLoai || ''),
+                            value: String(c.id)
                         }))}
                         allowCustom={true}
                       />

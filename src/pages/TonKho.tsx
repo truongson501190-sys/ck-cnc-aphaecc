@@ -22,6 +22,7 @@ const SECTION_PATHS: Record<string, string> = {
 export function TonKho() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [warehouseTransactions, setWarehouseTransactions] = useState<WarehouseTransaction[]>([]);
 
   useEffect(() => {
@@ -148,10 +149,10 @@ export function TonKho() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 flex">
       <div className="hidden md:block">
-        <Sidebar activeSection="inventory" onSectionChange={handleSectionChange} />
+        <Sidebar isOpen={isSidebarOpen} setIsOpen={setIsSidebarOpen} />
       </div>
       <div className="md:hidden">
-        <MobileSidebar activeSection="inventory" onSectionChange={handleSectionChange} />
+        <MobileSidebar />
       </div>
       <div className="flex-1 overflow-auto p-4 md:p-6">
         <div className="mb-6 mt-12 md:mt-0">

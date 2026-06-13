@@ -122,20 +122,20 @@ export function WarehouseTransfer() {
             cat.maLoai === value
           );
           if (selectedCategory) {
-            updatedItem.tenChungLoai = selectedCategory.tenChungLoai || selectedCategory.tenLoai;
-            updatedItem.donVi = selectedCategory.donVi;
-            updatedItem.donGia = selectedCategory.gia;
-            updatedItem.chungLoaiId = selectedCategory.id; // Set to id for consistency
+            updatedItem.tenChungLoai = selectedCategory.tenChungLoai ?? selectedCategory.tenLoai ?? '';
+            updatedItem.donVi = selectedCategory.donVi ?? '';
+            updatedItem.donGia = selectedCategory.gia ?? 0;
+            updatedItem.chungLoaiId = selectedCategory.id ?? '';
           } else {
             // Custom input
-            updatedItem.tenChungLoai = value;
-            updatedItem.chungLoaiId = value; // Keep as name for custom
+            updatedItem.tenChungLoai = String(value || '');
+            updatedItem.chungLoaiId = String(value || ''); // Keep as name for custom
           }
         }
         
         // Recalculate total when quantity or price changes
         if (field === 'soLuong' || field === 'donGia') {
-          updatedItem.thanhTien = updatedItem.soLuong * updatedItem.donGia;
+          updatedItem.thanhTien = (updatedItem.soLuong || 0) * (updatedItem.donGia || 0);
         }
         
         return updatedItem;
@@ -548,8 +548,8 @@ export function WarehouseTransfer() {
                           onValueChange={(value) => updateItem(item.id, 'chungLoaiId', value)}
                           placeholder="Chọn hoặc nhập chủng loại"
                           options={categories.map((category) => ({
-                            label: category.tenLoai || category.tenChungLoai || category.maLoai,
-                            value: category.tenLoai || category.tenChungLoai || category.maLoai
+                            label: String(category.tenLoai || category.tenChungLoai || category.maLoai || ''),
+                            value: String(category.tenLoai || category.tenChungLoai || category.maLoai || '')
                           }))}
                           allowCustom={true}
                         />

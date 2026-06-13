@@ -287,7 +287,7 @@ export function ReportsPage({ warehouseTransactions }: ReportsPageProps) {
         </CardContent>
       </Card>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'overview' | 'warehouse' | 'trends')} className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Tổng quan</TabsTrigger>
           <TabsTrigger value="warehouse">Kho hàng</TabsTrigger>

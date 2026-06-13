@@ -266,17 +266,17 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                     <div className="space-y-4 py-4">
                       <div className="space-y-2">
                         <Label>Tên chủng loại *</Label>
-                        <Input value={newCategory.chungLoai} onChange={(e) => setNewCategory(prev => ({ ...prev, chungLoai: e.target.value }))} />
+                        <Input value={newCategory.tenChungLoai} onChange={(e) => setNewCategory(prev => ({ ...prev, tenChungLoai: e.target.value }))} />
                       </div>
                       <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
-                          <Label>Đơn vị tính *</Label>
-                          <Input value={newCategory.donVi} onChange={(e) => setNewCategory(p => ({ ...p, donVi: e.target.value }))} />
-                        </div>
+                            <Label>Đơn vị tính *</Label>
+                            <Input value={newCategory.donVi} onChange={(e) => setNewCategory(p => ({ ...p, donVi: e.target.value }))} />
+                          </div>
                         <div className="space-y-2">
-                          <Label>Đơn giá tham khảo (VND)</Label>
-                          <Input type="number" value={newCategory.gia} onChange={(e) => setNewCategory(prev => ({ ...prev, gia: e.target.value }))} placeholder="0" />
-                        </div>
+                            <Label>Đơn giá tham khảo (VND)</Label>
+                            <Input type="number" value={newCategory.gia} onChange={(e) => setNewCategory(prev => ({ ...prev, gia: e.target.value }))} placeholder="0" />
+                          </div>
                       </div>
                       <Button className="w-full" onClick={handleAddCategory}>💾 Lưu chủng loại</Button>
                     </div>
@@ -312,8 +312,8 @@ export function ExactLayoutWarehouseTransfer({ onSubmit }: ExactLayoutWarehouseT
                         onValueChange={(value) => handleInputChange('chungLoai', value)}
                         placeholder="Nhập hoặc chọn chủng loại"
                         options={categories.map((c) => ({
-                          label: c.tenLoai || c.tenChungLoai || c.maLoai || '',
-                          value: c.id || '' 
+                          label: String(c.tenLoai || c.tenChungLoai || c.maLoai || ''),
+                          value: String(c.id || '') 
                         }))}
                         allowCustom={true}
                       />

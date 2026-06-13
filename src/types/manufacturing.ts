@@ -35,3 +35,16 @@ export interface ProductionPlanEntry {
 
   note?: string;
 }
+
+export interface ProgressUpdateEntry {
+  id: string;
+  orderNumber: string;
+  productCode: string;
+  productName: string;
+  machine: string;
+  operator: string;
+  progressPercent: number;
+  status: 'on_track' | 'delayed' | 'completed';
+  updatedAt: string;
+  comment?: string;
+}
