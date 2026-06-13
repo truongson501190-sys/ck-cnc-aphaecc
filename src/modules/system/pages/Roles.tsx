@@ -66,7 +66,7 @@ interface SupabasePermission {
   can_export: boolean;
 }
 
-interface UserProfile {
+interface EmployeeProfile {
   msnv: string;
   fullName: string;
   department: string;
@@ -91,16 +91,14 @@ const convertFromSupabase = (perm: Partial<SupabasePermission>): PermissionLevel
   return 'none';
 };
 
-// Kiểm tra lỗi liên quan đến schema/bảng không tồn tại
 const isSchemaError = (error: any): boolean => {
   if (!error) return false;
   const code = error?.code;
   const message = error?.message || '';
   const details = error?.details || '';
-
   return (
-    code === 'PGRST301' || // Không tìm thấy bảng
-    code === '42P01' ||    // PostgreSQL: undefined_table
+    code === 'PGRST301' ||
+    code === '42P01' ||
     message.includes('relation') ||
     message.includes('does not exist') ||
     details.includes('relation') ||
@@ -109,7 +107,7 @@ const isSchemaError = (error: any): boolean => {
 };
 
 export function Roles() {
-  const [userList, setUserList] = useState<UserProfile[]>([]);
+  const [userList, setUserList] = useState<EmployeeProfile[]>([]);
   const [selectedUserMsnv, setSelectedUserMsnv] = useState<string>('');
   const [searchUserTerm, setSearchUserTerm] = useState<string>('');
   const [searchPermTerm, setSearchPermTerm] = useState<string>('');
@@ -118,15 +116,13 @@ export function Roles() {
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const hasSupabaseConfig = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
   const [useFallback, setUseFallback] = useState<boolean>(!hasSupabaseConfig);
-  const [schemaError, setSchemaError] = useState<string>(''); // Thêm state lưu lỗi schema
+  const [schemaError, setSchemaError] = useState<string>('');
 
   const filteredUsers = useMemo(() => {
     if (!searchUserTerm.trim()) return userList;
     const lowerSearch = searchUserTerm.toLowerCase();
     return userList.filter(
-      u =>
-        u.msnv.toLowerCase().includes(lowerSearch) ||
-        u.fullName.toLowerCase().includes(lowerSearch)
+      u => u.msnv.toLowerCase().includes(lowerSearch) || u.fullName.toLowerCase().includes(lowerSearch)
     );
   }, [userList, searchUserTerm]);
 
@@ -140,9 +136,7 @@ export function Roles() {
     return Object.entries(PERMISSION_GROUPS)
       .map(([groupName, permKeys]) => {
         const filteredKeys = searchPermTerm.trim()
-          ? permKeys.filter(key =>
-              (PERMISSION_LABELS[key] || key).toLowerCase().includes(searchPermTerm.toLowerCase())
-            )
+          ? permKeys.filter(key => (PERMISSION_LABELS[key] || key).toLowerCase().includes(searchPermTerm.toLowerCase()))
           : permKeys;
         return { groupName, filteredKeys };
       })
@@ -173,7 +167,7 @@ export function Roles() {
           if (error) {
             if (isSchemaError(error)) {
               setSchemaError(`Bảng 'user_permissions' không tồn tại. Vui lòng tạo bảng theo migration.`);
-              setUseFallback(true); // Chuyển về fallback nếu bảng chưa có
+              setUseFallback(true);
             }
             throw error;
           }
@@ -183,11 +177,10 @@ export function Roles() {
             permMap[p.module_key] = convertFromSupabase(p);
           });
           setUserPermissions(permMap);
-          setSchemaError(''); // Xóa lỗi cũ nếu thành công
+          setSchemaError('');
         }
       } catch (error: any) {
         console.error('Error loading permissions:', error);
-        // Fallback to localStorage
         const storedPerms = localStorage.getItem(`wms_user_permissions_${msnv}`);
         if (storedPerms) {
           try {
@@ -198,7 +191,6 @@ export function Roles() {
         } else {
           setUserPermissions({ ...INITIAL_PERMISSIONS });
         }
-
         if (!useFallback && !isSchemaError(error)) {
           setUseFallback(true);
           toast.warning('Không thể kết nối database, chuyển sang chế độ offline.');
@@ -209,7 +201,7 @@ export function Roles() {
   );
 
   const initializeUserList = useCallback(
-    (users: UserProfile[], defaultMsnv?: string) => {
+    (users: EmployeeProfile[], defaultMsnv?: string) => {
       setUserList(users);
       if (users.length > 0) {
         const newDefault = defaultMsnv || selectedUserMsnv || users[0].msnv;
@@ -228,7 +220,7 @@ export function Roles() {
         const storedUsers = localStorage.getItem('wms_users');
         if (storedUsers) {
           const parsedUsers = JSON.parse(storedUsers);
-          const nonAdminUsers: UserProfile[] = parsedUsers
+          const nonAdminUsers: EmployeeProfile[] = parsedUsers
             .filter((u: any) => u.msnv !== '1118')
             .map((u: any) => ({
               msnv: u.msnv,
@@ -240,31 +232,46 @@ export function Roles() {
           if (defaultMsnv) await loadUserPermissions(defaultMsnv);
         }
       } else {
-        const { data: users, error } = await supabase
-          .from('users')
+        // DÙNG BẢNG employees THAY VÌ users
+        const { data: employees, error } = await supabase
+          .from('employees')
           .select('*')
           .order('msnv', { ascending: true });
 
         if (error) {
           if (isSchemaError(error)) {
-            setSchemaError(`Bảng 'users' không tồn tại. Vui lòng tạo bảng users.`);
+            setSchemaError(`Bảng 'employees' chưa được tạo. Vui lòng chạy migration tạo bảng employees.`);
             setUseFallback(true);
+            // Thử load từ localStorage nếu có
+            const storedUsers = localStorage.getItem('wms_users');
+            if (storedUsers) {
+              const parsedUsers = JSON.parse(storedUsers);
+              const nonAdminUsers = parsedUsers.filter((u: any) => u.msnv !== '1118').map((u: any) => ({
+                msnv: u.msnv,
+                fullName: u.fullName,
+                department: u.department,
+                roleGroup: u.position || 'User',
+              }));
+              initializeUserList(nonAdminUsers);
+              if (nonAdminUsers.length > 0) await loadUserPermissions(nonAdminUsers[0].msnv);
+            }
           }
           throw error;
         }
 
-        const nonAdminUsers: UserProfile[] = (users as any[])
-          .filter(u => u.msnv !== '1118')
-          .map(u => ({
-            msnv: u.msnv,
-            fullName: u.full_name,
-            department: u.department,
-            roleGroup: u.role_group || 'User',
+        // Mapping: employees table có cột full_name, department, position (hoặc role_group)
+        const nonAdminUsers: EmployeeProfile[] = (employees as any[])
+          .filter(emp => emp.msnv !== '1118')
+          .map(emp => ({
+            msnv: emp.msnv,
+            fullName: emp.full_name || emp.fullName || '',
+            department: emp.department || '',
+            roleGroup: emp.position || emp.role_group || 'User',
           }));
 
         const defaultMsnv = initializeUserList(nonAdminUsers);
         if (defaultMsnv) await loadUserPermissions(defaultMsnv);
-        setSchemaError(''); // Thành công
+        setSchemaError('');
       }
     } catch (error: any) {
       console.error('Error loading data:', error);
@@ -272,7 +279,6 @@ export function Roles() {
         setUseFallback(true);
         toast.warning('Không thể kết nối server. Dùng dữ liệu offline.');
       }
-      // Nếu là lỗi schema, đã set trong loadUserPermissions hoặc ở trên
     } finally {
       setIsLoading(false);
     }
@@ -315,13 +321,10 @@ export function Roles() {
 
     try {
       if (useFallback) {
-        localStorage.setItem(
-          `wms_user_permissions_${selectedUserMsnv}`,
-          JSON.stringify(userPermissions)
-        );
+        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
         toast.success(`Đã lưu cấu hình phân quyền cho ${currentUser?.fullName} (offline).`);
       } else {
-        // Kiểm tra bảng user_permissions có tồn tại không bằng cách thử select nhẹ
+        // Kiểm tra bảng user_permissions có tồn tại không
         const { error: checkError } = await supabase
           .from('user_permissions')
           .select('msnv', { count: 'exact', head: true })
@@ -330,11 +333,7 @@ export function Roles() {
         if (checkError && isSchemaError(checkError)) {
           setSchemaError(`Bảng 'user_permissions' chưa được tạo. Vui lòng chạy migration: CREATE TABLE user_permissions (...);`);
           setUseFallback(true);
-          // Lưu offline và thông báo
-          localStorage.setItem(
-            `wms_user_permissions_${selectedUserMsnv}`,
-            JSON.stringify(userPermissions)
-          );
+          localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
           toast.warning('Bảng quyền chưa có, đã lưu vào bộ nhớ tạm.');
           return;
         }
@@ -347,76 +346,52 @@ export function Roles() {
           })
         );
 
-        // Thử RPC, nếu không có thì dùng delete + insert
-        const { error: rpcError } = await supabase.rpc('replace_user_permissions', {
-          p_msnv: selectedUserMsnv,
-          p_permissions: permInserts,
-        });
+        // Xóa cũ, chèn mới (không dùng RPC để tránh lỗi)
+        const { error: deleteError } = await supabase
+          .from('user_permissions')
+          .delete()
+          .eq('msnv', selectedUserMsnv);
 
-        if (rpcError) {
-          console.warn('RPC not available, using manual delete+insert with rollback.');
-
-          // Xóa
-          const { error: deleteError } = await supabase
-            .from('user_permissions')
-            .delete()
-            .eq('msnv', selectedUserMsnv);
-
-          if (deleteError) {
-            if (isSchemaError(deleteError)) {
-              setSchemaError('Bảng user_permissions chưa tồn tại. Vui lòng chạy migration.');
-              setUseFallback(true);
-              localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
-              toast.warning('Đã lưu offline do thiếu bảng.');
-              return;
-            }
-            throw new Error(`Xóa quyền cũ thất bại: ${deleteError.message}`);
+        if (deleteError) {
+          if (isSchemaError(deleteError)) {
+            setSchemaError('Bảng user_permissions chưa tồn tại. Vui lòng chạy migration.');
+            setUseFallback(true);
+            localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
+            toast.warning('Đã lưu offline do thiếu bảng.');
+            return;
           }
-
-          // Chèn mới
-          const { error: insertError } = await supabase
-            .from('user_permissions')
-            .insert(permInserts);
-
-          if (insertError) {
-            // Rollback
-            const rollbackData: SupabasePermission[] = Object.entries(previousPermissions).map(
-              ([module_key, level]) => ({
-                msnv: selectedUserMsnv,
-                module_key,
-                ...convertToSupabase(level),
-              })
-            );
-            await supabase.from('user_permissions').insert(rollbackData);
-            throw new Error(`Lưu thất bại: ${insertError.message}. Đã khôi phục quyền cũ.`);
-          }
+          throw new Error(`Xóa quyền cũ thất bại: ${deleteError.message}`);
         }
 
-        // Backup localStorage
-        localStorage.setItem(
-          `wms_user_permissions_${selectedUserMsnv}`,
-          JSON.stringify(userPermissions)
-        );
+        const { error: insertError } = await supabase
+          .from('user_permissions')
+          .insert(permInserts);
 
+        if (insertError) {
+          // Khôi phục lại dữ liệu cũ (dùng localStorage backup)
+          const rollbackData: SupabasePermission[] = Object.entries(previousPermissions).map(
+            ([module_key, level]) => ({
+              msnv: selectedUserMsnv,
+              module_key,
+              ...convertToSupabase(level),
+            })
+          );
+          await supabase.from('user_permissions').insert(rollbackData);
+          throw new Error(`Lưu thất bại: ${insertError.message}. Đã khôi phục quyền cũ.`);
+        }
+
+        // Backup vào localStorage
+        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
         toast.success(`Đã lưu ma trận quyền cho ${currentUser?.fullName}`);
       }
     } catch (error: any) {
       console.error('Error saving permissions:', error);
-      // Nếu là lỗi schema, đã xử lý ở trên và return sớm
       if (!useFallback) {
-        // Khôi phục state về trước lỗi
         setUserPermissions(previousPermissions);
-        localStorage.setItem(
-          `wms_user_permissions_${selectedUserMsnv}`,
-          JSON.stringify(previousPermissions)
-        );
+        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(previousPermissions));
         toast.error(error.message || 'Lưu thất bại');
       } else {
-        // Nếu fallback thì vẫn lưu localStorage
-        localStorage.setItem(
-          `wms_user_permissions_${selectedUserMsnv}`,
-          JSON.stringify(userPermissions)
-        );
+        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
         toast.success('Đã lưu vào bộ nhớ cục bộ (offline).');
       }
     } finally {
