@@ -7,7 +7,20 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { UserCheck, RefreshCw, Key, Edit, FileSpreadsheet, Trash2, UserPlus, Search } from 'lucide-react';
+import { 
+  UserCheck, 
+  RefreshCw, 
+  Key, 
+  Edit, 
+  FileSpreadsheet, 
+  Trash2, 
+  UserPlus, 
+  Search, 
+  Lock,
+  AlertTriangle,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
 import { hashPassword } from '@/lib/passwordUtils';
@@ -95,11 +108,12 @@ function mapUIToService(emp: Partial<EmployeeUI>): Partial<ServiceEmployee> {
 // ==================== MAIN COMPONENT ====================
 
 export function UserManagement() {
-  const { user, refreshUser } = useAuth();
+  const { user, refreshUser, logout } = useAuth();
 
   // ===== STATE =====
   const [employees, setEmployees] = useState<EmployeeUI[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showInactive, setShowInactive] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -322,24 +336,71 @@ export function UserManagement() {
     }
   };
 
-  // ===== DELETE USER =====
-  const handleDeleteUser = async (targetMsnv: string, name: string) => {
+  // ===== SOFT DELETE - Chỉ khóa =====
+  const handleSoftDelete = async (targetMsnv: string, name: string) => {
+    if (targetMsnv === '1118') {
+      toast.error('Không thể khóa tài khoản Admin');
+      return;
+    }
+
+    if (!confirm(`🔒 Khóa tài khoản "${name}" (${targetMsnv})?`)) return;
+
+    try {
+      setIsLoading(true);
+      await EmployeeService.delete(targetMsnv);
+      
+      // Clear permission cache
+      PermissionService.clearCache(targetMsnv);
+      
+      toast.success(`🔒 Đã khóa nhân viên "${name}"`);
+      await loadEmployees();
+
+      // Nếu user đang login bị khóa, logout
+      if (user && user.msnv === targetMsnv) {
+        await logout();
+        toast.warning('Tài khoản của bạn đã bị khóa. Vui lòng đăng nhập lại.');
+      }
+
+      // Reset form if editing deleted user
+      if (isEditing && msnv === targetMsnv) {
+        resetForm();
+      }
+    } catch (err: any) {
+      toast.error('Lỗi khóa: ' + err.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // ===== HARD DELETE - Xóa vĩnh viễn =====
+  const handleHardDelete = async (targetMsnv: string, name: string) => {
     if (targetMsnv === '1118') {
       toast.error('Không thể xóa tài khoản Admin');
       return;
     }
 
-    if (!confirm(`Bạn có chắc muốn xóa nhân viên "${name}" (${targetMsnv})?`)) return;
+    if (!confirm(
+      `🚨 CẢNH BÁO!\n\n` +
+      `Bạn có chắc chắn muốn XÓA VĨNH VIỄN nhân viên "${name}" (${targetMsnv})?\n` +
+      `Hành động này KHÔNG THỂ HOÀN TÁC!\n\n` +
+      `Tất cả dữ liệu liên quan sẽ bị mất vĩnh viễn.`
+    )) return;
 
     try {
       setIsLoading(true);
-      await EmployeeService.delete(targetMsnv);
-
+      await EmployeeService.hardDelete(targetMsnv);
+      
       // Clear permission cache
       PermissionService.clearCache(targetMsnv);
-
-      toast.success(`Đã xóa nhân viên "${name}"`);
+      
+      toast.success(`✅ Đã xóa vĩnh viễn nhân viên "${name}"`);
       await loadEmployees();
+
+      // Nếu user đang login bị xóa, logout
+      if (user && user.msnv === targetMsnv) {
+        await logout();
+        toast.warning('Tài khoản của bạn đã bị xóa. Vui lòng đăng nhập lại.');
+      }
 
       // Reset form if editing deleted user
       if (isEditing && msnv === targetMsnv) {
@@ -379,12 +440,17 @@ export function UserManagement() {
   };
 
   // ===== FILTER EMPLOYEES =====
-  const filteredEmployees = employees.filter(e =>
-    e.msnv.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    e.ho_ten.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (e.department && e.department.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (e.position && e.position.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredEmployees = employees.filter(e => {
+    // Lọc theo trạng thái (ẩn inactive theo mặc định)
+    if (!showInactive && e.status === 'inactive') return false;
+    
+    // Tìm kiếm
+    const searchLower = searchTerm.toLowerCase();
+    return e.msnv.toLowerCase().includes(searchLower) ||
+           e.ho_ten.toLowerCase().includes(searchLower) ||
+           (e.department && e.department.toLowerCase().includes(searchLower)) ||
+           (e.position && e.position.toLowerCase().includes(searchLower));
+  });
 
   // ===== RENDER =====
   return (
@@ -404,8 +470,13 @@ export function UserManagement() {
           <UserCheck className="w-5 h-5 text-indigo-600" />
           <h1 className="text-xl font-bold text-slate-900 tracking-tight">Quản lý Nhân sự</h1>
           <Badge variant="outline" className="ml-2 text-xs">
-            {employees.length} nhân viên
+            {employees.filter(e => e.status === 'active').length} đang hoạt động
           </Badge>
+          {employees.filter(e => e.status === 'inactive').length > 0 && (
+            <Badge variant="outline" className="text-xs border-amber-200 text-amber-600">
+              {employees.filter(e => e.status === 'inactive').length} đã khóa
+            </Badge>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -615,20 +686,35 @@ export function UserManagement() {
               <CardTitle className="text-sm font-bold flex items-center justify-between">
                 <span>Danh sách nhân viên</span>
                 <span className="text-xs font-normal text-slate-400">
-                  {filteredEmployees.length} / {employees.length}
+                  {filteredEmployees.length} / {employees.filter(e => showInactive || e.status === 'active').length}
                 </span>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {/* Search */}
-              <div className="relative mb-3">
-                <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Tìm kiếm theo MSNV, tên, bộ phận, chức vụ..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                  className="pl-9 bg-white border-slate-200 focus-visible:ring-indigo-500"
-                />
+              {/* Search & Filter */}
+              <div className="flex flex-col sm:flex-row gap-2 mb-3">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+                  <Input
+                    placeholder="Tìm kiếm theo MSNV, tên, bộ phận, chức vụ..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                    className="pl-9 bg-white border-slate-200 focus-visible:ring-indigo-500"
+                  />
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <input
+                    type="checkbox"
+                    id="showInactive"
+                    checked={showInactive}
+                    onChange={(e) => setShowInactive(e.target.checked)}
+                    className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
+                  />
+                  <label htmlFor="showInactive" className="text-sm text-slate-600 cursor-pointer flex items-center gap-1">
+                    <EyeOff className="w-3.5 h-3.5" />
+                    Hiển thị user đã khóa
+                  </label>
+                </div>
               </div>
 
               {/* Table */}
@@ -654,7 +740,7 @@ export function UserManagement() {
                         </TableRow>
                       ) : (
                         filteredEmployees.map(emp => (
-                          <TableRow key={emp.msnv} className="hover:bg-slate-50/50">
+                          <TableRow key={emp.msnv} className={emp.status === 'inactive' ? 'bg-slate-50/50' : 'hover:bg-slate-50/50'}>
                             <TableCell className="font-mono text-xs font-semibold text-slate-700">
                               {emp.msnv}
                             </TableCell>
@@ -663,6 +749,11 @@ export function UserManagement() {
                               {emp.msnv === '1118' && (
                                 <Badge className="ml-2 text-[10px] bg-red-100 text-red-700 hover:bg-red-100">
                                   Admin
+                                </Badge>
+                              )}
+                              {emp.status === 'inactive' && (
+                                <Badge className="ml-2 text-[10px] bg-slate-200 text-slate-600 hover:bg-slate-200">
+                                  Đã khóa
                                 </Badge>
                               )}
                             </TableCell>
@@ -675,7 +766,7 @@ export function UserManagement() {
                             <TableCell>
                               <Badge
                                 variant={emp.status === 'active' ? 'default' : 'secondary'}
-                                className={emp.status === 'active' ? 'bg-emerald-100 text-emerald-700' : ''}
+                                className={emp.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'}
                               >
                                 {emp.status === 'active' ? '✅ Hoạt động' : '⛔ Khóa'}
                               </Badge>
@@ -701,15 +792,28 @@ export function UserManagement() {
                                   <Key className="w-3.5 h-3.5" />
                                 </Button>
                                 {emp.msnv !== '1118' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    onClick={() => handleDeleteUser(emp.msnv, emp.ho_ten)}
-                                    className="h-8 w-8 text-slate-500 hover:text-red-600 hover:bg-red-50"
-                                    title="Xóa nhân viên"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </Button>
+                                  <>
+                                    {/* 🔵 Nút Khóa (Soft Delete) */}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleSoftDelete(emp.msnv, emp.ho_ten)}
+                                      className="h-8 w-8 text-amber-500 hover:text-amber-600 hover:bg-amber-50"
+                                      title="Khóa tài khoản"
+                                    >
+                                      <Lock className="w-3.5 h-3.5" />
+                                    </Button>
+                                    {/* 🔴 Nút Xóa vĩnh viễn (Hard Delete) */}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleHardDelete(emp.msnv, emp.ho_ten)}
+                                      className="h-8 w-8 text-red-500 hover:text-red-600 hover:bg-red-50"
+                                      title="Xóa vĩnh viễn"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </Button>
+                                  </>
                                 )}
                               </div>
                             </TableCell>
@@ -723,9 +827,21 @@ export function UserManagement() {
 
               {/* Footer */}
               <div className="mt-3 flex items-center justify-between text-xs text-slate-400">
-                <span>Hiển thị {filteredEmployees.length} / {employees.length} nhân viên</span>
+                <span>
+                  Hiển thị {filteredEmployees.length} / {employees.length} nhân viên
+                  {!showInactive && employees.filter(e => e.status === 'inactive').length > 0 && (
+                    <span className="text-amber-500 ml-1">
+                      ({employees.filter(e => e.status === 'inactive').length} đã khóa - bật checkbox để xem)
+                    </span>
+                  )}
+                </span>
                 <span className="font-mono">
                   {employees.filter(e => e.status === 'active').length} đang hoạt động
+                  {employees.filter(e => e.status === 'inactive').length > 0 && (
+                    <span className="text-slate-400 ml-1">
+                      • {employees.filter(e => e.status === 'inactive').length} đã khóa
+                    </span>
+                  )}
                 </span>
               </div>
             </CardContent>
