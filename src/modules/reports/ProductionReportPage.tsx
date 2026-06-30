@@ -1,4 +1,4 @@
-// ProductionReportPage.tsx - NHẬT KÝ SẢN XUẤT (ĐÃ SỬA HOÀN CHỈNH)
+// ProductionReportPage.tsx - NHẬT KÝ SẢN XUẤT (TÍCH HỢP DUYỆT HÀNG LOẠT, SỬA IMPORT/EXPORT)
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -10,16 +10,16 @@ import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Plus, Filter, X, ArrowLeft, Upload, Download, Edit, Eye, Trash2, FileSpreadsheet, Search, CheckCircle, Loader2 } from 'lucide-react';
+import { 
+  Plus, Filter, X, ArrowLeft, Upload, Download, Edit, Eye, Trash2, FileSpreadsheet, Search, 
+  CheckCircle, Loader2, CheckSquare, XSquare, Check, X as XIcon 
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { ProductionForm } from './ProductionForm';
 import { supabase } from '@/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 
-// ======================
-// TYPES - KHỚP VỚI DB CAMELCASE
-// ======================
-
+// ====================== TYPES ======================
 interface ToolEntry {
   tenDao: string;
   slCap: number;
@@ -49,85 +49,53 @@ interface ProductionLog {
   cpDaoCu: number;
   nguoiVanHanh: string;
   nguoiKiemTra: string;
-  tgTrenCa: string;
-  work_time_entries?: any[];
-  setup_time_entries?: any[];
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   updatedAt?: string;
+  setup_time_entries?: Array<{ start?: string; end?: string; hours?: number }>;
+  work_time_entries?: Array<{ start?: string; end?: string; hours?: number }>;
+  tgGia_BatDau?: string;
+  tgGia_KetThuc?: string;
+  soGioGia?: number;
+  tgChay_BatDau?: string;
+  tgChay_KetThuc?: string;
+  soGioChay?: number;
 }
 
-// ======================
-// HÀM KIỂM TRA QUYỀN - ĐÃ SỬA HOÀN CHỈNH
-// ======================
-
+// ====================== HÀM KIỂM TRA QUYỀN ======================
 const checkPermission = async (action: 'view' | 'add' | 'edit' | 'delete' | 'approve' = 'view'): Promise<boolean> => {
   try {
-    // Lấy session user từ localStorage trước
     const sessionUser = localStorage.getItem('sessionUser');
     let currentMsnv = null;
-    
     if (sessionUser) {
       try {
         const parsed = JSON.parse(sessionUser);
         currentMsnv = parsed.msnv;
-        console.log('📱 User from sessionStorage:', currentMsnv);
       } catch (e) {}
     }
-    
-    // Nếu không có trong session, thử lấy từ supabase auth
     if (!currentMsnv) {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) {
-        currentMsnv = user.email;
-      }
+      if (user?.email) currentMsnv = user.email;
     }
-    
-    console.log('🔍 Checking permission for MSNV:', currentMsnv, 'Action:', action);
-    
-    if (!currentMsnv) {
-      console.log('❌ No MSNV found');
-      return false;
-    }
-    
-    // Lấy role từ bảng users
+    if (!currentMsnv) return false;
+
     const { data: currentUser, error: userError } = await supabase
       .from('users')
       .select('role')
       .eq('msnv', currentMsnv)
       .maybeSingle();
-    
-    if (userError) {
-      console.error('Error fetching user role:', userError);
-    }
-    
-    console.log('👤 User role:', currentUser?.role);
-    
-    // Admin luôn có toàn quyền
-    if (currentUser?.role === 'admin') {
-      console.log('✅ Admin user - granted permission');
-      return true;
-    }
-    
-    // Lấy permissions từ bảng user_permissions
+    if (userError) console.error('Error fetching user role:', userError);
+    if (currentUser?.role === 'admin') return true;
+
     const { data: perm, error: permError } = await supabase
       .from('user_permissions')
       .select('can_view, can_add, can_edit, can_delete, can_approve, can_export')
       .eq('msnv', currentMsnv)
       .eq('module_key', 'nhat_ky_san_xuat')
       .maybeSingle();
-    
-    if (permError) {
-      console.error('Error fetching permissions:', permError);
-    }
-    
-    console.log('📋 User permissions:', perm);
-    
-    if (!perm) {
-      console.log('❌ No permissions found for user');
-      return false;
-    }
-    
+    if (permError) console.error('Error fetching permissions:', permError);
+    if (!perm) return false;
+
     switch (action) {
       case 'view': return perm.can_view === true;
       case 'add': return perm.can_add === true;
@@ -142,13 +110,10 @@ const checkPermission = async (action: 'view' | 'add' | 'edit' | 'delete' | 'app
   }
 };
 
-
-// ======================
-// HÀM CHUYỂN ĐỔI DỮ LIỆU
-// ======================
-
+// ====================== HÀM TIỆN ÍCH ======================
 const formatDate = (value: any) => {
   if (!value) return '';
+  // Nếu là số serial của Excel
   if (typeof value === 'number') {
     const excelDate = XLSX.SSF.parse_date_code(value);
     return `${String(excelDate.d).padStart(2, '0')}/${String(excelDate.m).padStart(2, '0')}/${excelDate.y}`;
@@ -156,8 +121,28 @@ const formatDate = (value: any) => {
   const str = String(value);
   if (str.includes('-')) {
     const parts = str.split('-');
+    if (parts.length === 3) return `${parts[2]}/${parts[1]}/${parts[0]}`;
+  }
+  return str;
+};
+
+// Chuyển đổi từ Excel serial sang YYYY-MM-DD
+const parseExcelDate = (value: any): string => {
+  if (!value) return '';
+  if (typeof value === 'number') {
+    // Excel serial date (days since 1900-01-01)
+    const date = new Date((value - 25569) * 86400 * 1000);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+  // Nếu là chuỗi, chuyển đổi từ dd/mm/yyyy sang yyyy-mm-dd
+  const str = String(value);
+  if (str.includes('/')) {
+    const parts = str.split('/');
     if (parts.length === 3) {
-      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+      return `${parts[2]}-${parts[1]}-${parts[0]}`;
     }
   }
   return str;
@@ -168,10 +153,7 @@ const formatCurrency = (value: number) => {
   return value.toLocaleString('vi-VN') + ' đ';
 };
 
-// ======================
-// COMPONENT CHÍNH
-// ======================
-
+// ====================== COMPONENT CHÍNH ======================
 export function ProductionReportPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -189,6 +171,12 @@ export function ProductionReportPage() {
   const [isImporting, setIsImporting] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+
+  // State cho duyệt hàng loạt
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectAll, setSelectAll] = useState(false);
+
   const [permissions, setPermissions] = useState({
     canView: true,
     canAdd: false,
@@ -198,7 +186,7 @@ export function ProductionReportPage() {
   });
   const [isCheckingPermission, setIsCheckingPermission] = useState(true);
 
-  // Kiểm tra quyền khi component mount
+  // Kiểm tra quyền khi mount
   useEffect(() => {
     const checkAccess = async () => {
       setIsCheckingPermission(true);
@@ -210,16 +198,7 @@ export function ProductionReportPage() {
           checkPermission('delete'),
           checkPermission('approve'),
         ]);
-        
-        console.log('✅ Final permissions:', { view, add, edit, del, approve });
-        
-        setPermissions({
-          canView: view,
-          canAdd: add,
-          canEdit: edit,
-          canDelete: del,
-          canApprove: approve,
-        });
+        setPermissions({ canView: view, canAdd: add, canEdit: edit, canDelete: del, canApprove: approve });
       } catch (error) {
         console.error('Error checking permissions:', error);
       } finally {
@@ -229,17 +208,15 @@ export function ProductionReportPage() {
     checkAccess();
   }, []);
 
-  // Tải dữ liệu - DÙNG TÊN CỘT CAMELCASE
+  // Tải dữ liệu
   const loadLogs = async () => {
     if (!permissions.canView) return;
-    
     setIsLoading(true);
     try {
       const { data, error } = await supabase
         .from('production_reports')
         .select('*')
         .order('ngayThang', { ascending: false });
-
       if (error) throw error;
       setLogs(data || []);
     } catch (error) {
@@ -256,30 +233,56 @@ export function ProductionReportPage() {
     }
   }, [isCheckingPermission, permissions.canView]);
 
-  // Kiểm tra quyền duyệt
-  const canApprove = (log: ProductionLog) => {
-    const userRole = user?.role || '';
-    const userName = user?.fullName || user?.name || '';
-    
-    if (userRole === 'admin' || userRole === 'quan_ly_xuong') return true;
-    if ((userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') && log.nguoiKiemTra === userName) return true;
-    return false;
+  // Hàm duyệt hàng loạt
+  const handleBatchApprove = async (newStatus: 'approved' | 'rejected') => {
+    const targetIds = selectAll ? new Set(logs.map(l => l.id)) : selectedIds;
+    if (targetIds.size === 0) {
+      toast.warning('Vui lòng chọn ít nhất một nhật ký');
+      return;
+    }
+    const pendingTargets = logs.filter(l => targetIds.has(l.id) && l.status === 'pending').map(l => l.id);
+    if (pendingTargets.length === 0) {
+      toast.warning('Không có nhật ký nào đang chờ duyệt trong số đã chọn');
+      return;
+    }
+    const confirmMsg = newStatus === 'approved'
+      ? `Bạn có chắc muốn duyệt ${pendingTargets.length} nhật ký?`
+      : `Bạn có chắc muốn từ chối ${pendingTargets.length} nhật ký?`;
+    if (!window.confirm(confirmMsg)) return;
+
+    setIsProcessing(true);
+    try {
+      const { error } = await supabase
+        .from('production_reports')
+        .update({ status: newStatus, updatedAt: new Date().toISOString() })
+        .in('id', pendingTargets);
+      if (error) throw error;
+      toast.success(`Đã ${newStatus === 'approved' ? 'duyệt' : 'từ chối'} ${pendingTargets.length} nhật ký`);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+      await loadLogs();
+    } catch (error) {
+      console.error('Batch update error:', error);
+      toast.error('Có lỗi xảy ra khi xử lý hàng loạt');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  // Hàm duyệt nhật ký
+  // Hàm duyệt từng dòng
   const handleApproveLog = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!permissions.canApprove && !canApprove(logs.find(l => l.id === id)!)) {
+    const log = logs.find(l => l.id === id);
+    if (!log) return;
+    if (!permissions.canApprove && !canApprove(log)) {
       toast.error('Bạn không có quyền duyệt nhật ký này');
       return;
     }
-    
     try {
       const { error } = await supabase
         .from('production_reports')
         .update({ status: 'approved', updatedAt: new Date().toISOString() })
         .eq('id', id);
-      
       if (error) throw error;
       toast.success('Đã duyệt nhật ký');
       await loadLogs();
@@ -289,16 +292,22 @@ export function ProductionReportPage() {
     }
   };
 
+  const canApprove = (log: ProductionLog) => {
+    const userRole = user?.role || '';
+    const userName = user?.fullName || user?.name || '';
+    if (userRole === 'admin' || userRole === 'quan_ly_xuong') return true;
+    if ((userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') && log.nguoiKiemTra === userName) return true;
+    return false;
+  };
+
   // CRUD Operations
   const handleAddLog = async (formData: any) => {
     if (!permissions.canAdd) {
       toast.error('Bạn không có quyền thêm nhật ký');
       return;
     }
-
     const { data: { user: authUser } } = await supabase.auth.getUser();
     const userId = authUser?.email || 'unknown';
-
     const newLog: Partial<ProductionLog> = {
       id: crypto.randomUUID(),
       ngayThang: formData.ngayThang,
@@ -322,7 +331,6 @@ export function ProductionReportPage() {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
-    
     try {
       const { error } = await supabase.from('production_reports').insert(newLog);
       if (error) throw error;
@@ -342,7 +350,6 @@ export function ProductionReportPage() {
       return;
     }
     if (!selectedLog) return;
-    
     const updatedLog: Partial<ProductionLog> = {
       ngayThang: formData.ngayThang,
       maySanXuat: formData.maySanXuat,
@@ -363,13 +370,11 @@ export function ProductionReportPage() {
       nguoiKiemTra: formData.nguoiKiemTra || selectedLog.nguoiKiemTra,
       updatedAt: new Date().toISOString()
     };
-    
     try {
       const { error } = await supabase
         .from('production_reports')
         .update(updatedLog)
         .eq('id', selectedLog.id);
-      
       if (error) throw error;
       toast.success('Cập nhật nhật ký thành công');
       setIsEditDialogOpen(false);
@@ -393,7 +398,6 @@ export function ProductionReportPage() {
       return;
     }
     if (!confirm('Bạn có chắc chắn muốn xóa nhật ký này?')) return;
-    
     setIsDeleting(true);
     try {
       const { error } = await supabase.from('production_reports').delete().eq('id', id);
@@ -408,13 +412,12 @@ export function ProductionReportPage() {
     }
   };
 
-  // IMPORT EXCEL
+  // ====================== IMPORT EXCEL (ĐÃ SỬA) ======================
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!permissions.canAdd) {
       toast.error('Bạn không có quyền thêm nhật ký');
       return;
     }
-    
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -423,32 +426,29 @@ export function ProductionReportPage() {
 
     reader.onload = async (evt) => {
       try {
-        const data = evt.target?.result;
-        const workbook = XLSX.read(data, { type: 'binary' });
+        const data = evt.target?.result as ArrayBuffer;
+        const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
         const sheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json<any>(sheet);
 
         const { data: { user: authUser } } = await supabase.auth.getUser();
-        const userId = authUser?.email || 'unknown';
         let addedCount = 0;
 
         for (let i = 0; i < json.length; i++) {
           const row = json[i];
           try {
-            let ngayThang = row['Ngày'] || '';
-            if (ngayThang) {
-              const parts = ngayThang.toString().split('/');
-              if (parts.length === 3) {
-                ngayThang = `${parts[2]}-${parts[1]}-${parts[0]}`;
-              }
-            }
-            
-            const maySanXuat = row['Máy Sản Xuất'] || row['Máy'] || '';
-            const duAn = row['Dự án'] || row['Mã dự án'] || '';
+            // --- Đọc các cột theo tên mới ---
+            let ngayThangRaw = row['Ngày'] || '';
+            // Chuyển đổi ngày tháng từ Excel
+            const ngayThang = parseExcelDate(ngayThangRaw);
+
+            const maySanXuat = row['Máy Sản Xuất'] || '';
+            const duAn = row['Dự án'] || '';
             const khach_hang = row['Tên dự án'] || '';
             const banVeSo = row['Bản Vẽ Số'] || '';
-            const tenChiTiet = row['Tên Chi Tiết'] || '';
+            const chiTietSo = row['Chi Tiết Số'] || '';
+            const tenChiTiet = chiTietSo; // hoặc có thể lấy từ cột khác
             const noiDungGiaCong = row['Nội dung Gia Công'] || '';
             const soLuongHoanThanh = Number(row['SL HT'] || 0);
             const vatLieu = row['Vật Liệu'] || '';
@@ -456,10 +456,12 @@ export function ProductionReportPage() {
             const ca = row['CA'] || '';
             const nguoiVanHanh = row['Người vận hành (MSNV)'] || '';
             const nguoiKiemTra = row['Người kiểm tra'] || '';
-            
+
+            // Đọc chi phí (nếu có) từ các cột khác, nếu không có thì để 0
             const cpMay = Number(String(row['Chi phí chạy máy (VND)'] || 0).replace(/[^0-9]/g, ''));
             const cpDaoCu = Number(String(row['Chi phí dao cụ (VND)'] || 0).replace(/[^0-9]/g, ''));
-            
+
+            // Xử lý toolEntries
             const toolEntries = [];
             if (row['Tên dao']) {
               toolEntries.push({
@@ -468,11 +470,13 @@ export function ProductionReportPage() {
                 slSuDung: Number(row['sử dụng'] || 0),
                 hong: Number(row['Hỏng'] || 0),
                 donVi: row['ĐV'] || 'cái',
-                donGia: cpDaoCu / (Number(row['sử dụng'] || 1)),
+                donGia: cpDaoCu / (Number(row['sử dụng'] || 1) || 1),
                 thanhTien: cpDaoCu,
               });
             }
-            
+
+            // Bỏ qua các cột không có trong bảng: Kích thước, TG BĐ gá, TG KT gá, Tổng TG gá (h), TG BĐ chạy, TG KT chạy, Tổng TG chạy (h)
+
             if (duAn && ngayThang) {
               const { error } = await supabase.from('production_reports').insert({
                 id: crypto.randomUUID(),
@@ -481,7 +485,7 @@ export function ProductionReportPage() {
                 duAn,
                 khach_hang,
                 banVeSo,
-                chiTietSo: nguyenCongSo,
+                chiTietSo,
                 tenChiTiet,
                 noiDungGiaCong,
                 soLuongHoanThanh,
@@ -510,7 +514,6 @@ export function ProductionReportPage() {
         } else {
           toast.error('Không có dữ liệu hợp lệ');
         }
-        
       } catch (error) {
         console.error('Import error:', error);
         toast.error('Lỗi xử lý file Excel');
@@ -519,12 +522,15 @@ export function ProductionReportPage() {
         event.target.value = '';
       }
     };
-    
-    reader.readAsBinaryString(file);
+    reader.readAsArrayBuffer(file);
   };
 
-  // Export Excel
+  // ====================== EXPORT EXCEL ======================
   const handleExportExcel = () => {
+    if (logs.length === 0) {
+      toast.warning('Không có dữ liệu để xuất');
+      return;
+    }
     const exportData = logs.map(log => ({
       'Ngày': formatDate(log.ngayThang),
       'Máy Sản Xuất': log.maySanXuat,
@@ -537,7 +543,6 @@ export function ProductionReportPage() {
       'Chi phí dao': formatCurrency(log.cpDaoCu),
       'Trạng thái': log.status === 'approved' ? 'Đã duyệt' : log.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt',
     }));
-    
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'NhatKySanXuat');
@@ -545,7 +550,7 @@ export function ProductionReportPage() {
     toast.success('Xuất Excel thành công');
   };
 
-  // Download template
+  // ====================== DOWNLOAD TEMPLATE ======================
   const handleDownloadTemplate = () => {
     const template = [{
       'Ngày': '15/11/2024',
@@ -553,8 +558,9 @@ export function ProductionReportPage() {
       'Dự án': 'DA001',
       'Tên dự án': 'Dự án A',
       'Bản Vẽ Số': 'BV-001',
-      'Tên Chi Tiết': 'Chi tiết 1',
+      'Chi Tiết Số': 'CT-001',
       'Nội dung Gia Công': 'Gia công thô',
+      'Kích thước': '100x200x50',
       'SL HT': 100,
       'Vật Liệu': 'Thép SS400',
       'NC Số': 'NC001',
@@ -563,13 +569,18 @@ export function ProductionReportPage() {
       'sử dụng': 2,
       'Hỏng': 0,
       'ĐV': 'cái',
+      'TG BĐ gá': '08:00',
+      'TG KT gá': '08:30',
+      'Tổng TG gá (h)': 0.5,
+      'TG BĐ chạy': '08:30',
+      'TG KT chạy': '10:30',
+      'Tổng TG chạy (h)': 2,
       'CA': 'Ca 1',
       'Người vận hành (MSNV)': 'NV001',
       'Người kiểm tra': 'NV002',
       'Chi phí chạy máy (VND)': 3000000,
       'Chi phí dao cụ (VND)': 700000,
     }];
-    
     const ws = XLSX.utils.json_to_sheet(template);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Mau_Nhap_Nhat_Ky');
@@ -577,6 +588,7 @@ export function ProductionReportPage() {
     toast.success('Đã tải file mẫu');
   };
 
+  // ====================== FILTER & STATS ======================
   const filteredLogs = useMemo(() => {
     return logs.filter(log => {
       const searchMatch = !searchTerm || 
@@ -584,13 +596,11 @@ export function ProductionReportPage() {
         log.khach_hang?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         log.maySanXuat?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (log.toolEntries?.some(tool => tool.tenDao?.toLowerCase().includes(searchTerm.toLowerCase())));
-      
       const statusMatch = statusFilter === 'all' || log.status === statusFilter;
       const logDate = new Date(log.ngayThang);
       const startDate = dateFilterStart ? new Date(dateFilterStart) : null;
       const endDate = dateFilterEnd ? new Date(dateFilterEnd) : null;
       const dateMatch = (!startDate || logDate >= startDate) && (!endDate || logDate <= endDate);
-      
       return searchMatch && statusMatch && dateMatch;
     });
   }, [logs, searchTerm, statusFilter, dateFilterStart, dateFilterEnd]);
@@ -619,7 +629,25 @@ export function ProductionReportPage() {
     setShowFilters(false);
   };
 
-  // Hiển thị loading khi đang kiểm tra quyền
+  // Checkbox handlers
+  const toggleSelectItem = (id: string) => {
+    const newSelected = new Set(selectedIds);
+    if (newSelected.has(id)) newSelected.delete(id);
+    else newSelected.add(id);
+    setSelectedIds(newSelected);
+    setSelectAll(false);
+  };
+
+  const toggleSelectAll = () => {
+    if (selectAll) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredLogs.filter(l => l.status === 'pending').map(l => l.id)));
+    }
+    setSelectAll(!selectAll);
+  };
+
+  // ====================== RENDER ======================
   if (isCheckingPermission) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -627,8 +655,6 @@ export function ProductionReportPage() {
       </div>
     );
   }
-
-  // Hiển thị thông báo nếu không có quyền
   if (!permissions.canView) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
@@ -638,7 +664,6 @@ export function ProductionReportPage() {
           </div>
           <h2 className="text-xl font-semibold text-gray-700 mb-2">Không có quyền truy cập</h2>
           <p className="text-gray-500">Bạn không có quyền xem nhật ký sản xuất</p>
-          <p className="text-gray-400 text-sm mt-2">Vui lòng liên hệ quản trị viên để được cấp quyền</p>
           <Button className="mt-4" onClick={() => navigate('/trang-chu')}>Về trang chủ</Button>
         </div>
       </div>
@@ -782,10 +807,54 @@ export function ProductionReportPage() {
           </CardHeader>
           
           <CardContent className="p-0">
+            {/* Batch action bar */}
+            {permissions.canApprove && logs.some(l => l.status === 'pending') && (
+              <div className="flex items-center gap-4 px-6 py-3 bg-amber-50 border-b border-amber-200 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700">
+                    Chọn tất cả {filteredLogs.filter(l => l.status === 'pending').length} đang chờ
+                  </span>
+                  {selectedIds.size > 0 && (
+                    <span className="text-xs text-blue-600 ml-2">Đã chọn {selectedIds.size}</span>
+                  )}
+                </div>
+                <div className="flex gap-2 ml-auto">
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => handleBatchApprove('approved')}
+                    disabled={isProcessing || selectedIds.size === 0}
+                  >
+                    <CheckSquare className="h-4 w-4 mr-2" />
+                    Duyệt tất cả
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleBatchApprove('rejected')}
+                    disabled={isProcessing || selectedIds.size === 0}
+                  >
+                    <XSquare className="h-4 w-4 mr-2" />
+                    Từ chối tất cả
+                  </Button>
+                </div>
+              </div>
+            )}
+
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50 border-b-2 border-gray-200">
+                    {permissions.canApprove && (
+                      <TableHead className="w-10">
+                        <input
+                          type="checkbox"
+                          checked={selectAll}
+                          onChange={toggleSelectAll}
+                          className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-700"
+                        />
+                      </TableHead>
+                    )}
                     <TableHead className="font-semibold text-gray-700">Ngày</TableHead>
                     <TableHead className="font-semibold text-gray-700">Máy Sản Xuất</TableHead>
                     <TableHead className="font-semibold text-gray-700">Mã Dự Án</TableHead>
@@ -801,7 +870,7 @@ export function ProductionReportPage() {
                 <TableBody>
                   {filteredLogs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-12">
+                      <TableCell colSpan={11} className="text-center py-12">
                         <div className="flex flex-col items-center gap-3 text-gray-400">
                           <FileSpreadsheet className="w-12 h-12" />
                           <p className="text-lg">Chưa có dữ liệu</p>
@@ -814,7 +883,7 @@ export function ProductionReportPage() {
                       const canEdit = (log.status !== 'approved' || user?.role === 'admin') && permissions.canEdit;
                       const canDelete = (log.status !== 'approved' || user?.role === 'admin') && permissions.canDelete;
                       const showApprove = log.status === 'pending' && (permissions.canApprove || canApprove(log));
-                      
+                      const isSelected = selectedIds.has(log.id);
                       const daoList = log.toolEntries?.map(t => t.tenDao).join(', ') || '';
                       
                       return (
@@ -826,6 +895,17 @@ export function ProductionReportPage() {
                             setIsViewDialogOpen(true);
                           }}
                         >
+                          {permissions.canApprove && (
+                            <TableCell onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelectItem(log.id)}
+                                className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
+                                disabled={log.status !== 'pending'}
+                              />
+                            </TableCell>
+                          )}
                           <TableCell className="font-medium">{formatDate(log.ngayThang)}</TableCell>
                           <TableCell><Badge variant="outline" className="bg-gray-50 max-w-[150px] truncate">{log.maySanXuat}</Badge></TableCell>
                           <TableCell><code className="px-2 py-1 bg-blue-50 text-blue-700 rounded text-xs font-mono font-semibold">{log.duAn}</code></TableCell>
@@ -858,7 +938,7 @@ export function ProductionReportPage() {
                             </div>
                           </TableCell>
                         </TableRow>
-                      )
+                      );
                     })
                   )}
                 </TableBody>
@@ -878,77 +958,144 @@ export function ProductionReportPage() {
           </CardContent>
         </Card>
 
-        {/* View Dialog - Chi tiết */}
-        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader className="flex flex-row items-center justify-between">
-              <DialogTitle>CHI TIẾT NHẬT KÝ SẢN XUẤT</DialogTitle>
-            </DialogHeader>
-            
-            {selectedLog && (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <div className="flex"><span className="w-32 text-gray-600">Ngày tháng:</span><span className="font-medium">{formatDate(selectedLog.ngayThang)}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Máy Sản Xuất:</span><span className="font-medium">{selectedLog.maySanXuat || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Mã Dự Án:</span><span className="font-medium text-blue-600">{selectedLog.duAn || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Tên Dự Án:</span><span className="font-medium">{selectedLog.khach_hang || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Bản Vẽ Số:</span><span>{selectedLog.banVeSo || '---'}</span></div>
-                  </div>
-                  <div className="space-y-2">
-                    <div className="flex"><span className="w-32 text-gray-600">Tên Chi Tiết:</span><span>{selectedLog.tenChiTiet || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Nội dung Gia Công:</span><span>{selectedLog.noiDungGiaCong || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Vật Liệu:</span><span>{selectedLog.vatLieu || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Người Vận Hành:</span><span>{selectedLog.nguoiVanHanh || '---'}</span></div>
-                    <div className="flex"><span className="w-32 text-gray-600">Người Kiểm Tra:</span><span>{selectedLog.nguoiKiemTra || '---'}</span></div>
-                  </div>
-                </div>
+       {/* View Dialog */}
+<Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+  <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+    <DialogHeader>
+      <DialogTitle className="text-xl font-bold text-gray-800">CHI TIẾT NHẬT KÝ SẢN XUẤT</DialogTitle>
+    </DialogHeader>
+    {selectedLog && (
+      <div className="space-y-6">
+        {/* Thông tin chung */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
+          <div className="space-y-2">
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Ngày tháng:</span><span className="font-medium">{formatDate(selectedLog.ngayThang)}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Máy Sản Xuất:</span><span className="font-medium">{selectedLog.maySanXuat || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Mã Dự Án:</span><span className="font-medium text-blue-600">{selectedLog.duAn || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Tên Dự Án:</span><span className="font-medium">{selectedLog.khach_hang || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Bản Vẽ Số:</span><span>{selectedLog.banVeSo || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Ca:</span><span>{selectedLog.ca || '---'}</span></div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Tên Chi Tiết:</span><span>{selectedLog.tenChiTiet || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Nội dung Gia Công:</span><span>{selectedLog.noiDungGiaCong || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Vật Liệu:</span><span>{selectedLog.vatLieu || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Số NC:</span><span>{selectedLog.nguyenCongSo || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Người Vận Hành:</span><span>{selectedLog.nguoiVanHanh || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Người Kiểm Tra:</span><span>{selectedLog.nguoiKiemTra || '---'}</span></div>
+            <div className="flex"><span className="w-32 text-gray-600 font-medium">Số lượng HT:</span><span className="font-bold text-blue-700">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</span></div>
+          </div>
+        </div>
 
-                <div className="grid grid-cols-3 gap-4 border-t pt-4">
-                  <div className="text-center"><p className="text-gray-600 text-sm">Số lượng</p><p className="text-xl font-bold">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</p></div>
-                  <div className="text-center"><p className="text-gray-600 text-sm">Chi phí máy</p><p className="text-xl font-bold">{formatCurrency(selectedLog.cpMay)}</p></div>
-                  <div className="text-center"><p className="text-gray-600 text-sm">Chi phí dao</p><p className="text-xl font-bold">{formatCurrency(selectedLog.cpDaoCu)}</p></div>
-                </div>
+        {/* Thời gian gá phôi và gia công */}
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+    <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+      <span className="text-lg">🔧</span> Thời gian gá phôi
+    </h4>
+    <div className="space-y-2 text-sm">
+      <div className="flex justify-between items-center border-b border-blue-100 pb-1">
+        <span className="text-gray-600">Giờ bắt đầu:</span>
+        <span className="font-medium">
+          {selectedLog.setup_time_entries?.[0]?.start || 
+           selectedLog.tgGia_BatDau || '---'}
+        </span>
+      </div>
+      <div className="flex justify-between items-center border-b border-blue-100 pb-1">
+        <span className="text-gray-600">Giờ kết thúc:</span>
+        <span className="font-medium">
+          {selectedLog.setup_time_entries?.[0]?.end || 
+           selectedLog.tgGia_KetThuc || '---'}
+        </span>
+      </div>
+      <div className="flex justify-between items-center">
+        <span className="text-gray-600">Số giờ:</span>
+        <span className="font-medium text-blue-700">
+          {selectedLog.setup_time_entries?.[0]?.hours || 
+           selectedLog.soGioGia || '---'}
+        </span>
+      </div>
+    </div>
+  </div>
 
-                {selectedLog.toolEntries && selectedLog.toolEntries.length > 0 && (
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold mb-2">Thông tin Dao Cụ</h3>
-                    <div className="overflow-x-auto">
-                      <Table className="text-sm">
-                        <TableHeader>
-                          <TableRow className="bg-gray-50">
-                            <TableHead>Tên Dao</TableHead>
-                            <TableHead className="text-center">SL Cấp</TableHead>
-                            <TableHead className="text-center">SL Sử Dụng</TableHead>
-                            <TableHead className="text-center">SL Hỏng</TableHead>
-                            <TableHead>Đơn Vị</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedLog.toolEntries.map((tool, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell className="font-medium">{tool.tenDao}</TableCell>
-                              <TableCell className="text-center">{tool.slCap}</TableCell>
-                              <TableCell className="text-center">{tool.slSuDung}</TableCell>
-                              <TableCell className="text-center">{tool.hong}</TableCell>
-                              <TableCell>{tool.donVi}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </div>
-                )}
+  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+    <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+      <span className="text-lg">⚙️</span> Thời gian gia công
+    </h4>
+    <div className="space-y-2 text-sm">
+      <div className="flex justify-between items-center border-b border-green-100 pb-1">
+        <span className="text-gray-600">Giờ bắt đầu:</span>
+        <span className="font-medium">
+          {selectedLog.work_time_entries?.[0]?.start || 
+           selectedLog.tgChay_BatDau || '---'}
+        </span>
+      </div>
+      <div className="flex justify-between items-center border-b border-green-100 pb-1">
+        <span className="text-gray-600">Giờ kết thúc:</span>
+        <span className="font-medium">
+          {selectedLog.work_time_entries?.[0]?.end || 
+           selectedLog.tgChay_KetThuc || '---'}
+        </span>
+      </div>
+      <div className="flex justify-between items-center">
+        <span className="text-gray-600">Số giờ:</span>
+        <span className="font-medium text-green-700">
+          {selectedLog.work_time_entries?.[0]?.hours || 
+           selectedLog.soGioChay || '---'}
+        </span>
+      </div>
+    </div>
+  </div>
+</div>
 
-                <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
-                  <div>Trạng thái: {getStatusBadge(selectedLog.status)}</div>
-                  <div>Ngày tạo: {new Date(selectedLog.createdAt).toLocaleString('vi-VN')}</div>
-                </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+        {/* Bảng dao cụ chi tiết (đã bỏ cột đơn giá, thành tiền) */}
+        {selectedLog.toolEntries && selectedLog.toolEntries.length > 0 && (
+          <div className="border-t pt-4">
+            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+              <span>🔩 Thông tin Dao Cụ</span>
+              <Badge variant="outline" className="ml-2">
+                {selectedLog.toolEntries.length} loại
+              </Badge>
+            </h3>
+            <div className="overflow-x-auto border rounded-lg">
+              <Table className="text-sm">
+                <TableHeader>
+                  <TableRow className="bg-gray-100">
+                    <TableHead className="font-semibold">Tên Dao</TableHead>
+                    <TableHead className="text-center font-semibold">SL Cấp</TableHead>
+                    <TableHead className="text-center font-semibold">SL Sử Dụng</TableHead>
+                    <TableHead className="text-center font-semibold">SL Hỏng</TableHead>
+                    <TableHead className="text-center font-semibold">Đơn Vị</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedLog.toolEntries.map((tool, idx) => (
+                    <TableRow key={idx} className="hover:bg-gray-50">
+                      <TableCell className="font-medium">{tool.tenDao}</TableCell>
+                      <TableCell className="text-center">{tool.slCap}</TableCell>
+                      <TableCell className="text-center">{tool.slSuDung}</TableCell>
+                      <TableCell className="text-center">{tool.hong}</TableCell>
+                      <TableCell className="text-center">{tool.donVi}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        )}
 
+        {/* Footer */}
+        <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
+          <div className="flex items-center gap-2">
+            <span>Trạng thái:</span>
+            {getStatusBadge(selectedLog.status)}
+          </div>
+          <div>Ngày tạo: {new Date(selectedLog.createdAt).toLocaleString('vi-VN')}</div>
+        </div>
+      </div>
+    )}
+  </DialogContent>
+</Dialog>
         {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">

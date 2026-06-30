@@ -38,7 +38,7 @@ const Header: React.FC = () => {
     }
   }, []);
 
-  const userName = useMemo(() => user?.name || user?.fullName || 'User', [user?.name, user?.fullName]);
+  const userName = useMemo(() => user?.name || user?.fullName || user?.full_name || user?.ho_ten || 'User', [user?.name, user?.fullName, user?.full_name, user?.ho_ten]);
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200 px-6 py-4">

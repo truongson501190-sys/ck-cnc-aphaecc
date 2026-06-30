@@ -1,3 +1,4 @@
+// src/App.tsx
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './supabase';
@@ -7,6 +8,7 @@ import ProtectedRoute from '@/shared/layout/ProtectedRoute';
 import Layout from '@/components/Layout';
 import LoginPage from './pages/LoginPage';
 import Index from './pages/Index';
+import { WarehouseReport } from '@/modules/warehouse/WarehouseReport';
 import { UserManagement } from './pages/UserManagement';
 import { NhapKho, XuatKho, ChuyenKho, XuatDau, InventoryCount, StockCard, TransactionHistory } from '@/modules/warehouse';
 import {
@@ -18,7 +20,6 @@ import {
   MachinePerformancePage,
   PendingApprovalList,
   QCReport,
-  WarehouseReport,
   DashboardSummary,
 } from '@/modules/reports';
 import { ProductionPlan, ProgressTracking } from '@/modules/manufacturing';
@@ -68,6 +69,8 @@ const App: React.FC = () => (
                     </ProtectedRoute>
                   }
                 />
+                
+                {/* 👤 Quản lý người dùng - Chỉ Admin */}
                 <Route
                   path={ERP_ROUTE.system.users}
                   element={
@@ -77,20 +80,21 @@ const App: React.FC = () => (
                   }
                 />
 
-                {/* Master Data — Independent Entities */}
+                {/* ============================================================ */}
+                {/* 🗂 QUẢN LÝ DANH MỤC - SỬA: BỎ requiredRole="admin" */}
+                {/* ============================================================ */}
                 <Route
                   path={ERP_ROUTE.masterData.categories}
                   element={
-                    <ProtectedRoute requiredRole="admin">
+                    <ProtectedRoute requiredModule="chung_loai">
                       <CategoriesPage />
                     </ProtectedRoute>
                   }
                 />
-
                 <Route
                   path={ERP_ROUTE.masterData.locations}
                   element={
-                    <ProtectedRoute requiredRole="admin">
+                    <ProtectedRoute requiredModule="kho">
                       <WarehousesPage />
                     </ProtectedRoute>
                   }
@@ -98,7 +102,7 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.masterData.machines}
                   element={
-                    <ProtectedRoute requiredRole="admin">
+                    <ProtectedRoute requiredModule="may_moc">
                       <MachinesPage />
                     </ProtectedRoute>
                   }
@@ -106,14 +110,13 @@ const App: React.FC = () => (
                 <Route
                   path={ERP_ROUTE.masterData.projects}
                   element={
-                    <ProtectedRoute requiredRole="admin">
+                    <ProtectedRoute requiredModule="du_an">
                       <ProjectsPage />
                     </ProtectedRoute>
                   }
                 />
 
-
-                {/* Warehouse Management System (WMS) */}
+                {/* 📦 Warehouse Management System (WMS) */}
                 <Route
                   path={ERP_ROUTE.warehouse.import}
                   element={
@@ -171,7 +174,7 @@ const App: React.FC = () => (
                   }
                 />
 
-                {/* Manufacturing — Daily Operational Logs */}
+                {/* 🏭 Manufacturing — Daily Operational Logs */}
                 <Route
                   path={ERP_ROUTE.manufacturing.machiningLog}
                   element={
@@ -213,7 +216,7 @@ const App: React.FC = () => (
                   }
                 />
 
-                {/* Reports — Analytics & Dashboards Only */}
+                {/* 📊 Reports — Analytics & Dashboards Only */}
                 <Route
                   path={ERP_ROUTE.reports.summary}
                   element={
@@ -239,37 +242,37 @@ const App: React.FC = () => (
                   }
                 />
                 <Route
-                    path={ERP_ROUTE.reports.machining.production}
-                    element={
-                      <ProtectedRoute requiredModule="bao_cao_gia_cong">
-                        <ProductionSummary />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path={ERP_ROUTE.reports.machining.tools}
-                    element={
-                      <ProtectedRoute requiredModule="bao_cao_gia_cong">
-                        <ToolsUsage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path={ERP_ROUTE.reports.machining.damage}
-                    element={
-                      <ProtectedRoute requiredModule="bao_cao_gia_cong">
-                        <ToolsDamage />
-                      </ProtectedRoute>
-                    }
-                  />
-                  <Route
-                    path={ERP_ROUTE.reports.machining.cost}
-                    element={
-                      <ProtectedRoute requiredModule="bao_cao_gia_cong">
-                        <CostBreakdown />
-                      </ProtectedRoute>
-                    }
-                  />
+                  path={ERP_ROUTE.reports.machining.production}
+                  element={
+                    <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                      <ProductionSummary />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ERP_ROUTE.reports.machining.tools}
+                  element={
+                    <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                      <ToolsUsage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ERP_ROUTE.reports.machining.damage}
+                  element={
+                    <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                      <ToolsDamage />
+                    </ProtectedRoute>
+                  }
+                />
+                <Route
+                  path={ERP_ROUTE.reports.machining.cost}
+                  element={
+                    <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                      <CostBreakdown />
+                    </ProtectedRoute>
+                  }
+                />
                 <Route
                   path={ERP_ROUTE.reports.qc}
                   element={
@@ -297,8 +300,6 @@ const App: React.FC = () => (
                     </ProtectedRoute>
                   }
                 />
-                
-                {/* 1. ĐỊNH TUYẾN GỐC CHO NÚT "CHỜ DUYỆT" */}
                 <Route
                   path={ERP_ROUTE.reports.pendingApproval}
                   element={
@@ -308,7 +309,7 @@ const App: React.FC = () => (
                   }
                 />
 
-                {/* ⚡ BẪY TẤT CẢ ĐƯỜNG DẪN SAI CỦA NÚT MÀU TÍM TRÊN MÀN HÌNH DASHBOARD ĐỂ ĐẨY VỀ ĐÚNG TRANG TRÊN */}
+                {/* ⚡ Redirects */}
                 <Route path="/pending-approval" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
                 <Route path="/pending" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
                 <Route path="/reports/pending" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
@@ -317,9 +318,7 @@ const App: React.FC = () => (
                 <Route path="/cho-duyet" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
                 <Route path="/reports/cho-duyet" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
 
-
-
-                {/* System & Account Security */}
+                {/* ⚙ System & Account Security - Chỉ Admin */}
                 <Route
                   path={ERP_ROUTE.system.roles}
                   element={
@@ -352,6 +351,8 @@ const App: React.FC = () => (
                     </ProtectedRoute>
                   }
                 />
+
+                {/* 👤 Tài khoản */}
                 <Route
                   path={ERP_ROUTE.account.profile}
                   element={

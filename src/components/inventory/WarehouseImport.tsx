@@ -1,445 +1,340 @@
+// src/modules/warehouse/components/WarehouseImport.tsx
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { DateInput } from '@/components/ui/DateInput';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { CalendarIcon, Package, Plus } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { toast } from 'sonner';
+import { Plus, Trash2 } from 'lucide-react';
+import { WarehouseTransaction } from '@/types/inventory';
+import { useAuth } from '@/contexts/AuthContext';
+import { Category, Warehouse, Employee } from '@/types/categories';
+import { getSavedCategories } from '@/lib/utils';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Combobox } from '@/components/ui/combobox';
+import { getSystemUsers, type SystemUser } from '@/hooks/useSystemUsers';
 import { format } from 'date-fns';
-import { vi } from 'date-fns/locale';
-import { cn, getSavedCategories } from '@/lib/utils';
-import { Category, Warehouse, User } from '@/types/categories';
 
-interface ImportItem {
-  id: string;
-  chungLoaiId: string;
-  tenChungLoai: string;
-  donVi: string;
-  soLuong: number;
-  donGia: number;
-  thanhTien: number;
-  ghiChu: string;
+interface WarehouseImportProps {
+  onSubmit?: (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => void | Promise<void>;
 }
 
-export function WarehouseImport() {
+export function WarehouseImport({ onSubmit }: WarehouseImportProps) {
+  const { user } = useAuth();
+  
   const [categories, setCategories] = useState<Category[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
-  const [items, setItems] = useState<ImportItem[]>([]);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [formData, setFormData] = useState({
-    soPhieu: '',
-    nguoiNhap: '',
-    khoNhap: '',
-    nhaCungCap: '',
-    ghiChu: ''
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>([]);
+  const [isAddCategoryOpen, setIsAddCategoryOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState({ tenChungLoai: '', donVi: '', gia: '' });
+  
+  // Header fields
+  const [soPhieu, setSoPhieu] = useState('');
+  const [ngayNhap, setNgayNhap] = useState(new Date().toISOString().split('T')[0]);
+  const [khoNhap, setKhoNhap] = useState('');
+  const [nguoiNhap, setNguoiNhap] = useState('');
+  const [nhaCungCap, setNhaCungCap] = useState('');
+  const [ghiChu, setGhiChu] = useState('');
+  
+  // Main item (dòng đầu)
+  const [mainItem, setMainItem] = useState({
+    chungLoai: '',
+    soLuong: '',
+    donVi: '',
+    donGia: '',
+    thanhTien: '0'
   });
+
+  const [extraItems, setExtraItems] = useState<Array<{ id: string; chungLoai: string; soLuong: string; donVi: string; donGia: string; thanhTien: string }>>([]);
+
+  const generatePhieuNumber = () => {
+    const dateStr = format(new Date(), 'yyyyMMdd');
+    const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `NK${dateStr}${randomNum}`;
+  };
 
   useEffect(() => {
     loadData();
-    generatePhieuNumber();
+    setSoPhieu(generatePhieuNumber());
+  }, []);
+
+  useEffect(() => {
+    const handleFocus = () => loadData();
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
   }, []);
 
   const loadData = () => {
     try {
-      // Load categories using the shared utility
       setCategories(getSavedCategories());
+      setSystemUsers(getSystemUsers());
 
-      // Load warehouses from multiple possible sources
       const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
       if (savedWarehouses) {
         const parsed = JSON.parse(savedWarehouses);
         if (Array.isArray(parsed)) {
-          setWarehouses(parsed.map((w: any) => ({
-            id: w.id || w.maKho || w.tenKho,
+          setWarehouses(parsed.map(w => ({
+            id: w.id || `${w.maKho || w.tenKho}-${Math.random().toString(36).slice(2, 8)}`,
             tenKho: w.tenKho,
-            maKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
-            loaiKho: w.maKho || w.loaiKho || w.maKho || w.tenKho,
-            diaChi: w.diaChi || '',
+            loaiKho: w.maKho || w.loaiKho || w.tenKho,
+            diaChi: w.diaChi,
             createdAt: w.createdAt || new Date().toISOString()
           })));
         }
       }
 
-      // Load users
-      const savedUsers = localStorage.getItem('users');
-      if (savedUsers) {
-        setUsers(JSON.parse(savedUsers));
+      const savedEmployees = localStorage.getItem('employees');
+      if (savedEmployees) {
+        const parsed = JSON.parse(savedEmployees);
+        if (Array.isArray(parsed)) setEmployees(parsed);
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      setCategories([]);
-      setWarehouses([]);
-      setUsers([]);
     }
   };
 
-  const generatePhieuNumber = () => {
-    const today = new Date();
-    const dateStr = format(today, 'yyyyMMdd');
-    const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    setFormData(prev => ({
-      ...prev,
-      soPhieu: `NK${dateStr}${randomNum}`
-    }));
+  const findCategoryByValue = (value: string) => {
+    return categories.find(cat =>
+      cat.maLoai === value || cat.maChungLoai === value || cat.id === value ||
+      cat.tenLoai === value || cat.tenChungLoai === value
+    );
   };
 
-  const addNewItem = () => {
-    const newItem: ImportItem = {
-      id: Date.now().toString(),
-      chungLoaiId: '',
-      tenChungLoai: '',
-      donVi: '',
-      soLuong: 0,
-      donGia: 0,
-      thanhTien: 0,
-      ghiChu: ''
-    };
-    setItems([...items, newItem]);
-  };
-
-  const updateItem = (id: string, field: keyof ImportItem, value: any) => {
-    setItems(items.map(item => {
-      if (item.id === id) {
-        const updatedItem = { ...item, [field]: value };
-        
-        // If category is selected or typed, auto-fill related fields
-        if (field === 'chungLoaiId') {
-          const selectedCategory = categories.find(cat => 
-            cat.id === value || 
-            cat.tenChungLoai === value || 
-            cat.tenLoai === value ||
-            cat.maLoai === value
-          );
-          if (selectedCategory) {
-            updatedItem.tenChungLoai = selectedCategory.tenChungLoai || selectedCategory.tenLoai || '';
-            updatedItem.donVi = selectedCategory.donVi || '';
-            updatedItem.donGia = selectedCategory.gia ?? 0;
-            updatedItem.chungLoaiId = selectedCategory.id; // Set to id for consistency
-          } else {
-            // Custom input
-            updatedItem.tenChungLoai = String(value || '');
-            updatedItem.chungLoaiId = String(value || ''); // Keep as name for custom
-          }
-        }
-        
-        // Recalculate total when quantity or price changes
-        if (field === 'soLuong' || field === 'donGia') {
-          updatedItem.thanhTien = (updatedItem.soLuong || 0) * (updatedItem.donGia || 0);
-        }
-        
-        return updatedItem;
-      }
-      return item;
-    }));
-  };
-
-  const removeItem = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (items.length === 0) {
-      alert('Vui lòng thêm ít nhất một mặt hàng');
+  const handleAddCategory = () => {
+    if (!newCategory.tenChungLoai || !newCategory.donVi) {
+      toast.error('Vui lòng nhập tên và đơn vị');
       return;
     }
 
-    const importData = {
-      ...formData,
-      ngayNhap: selectedDate.toISOString(),
-      items: items,
-      tongTien: items.reduce((sum, item) => sum + item.thanhTien, 0),
+    const categoryToAdd: Category = {
+      id: Date.now().toString(),
+      maLoai: Date.now().toString(),
+      tenLoai: newCategory.tenChungLoai,
+      tenChungLoai: newCategory.tenChungLoai,
+      donVi: newCategory.donVi,
+      gia: parseFloat(newCategory.gia) || 0,
       createdAt: new Date().toISOString()
     };
 
-    // Save to localStorage
-    try {
-      const existingImports = JSON.parse(localStorage.getItem('warehouseImports') || '[]');
-      existingImports.push(importData);
-      localStorage.setItem('warehouseImports', JSON.stringify(existingImports));
-      
-      alert('Lưu phiếu nhập kho thành công!');
-      
-      // Reset form
-      setItems([]);
-      generatePhieuNumber();
-      setFormData({
-        soPhieu: formData.soPhieu,
-        nguoiNhap: '',
-        khoNhap: '',
-        nhaCungCap: '',
-        ghiChu: ''
-      });
-    } catch (error) {
-      alert('Có lỗi xảy ra khi lưu phiếu nhập kho');
+    const updated = [...categories, categoryToAdd];
+    setCategories(updated);
+    localStorage.setItem('category_items', JSON.stringify(updated.map(cat => ({
+      id: cat.id,
+      maChungLoai: cat.maLoai,
+      tenChungLoai: cat.tenLoai,
+      donViTinh: cat.donVi,
+      donGia: cat.gia || '0'
+    }))));
+    
+    setMainItem(prev => ({ ...prev, chungLoai: categoryToAdd.maLoai || '', donVi: categoryToAdd.donVi || '', donGia: (categoryToAdd.gia || 0).toString() }));
+    setIsAddCategoryOpen(false);
+    setNewCategory({ tenChungLoai: '', donVi: '', gia: '' });
+    toast.success('Đã thêm chủng loại mới');
+  };
+
+  const addRow = () => {
+    setExtraItems([...extraItems, { id: Date.now().toString(), chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' }]);
+  };
+
+  const removeRow = (id: string) => {
+    setExtraItems(extraItems.filter(item => item.id !== id));
+  };
+
+  const updateRow = (id: string, field: string, value: string) => {
+    setExtraItems(prev => prev.map(item => {
+      if (item.id !== id) return item;
+      const updated = { ...item, [field]: value };
+      if (field === 'chungLoai') {
+        const selected = findCategoryByValue(value);
+        if (selected) {
+          updated.donVi = selected.donVi;
+          updated.donGia = (selected.gia || 0).toString();
+        }
+      }
+      if (field === 'soLuong') {
+        const sl = parseFloat(value) || 0;
+        const dg = parseFloat(updated.donGia) || 0;
+        updated.thanhTien = (sl * dg).toString();
+      }
+      return updated;
+    }));
+  };
+
+  const handleMainItemChange = (field: string, value: string) => {
+    setMainItem(prev => {
+      const updated = { ...prev, [field]: value };
+      if (field === 'chungLoai') {
+        const selected = findCategoryByValue(value);
+        if (selected) {
+          updated.donVi = selected.donVi;
+          updated.donGia = (selected.gia || 0).toString();
+        }
+      }
+      if (field === 'soLuong' || field === 'donGia') {
+        const sl = parseFloat(field === 'soLuong' ? value : updated.soLuong) || 0;
+        const dg = parseFloat(field === 'donGia' ? value : updated.donGia) || 0;
+        updated.thanhTien = (sl * dg).toString();
+      }
+      return updated;
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!mainItem.chungLoai || !mainItem.soLuong || !khoNhap) {
+      toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (*)');
+      return;
     }
-  };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND'
-    }).format(amount);
-  };
+    if (nguoiNhap && !systemUsers.find(u => u.fullName === nguoiNhap) && !employees.find(e => e.ten_nhan_vien === nguoiNhap)) {
+      toast.error('Vui lòng chọn người nhập từ danh sách');
+      return;
+    }
 
-  const totalAmount = items.reduce((sum, item) => sum + item.thanhTien, 0);
+    const selectedCat = findCategoryByValue(mainItem.chungLoai);
+    const baseTransaction = (item: any, cat: Category | undefined, idx: number): Omit<WarehouseTransaction, 'id' | 'createdAt'> => ({
+      type: 'import',
+      itemId: Date.now().toString() + idx,
+      itemName: cat?.tenChungLoai || item.chungLoai,
+      quantity: parseFloat(item.soLuong),
+      unit: item.donVi,
+      price: parseFloat(item.donGia) || 0,
+      totalValue: parseFloat(item.thanhTien) || 0,
+      toLocation: khoNhap,
+      reason: 'Nhập kho',
+      referenceNumber: soPhieu,
+      operator: nguoiNhap || user?.name || '',
+      status: 'pending',
+      transactionDate: ngayNhap,
+      notes: ghiChu
+    });
+
+    const allItems = [
+      { chungLoai: mainItem.chungLoai, soLuong: mainItem.soLuong, donVi: mainItem.donVi, donGia: mainItem.donGia, thanhTien: mainItem.thanhTien },
+      ...extraItems.filter(i => i.chungLoai && i.soLuong)
+    ];
+
+    const transactions = allItems.map((item, idx) => baseTransaction(item, findCategoryByValue(item.chungLoai), idx));
+
+    if (onSubmit) {
+      try {
+        for (const trans of transactions) {
+          await onSubmit(trans);
+        }
+        toast.success(`Đã ghi sổ nhập kho (${transactions.length} mặt hàng)`);
+      } catch (error) {
+        toast.error('Lỗi khi ghi sổ nhập kho');
+        return;
+      }
+    } else {
+      try {
+        const existing = JSON.parse(localStorage.getItem('warehouseTransactions') || '[]');
+        const newTransactions = transactions.map(t => ({ ...t, id: Date.now().toString() + Math.random(), createdAt: new Date().toISOString() }));
+        localStorage.setItem('warehouseTransactions', JSON.stringify([...existing, ...newTransactions]));
+
+        const existingImports = JSON.parse(localStorage.getItem('warehouseImports') || '[]');
+        existingImports.push({
+          soPhieu, ngayNhap, khoNhap, nguoiNhap, nhaCungCap, ghiChu,
+          items: transactions.map(t => ({ tenChungLoai: t.itemName, soLuong: t.quantity, donVi: t.unit, donGia: t.price, thanhTien: t.totalValue })),
+          tongTien: transactions.reduce((sum, t) => sum + (t.totalValue ?? 0), 0), // đã sửa lỗi
+          createdAt: new Date().toISOString()
+        });
+        localStorage.setItem('warehouseImports', JSON.stringify(existingImports));
+        toast.success('Đã lưu phiếu nhập kho thành công!');
+      } catch (error) {
+        toast.error('Lỗi khi lưu phiếu nhập kho');
+        return;
+      }
+    }
+
+    // Reset form
+    setSoPhieu(generatePhieuNumber());
+    setNgayNhap(new Date().toISOString().split('T')[0]);
+    setKhoNhap('');
+    setNguoiNhap('');
+    setNhaCungCap('');
+    setGhiChu('');
+    setMainItem({ chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' });
+    setExtraItems([]);
+  };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-2">
-        <Package className="w-6 h-6 text-green-600" />
-        <h2 className="text-2xl font-bold text-gray-800">Phiếu Nhập Kho</h2>
+    <div className="max-w-7xl mx-auto bg-white">
+      <div className="bg-gradient-to-r from-green-400 to-blue-500 text-white p-4 rounded-t-lg">
+        <h2 className="text-xl font-semibold">➕ Phiếu Nhập Kho</h2>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Header Information */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Thông Tin Phiếu Nhập</CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="soPhieu">Số Phiếu *</Label>
-              <Input
-                id="soPhieu"
-                value={formData.soPhieu}
-                onChange={(e) => setFormData({...formData, soPhieu: e.target.value})}
-                required
-                readOnly
-              />
-            </div>
-            
-            <div>
-              <Label>Ngày Nhập *</Label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className={cn(
-                      "w-full justify-start text-left font-normal",
-                      !selectedDate && "text-muted-foreground"
-                    )}
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4" />
-                    {selectedDate ? format(selectedDate, "dd/MM/yyyy", { locale: vi }) : "Chọn ngày"}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={(date) => date && setSelectedDate(date)}
-                    initialFocus
-                  />
-                </PopoverContent>
-              </Popover>
-            </div>
-            
-            <div>
-              <Label htmlFor="nguoiNhap">Người Nhập *</Label>
-              <Select
-                value={formData.nguoiNhap}
-                onValueChange={(value) => setFormData({...formData, nguoiNhap: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn người nhập" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.length === 0 ? (
-                    <div className="p-2 text-sm text-gray-500">Chưa có người dùng nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                  ) : (
-                    users.filter((user) => {
-                      const normalizedRole = `${user.vaiTro || user.role || ''}`.toString().trim().toLowerCase().replace(/\s+/g, '');
-                      return ['nguoinhap', 'nhap'].includes(normalizedRole);
-                    }).map((user) => (
-                      <SelectItem key={user.msnv || user.employee_code || user.id} value={user.msnv || user.employee_code || user.id}>
-                        {(user.hoTen || user.fullName || user.name || user.username || user.msnv || user.employee_code || user.id)} - {user.msnv || user.employee_code || user.id}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="khoNhap">Kho Nhập *</Label>
-              <Select
-                value={formData.khoNhap}
-                onValueChange={(value) => setFormData({...formData, khoNhap: value})}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Chọn kho nhập" />
-                </SelectTrigger>
-                <SelectContent>
-                  {warehouses.length === 0 ? (
-                    <div className="p-2 text-sm text-gray-500">Chưa có kho nào. Vui lòng thêm trong Quản lý danh mục.</div>
-                  ) : (
-                    warehouses.map((warehouse) => (
-                      <SelectItem key={warehouse.id} value={warehouse.loaiKho}>
-                        {warehouse.tenKho}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="nhaCungCap">Nhà Cung Cấp</Label>
-              <Input
-                id="nhaCungCap"
-                value={formData.nhaCungCap}
-                onChange={(e) => setFormData({...formData, nhaCungCap: e.target.value})}
-                placeholder="Nhập tên nhà cung cấp"
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="ghiChu">Ghi Chú</Label>
-              <Textarea
-                id="ghiChu"
-                value={formData.ghiChu}
-                onChange={(e) => setFormData({...formData, ghiChu: e.target.value})}
-                placeholder="Nhập ghi chú"
-                rows={2}
-              />
-            </div>
-          </CardContent>
-        </Card>
+      <div className="p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          {/* Header Info */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
+            <div><Label>Số phiếu *</Label><Input value={soPhieu} readOnly className="bg-gray-100" /></div>
+            <div><Label>Ngày nhập *</Label><DateInput value={ngayNhap} onChange={setNgayNhap} required /></div>
+            <div><Label>Kho nhập *</Label><Select value={khoNhap} onValueChange={setKhoNhap}><SelectTrigger><SelectValue placeholder="Chọn kho" /></SelectTrigger><SelectContent>{warehouses.map(w => <SelectItem key={w.id} value={w.loaiKho}>{w.tenKho}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>Người nhập</Label><Combobox value={nguoiNhap} onValueChange={setNguoiNhap} placeholder="Chọn người nhập..." options={systemUsers.map(u => ({ label: `${u.fullName} - ${u.msnv}`, value: u.fullName }))} allowCustom={false} /></div>
+            <div><Label>Nhà cung cấp</Label><Input value={nhaCungCap} onChange={e => setNhaCungCap(e.target.value)} placeholder="Tên nhà cung cấp" /></div>
+            <div><Label>Ghi chú chung</Label><Textarea value={ghiChu} onChange={e => setGhiChu(e.target.value)} rows={2} placeholder="Ghi chú" /></div>
+          </div>
 
-        {/* Items Section */}
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <CardTitle>Danh Sách Mặt Hàng</CardTitle>
-              <Button type="button" onClick={addNewItem} className="bg-green-600 hover:bg-green-700">
-                <Plus className="w-4 h-4 mr-2" />
-                Thêm Mặt Hàng
-              </Button>
+          {/* Items Table */}
+          <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Danh sách vật tư</h3>
+              <div className="flex gap-2">
+                <Dialog open={isAddCategoryOpen} onOpenChange={setIsAddCategoryOpen}>
+                  <DialogTrigger asChild><Button type="button" variant="outline" size="sm"><Plus className="w-4 h-4 mr-1" /> Thêm chủng loại</Button></DialogTrigger>
+                  <DialogContent><DialogHeader><DialogTitle>Thêm chủng loại</DialogTitle></DialogHeader><div className="space-y-4"><Input placeholder="Tên chủng loại" value={newCategory.tenChungLoai} onChange={e => setNewCategory({...newCategory, tenChungLoai: e.target.value})} /><div className="grid grid-cols-2 gap-4"><Input placeholder="Đơn vị tính" value={newCategory.donVi} onChange={e => setNewCategory({...newCategory, donVi: e.target.value})} /><Input type="number" placeholder="Đơn giá" value={newCategory.gia} onChange={e => setNewCategory({...newCategory, gia: e.target.value})} /></div><Button onClick={handleAddCategory} className="w-full">Lưu</Button></div></DialogContent>
+                </Dialog>
+                <Button type="button" onClick={addRow} size="sm" className="bg-green-500 hover:bg-green-600"><Plus className="w-4 h-4 mr-1" /> Thêm dòng</Button>
+              </div>
             </div>
-          </CardHeader>
-          <CardContent>
-            {items.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                Chưa có mặt hàng nào. Nhấn "Thêm Mặt Hàng" để bắt đầu.
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {items.map((item, index) => (
-                  <div key={item.id} className="border rounded-lg p-4 bg-gray-50">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="font-medium">Mặt hàng {index + 1}</h4>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeItem(item.id)}
-                        className="text-red-600 hover:text-red-700"
-                      >
-                        Xóa
-                      </Button>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                      <div>
-                        <Label>Chủng Loại *</Label>
-                        <Combobox
-                          value={item.tenChungLoai}
-                          onValueChange={(value) => updateItem(item.id, 'chungLoaiId', value)}
-                          placeholder="Chọn hoặc nhập chủng loại"
-                          options={categories.map((category) => ({
-                            label: String(category.tenLoai || category.tenChungLoai || category.maLoai || ''),
-                            value: String(category.tenLoai || category.tenChungLoai || category.maLoai || '')
-                          }))}
-                          allowCustom={true}
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label>Đơn Vị</Label>
-                        <Input
-                          value={item.donVi}
-                          readOnly
-                          className="bg-gray-100"
-                          placeholder="Tự động điền"
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label>Số Lượng *</Label>
-                        <Input
-                          type="number"
-                          value={item.soLuong}
-                          onChange={(e) => updateItem(item.id, 'soLuong', Number(e.target.value))}
-                          placeholder="0"
-                          min="0"
-                          step="0.01"
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label>Đơn Giá (VND)</Label>
-                        <Input
-                          type="number"
-                          value={item.donGia}
-                          onChange={(e) => updateItem(item.id, 'donGia', Number(e.target.value))}
-                          placeholder="0"
-                          min="0"
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label>Thành Tiền</Label>
-                        <Input
-                          value={formatCurrency(item.thanhTien)}
-                          readOnly
-                          className="bg-gray-100"
-                        />
-                      </div>
-                      
-                      <div>
-                        <Label>Ghi Chú</Label>
-                        <Input
-                          value={item.ghiChu}
-                          onChange={(e) => updateItem(item.id, 'ghiChu', e.target.value)}
-                          placeholder="Ghi chú"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                
-                {/* Total */}
-                <div className="border-t pt-4">
-                  <div className="flex justify-end">
-                    <div className="text-right">
-                      <p className="text-lg font-semibold">
-                        Tổng tiền: {formatCurrency(totalAmount)}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
-        {/* Submit Button */}
-        <div className="flex justify-end gap-4">
-          <Button type="button" variant="outline">
-            Hủy
-          </Button>
-          <Button type="submit" className="bg-green-600 hover:bg-green-700">
-            Lưu Phiếu Nhập Kho
-          </Button>
-        </div>
-      </form>
+            <div className="border rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 w-10">STT</th>
+                    <th>Chủng loại *</th>
+                    <th className="w-24">Số lượng *</th>
+                    <th className="w-20">Đơn vị</th>
+                    <th className="w-32">Đơn giá</th>
+                    <th className="w-32">Thành tiền</th>
+                    <th className="w-10"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y bg-white">
+                  <tr>
+                    <td className="p-2 text-center">1</td>
+                    <td><Combobox value={mainItem.chungLoai} onValueChange={v => handleMainItemChange('chungLoai', v)} placeholder="Chọn hoặc nhập" options={categories.map(c => ({ label: c.tenLoai || c.tenChungLoai || '', value: c.id }))} allowCustom /></td>
+                    <td><Input type="number" value={mainItem.soLuong} onChange={e => handleMainItemChange('soLuong', e.target.value)} /></td>
+                    <td><Input value={mainItem.donVi} readOnly className="bg-gray-50" /></td>
+                    <td><Input value={mainItem.donGia} readOnly className="bg-gray-50" /></td>
+                    <td className="font-semibold text-green-600">{Number(mainItem.thanhTien).toLocaleString('vi-VN')}</td>
+                    <td><Button type="button" variant="ghost" size="sm" onClick={() => setMainItem({ chungLoai: '', soLuong: '', donVi: '', donGia: '', thanhTien: '0' })}>X</Button></td>
+                  </tr>
+                  {extraItems.map((row, idx) => (
+                    <tr key={row.id}>
+                      <td className="p-2 text-center">{idx+2}</td>
+                      <td><Combobox value={row.chungLoai} onValueChange={v => updateRow(row.id, 'chungLoai', v)} placeholder="Chọn hoặc nhập" options={categories.map(c => ({ label: c.tenLoai || c.tenChungLoai || '', value: c.id }))} allowCustom /></td>
+                      <td><Input type="number" value={row.soLuong} onChange={e => updateRow(row.id, 'soLuong', e.target.value)} /></td>
+                      <td><Input value={row.donVi} readOnly className="bg-gray-50" /></td>
+                      <td><Input value={row.donGia} readOnly className="bg-gray-50" /></td>
+                      <td className="font-semibold text-green-600">{Number(row.thanhTien).toLocaleString('vi-VN')}</td>
+                      <td><Button type="button" variant="ghost" size="sm" onClick={() => removeRow(row.id)}><Trash2 className="w-4 h-4" /></Button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <Button type="submit" className="w-full bg-green-500 hover:bg-green-600 text-white">➕ Thêm Phiếu Nhập</Button>
+        </form>
+      </div>
     </div>
   );
 }

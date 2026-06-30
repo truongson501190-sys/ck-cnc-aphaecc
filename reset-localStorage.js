@@ -1,4 +1,6 @@
 reset-localStorage.js
+import bcrypt from 'bcryptjs';
+
 // Reset all localStorage data and create fresh data
 console.log('🗑️ Clearing all localStorage...');
 localStorage.clear();
@@ -34,7 +36,7 @@ const userRecords = [
     position: 'Quản trị viên hệ thống',
     role: 'admin',
     status: true,
-    passwordHash: btoa('admin123'),
+    passwordHash: bcrypt.hashSync('admin123', 12),
     createdAt: new Date().toISOString()
   }
 ];
@@ -58,12 +60,13 @@ function testLogin(msnv, password) {
   const foundUser = userRecords.find(u => u.msnv === msnv && u.status === true);
   
   if (foundUser) {
-    const expectedPassword = atob(foundUser.passwordHash);
-    if (password === expectedPassword) {
+    const expectedPassword = foundUser.passwordHash;
+    const isMatch = bcrypt.compareSync(password, expectedPassword);
+    if (isMatch) {
       console.log(`✅ Login SUCCESS for ${msnv}`);
       return true;
     } else {
-      console.log(`❌ Wrong password. Expected: ${expectedPassword}, Got: ${password}`);
+      console.log(`❌ Wrong password for ${msnv}`);
     }
   } else {
     console.log(`❌ User not found or inactive: ${msnv}`);

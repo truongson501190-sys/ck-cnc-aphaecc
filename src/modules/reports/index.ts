@@ -1,4 +1,4 @@
-export { WarehouseReportsPage } from './WarehouseReportsPage';
+// src/modules/reports/index.ts
 export { default as ProductionReportPage } from './ProductionReportPage';
 export { default as MaintenanceReportPage } from './MaintenanceReportPage';
 export { default as QcReportPage } from './QcReportPage';
@@ -12,5 +12,4 @@ export { MachinePerformancePage } from './MachinePerformancePage';
 export { PendingApprovalList } from './PendingApprovalList';
 export { QaReportsAnalyticsPage } from './QaReportsAnalyticsPage';
 export { default as QCReport } from './pages/QCReport';
-export { default as WarehouseReport } from './pages/WarehouseReport';
 export { default as MaintenanceReport } from './pages/MaintenanceReport';

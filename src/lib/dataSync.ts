@@ -13,7 +13,7 @@ type SyncTableConfig = {
 };
 
 // ================= HELPERS =================
-// Map camelCase (localStorage) -> snake_case (Supabase) cho bảng users
+// Map camelCase (localStorage) -> snake_case (Supabase) for users table
 const mapUserToSnake = (user: any) => ({
   msnv: user.msnv,
   full_name: user.fullName,
@@ -22,22 +22,9 @@ const mapUserToSnake = (user: any) => ({
   role: user.role || 'user',
   role_group: user.roleGroup || user.position || 'user',
   status: user.status || 'active',
+  password_hash: user.password_hash,
   created_at: user.createdAt || new Date().toISOString(),
   updated_at: user.updatedAt || new Date().toISOString(),
-});
-
-// Map camelCase -> snake_case cho bảng user_records
-const mapUserRecordToSnake = (record: any) => ({
-  msnv: record.msnv,
-  full_name: record.fullName,
-  department: record.department,
-  position: record.position,
-  role: record.role || 'user',
-  role_group: record.roleGroup || record.role_group || record.position || 'user',
-  status: typeof record.status === 'boolean' ? record.status : record.status === 'active',
-  password_hash: record.passwordHash || record.password_hash || record.msnv,
-  created_at: record.createdAt || new Date().toISOString(),
-  updated_at: record.updatedAt || new Date().toISOString(),
 });
 
 // Data synchronization service
@@ -85,13 +72,16 @@ export class DataSyncService {
 
     try {
       const { error } = await client
-        .from('users')
-        .select('id')
+        .from('employees')
+        .select('msnv')
         .limit(1);
 
       if (error) {
         if (error.code === '401' || error.message?.includes('401') || error.code === 'PGRST301') {
           console.error('❌ Supabase connection error: 401 Unauthorized. Please check your Anon Key in .env');
+        } else if (error.code === 'PGRST204') {
+          // Schema error - table or column doesn't exist
+          console.warn('⚠️ Supabase schema not ready. Running in offline mode. Please apply migrations.');
         } else {
           console.error('❌ Supabase connection error:', error.message);
         }
@@ -115,6 +105,11 @@ export class DataSyncService {
   // ================= SYNC TO CLOUD =================
   async syncToCloud() {
     if (!navigator.onLine) return false;
+    
+    // Don't attempt sync if not connected (e.g., schema not ready)
+    if (!this.isConnected) {
+      return false;
+    }
 
     const client = getSupabase();
     if (!client) return false;
@@ -125,13 +120,13 @@ export class DataSyncService {
 
     try {
       const tables: SyncTableConfig[] = [
-        { key: 'wms_users', table: 'users', mapper: mapUserToSnake },
-        { key: 'userRecords', table: 'user_records', mapper: mapUserRecordToSnake },
-        { key: 'systemUsers', table: 'user_records', mapper: mapUserRecordToSnake },
+        // NOTE: users sync is intentionally skipped until migrations are applied to live Supabase
+        // { key: 'wms_users', table: 'users', mapper: mapUserToSnake },
+        // { key: 'employees', table: 'users', mapper: mapUserToSnake },
+        
         { key: 'categoryTypes', table: 'categories' },
         { key: 'machines', table: 'machines' },
         { key: 'projects', table: 'projects' },
-        { key: 'employees', table: 'users', mapper: mapUserToSnake },
         { key: 'warehouses', table: 'warehouses' },
         { key: 'productionReports', table: 'production_reports' },
         { key: 'maintenanceReports', table: 'maintenance_reports' },
@@ -186,53 +181,13 @@ export class DataSyncService {
       // nhưng các component khác có thể đọc theo camelCase → cần map lại.
       // Để đơn giản, ta map snake_case -> camelCase trước khi lưu.
       const tables: SyncTableConfig[] = [
-        { key: 'wms_users', table: 'users', reverseMapper: (u: any) => ({
-          msnv: u.msnv,
-          fullName: u.full_name,
-          department: u.department,
-          position: u.position,
-          roleGroup: u.role_group,
-          status: u.status,
-          createdAt: u.created_at,
-          updatedAt: u.updated_at,
-        })},
-        { key: 'userRecords', table: 'user_records', reverseMapper: (r: any) => ({
-          msnv: r.msnv,
-          fullName: r.full_name,
-          department: r.department,
-          position: r.position,
-          role: r.role,
-          roleGroup: r.role_group || '',
-          status: r.status,
-          passwordHash: r.password_hash,
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-        })},
-        { key: 'systemUsers', table: 'user_records', reverseMapper: (r: any) => ({
-          msnv: r.msnv,
-          fullName: r.full_name,
-          department: r.department,
-          position: r.position,
-          role: r.role,
-          roleGroup: r.role_group || '',
-          status: r.status,
-          passwordHash: r.password_hash,
-          createdAt: r.created_at,
-          updatedAt: r.updated_at,
-        })},
+        // NOTE: users sync is intentionally skipped until migrations are applied to live Supabase
+        // { key: 'wms_users', table: 'users', reverseMapper: ...},
+        // { key: 'employees', table: 'users', reverseMapper: ...},
+        
         { key: 'categoryTypes', table: 'categories' },
         { key: 'machines', table: 'machines' },
         { key: 'projects', table: 'projects' },
-        { key: 'employees', table: 'users', reverseMapper: (u: any) => ({
-          msnv: u.msnv,
-          fullName: u.full_name,
-          department: u.department,
-          position: u.position,
-          roleGroup: u.role_group,
-          status: u.status,
-          createdAt: u.created_at,
-          updatedAt: u.updated_at,
-        })},
         { key: 'warehouses', table: 'warehouses' },
         { key: 'productionReports', table: 'production_reports' },
         { key: 'maintenanceReports', table: 'maintenance_reports' },
@@ -293,8 +248,8 @@ export class DataSyncService {
       originalSetItem.call(localStorage, key, value);
 
       const syncKeys = [
+        'users',
         'wms_users',
-        'userRecords',
         'categoryTypes',
         'machines',
         'projects',

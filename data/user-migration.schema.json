@@ -1,0 +1,280 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Supabase User Migration Format",
+  "description": "Schema for user data migration to Supabase. Used by scripts/supabase-user-migration.js",
+  "type": "object",
+  "properties": {
+    "users": {
+      "type": "array",
+      "description": "User profile records",
+      "items": {
+        "type": "object",
+        "required": ["msnv", "full_name"],
+        "properties": {
+          "msnv": {
+            "type": "string",
+            "description": "Employee ID (unique)"
+          },
+          "full_name": {
+            "type": "string",
+            "description": "Full name"
+          },
+          "department": {
+            "type": ["string", "null"],
+            "description": "Department name"
+          },
+          "position": {
+            "type": ["string", "null"],
+            "description": "Job position"
+          },
+          "role": {
+            "type": "string",
+            "description": "Role key (e.g., admin, manager, user)",
+            "default": "user"
+          },
+          "role_group": {
+            "type": ["string", "null"],
+            "description": "Role grouping (e.g., Admin, Production)"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "inactive"],
+            "description": "User status"
+          },
+          "created_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 creation timestamp"
+          },
+          "updated_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 update timestamp"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "user_records": {
+      "type": "array",
+      "description": "User authentication records",
+      "items": {
+        "type": "object",
+        "required": ["msnv", "full_name", "password_hash", "status"],
+        "properties": {
+          "msnv": {
+            "type": "string",
+            "description": "Employee ID (must match users.msnv)"
+          },
+          "full_name": {
+            "type": "string",
+            "description": "Full name (must match users.full_name)"
+          },
+          "department": {
+            "type": ["string", "null"],
+            "description": "Department name"
+          },
+          "position": {
+            "type": ["string", "null"],
+            "description": "Job position"
+          },
+          "role": {
+            "type": "string",
+            "description": "Role key",
+            "default": "user"
+          },
+          "status": {
+            "type": "boolean",
+            "description": "Active status (true=active, false=inactive)"
+          },
+          "password_hash": {
+            "type": "string",
+            "description": "Password hash or hashed password (required)"
+          },
+          "created_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 creation timestamp"
+          },
+          "last_login": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 last login timestamp"
+          },
+          "updated_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 update timestamp"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "user_permissions": {
+      "type": "array",
+      "description": "Per-user module permissions",
+      "items": {
+        "type": "object",
+        "required": ["msnv", "module_key"],
+        "properties": {
+          "msnv": {
+            "type": "string",
+            "description": "Employee ID (must exist in users)"
+          },
+          "module_key": {
+            "type": "string",
+            "description": "Module identifier (e.g., production, warehouse, kho-tong)"
+          },
+          "can_view": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow view access"
+          },
+          "can_add": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow add/create access"
+          },
+          "can_edit": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow edit/update access"
+          },
+          "can_delete": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow delete access"
+          },
+          "can_approve": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow approval access"
+          },
+          "can_export": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow export access"
+          },
+          "created_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 creation timestamp"
+          },
+          "updated_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 update timestamp"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "roles_permissions": {
+      "type": "array",
+      "description": "Role-based permission templates",
+      "items": {
+        "type": "object",
+        "required": ["role_key", "module_key"],
+        "properties": {
+          "role_key": {
+            "type": "string",
+            "description": "Role identifier (e.g., admin, manager, user)"
+          },
+          "module_key": {
+            "type": "string",
+            "description": "Module identifier (e.g., production, all, warehouse)"
+          },
+          "can_view": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow view access"
+          },
+          "can_add": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow add/create access"
+          },
+          "can_edit": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow edit/update access"
+          },
+          "can_delete": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow delete access"
+          },
+          "can_approve": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow approval access"
+          },
+          "can_export": {
+            "type": "boolean",
+            "default": false,
+            "description": "Allow export access"
+          },
+          "created_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 creation timestamp"
+          },
+          "updated_at": {
+            "type": ["string", "null"],
+            "format": "date-time",
+            "description": "ISO 8601 update timestamp"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "roles": {
+      "type": "array",
+      "description": "Role metadata (optional, for documentation)",
+      "items": {
+        "type": "object",
+        "required": ["role_key"],
+        "properties": {
+          "role_key": {
+            "type": "string",
+            "description": "Unique role identifier"
+          },
+          "name": {
+            "type": ["string", "null"],
+            "description": "Human-readable role name"
+          },
+          "description": {
+            "type": ["string", "null"],
+            "description": "Role description"
+          },
+          "role_group": {
+            "type": ["string", "null"],
+            "description": "Role grouping"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "user_roles": {
+      "type": "array",
+      "description": "User-role assignments (optional, derived from users.role)",
+      "items": {
+        "type": "object",
+        "required": ["msnv", "role_key"],
+        "properties": {
+          "msnv": {
+            "type": "string",
+            "description": "Employee ID"
+          },
+          "role_key": {
+            "type": "string",
+            "description": "Assigned role key"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [],
+  "additionalProperties": false
+}

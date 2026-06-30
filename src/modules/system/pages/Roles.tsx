@@ -1,3 +1,4 @@
+// src/modules/system/pages/Roles.tsx
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,78 +17,38 @@ import {
   Edit3,
   ShieldAlert,
   AlertTriangle,
+  CheckCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/supabase';
+import {
+  PERMISSION_GROUPS as CANONICAL_PERMISSION_GROUPS,
+  PERMISSION_LABELS as CANONICAL_PERMISSION_LABELS,
+  coercePermissionsToLevels,
+  createPermissionLevelMap,
+  getLegacyWmsUserPermissionsStorageKey,
+  getUserPermissionsStorageKey,
+  type PermissionLevel,
+  type UserPermissions,
+} from '@/lib/permissions';
+import { PermissionService } from '@/services/permissionService';
+import { useAuth } from '@/contexts/AuthContext';
 
-const PERMISSION_GROUPS: Record<string, string[]> = {
-  'Kho bãi (WMS)': [
-    'nhap_kho', 'xuat_kho', 'chuyen_kho', 'xuat_dau', 'kiem_ke_kho', 'ton_kho', 'the_kho', 'lich_su_giao_dich',
-  ],
-  'Sản xuất (Manufacturing)': [
-    'ke_hoach_san_xuat', 'nhat_ky_gia_cong', 'nhat_ky_qc', 'nhat_ky_bao_tri', 'theo_doi_tien_do',
-  ],
-  'Báo cáo & Dashboard': [
-    'dashboard_tong_hop', 'bao_cao_kho', 'bao_cao_gia_cong', 'bao_cao_qc', 'bao_cao_bao_tri', 'hieu_suat_may', 'cho_duyet',
-  ],
-  'Quản lý Danh mục': [
-    'chung_loai', 'kho', 'may_moc', 'du_an', 
-  ],
-  'Hệ thống': [
-    'quan_ly_nguoi_dung', 'phan_quyen', 'audit_log', 'backup_restore', 'cai_dat_he_thong',
-  ],
-};
-
-const PERMISSION_LABELS: Record<string, string> = {
-  nhap_kho: 'Nhập kho', xuat_kho: 'Xuất kho', chuyen_kho: 'Chuyển kho', xuat_dau: 'Xuất dầu',
-  kiem_ke_kho: 'Kiểm kê kho', ton_kho: 'Tồn kho', the_kho: 'Thẻ kho', lich_su_giao_dich: 'Lịch sử giao dịch',
-  ke_hoach_san_xuat: 'Kế hoạch sản xuất', nhat_ky_gia_cong: 'Nhật ký gia công', nhat_ky_qc: 'Nhật ký QC',
-  nhat_ky_bao_tri: 'Nhật ký bảo trì', theo_doi_tien_do: 'Theo dõi tiến độ',
-  dashboard_tong_hop: 'Dashboard tổng hợp', bao_cao_kho: 'Báo cáo kho', bao_cao_gia_cong: 'Báo cáo gia công',
-  bao_cao_qc: 'Báo cáo QC', bao_cao_bao_tri: 'Báo cáo bảo trì', hieu_suat_may: 'Hiệu suất máy',
-  cho_duyet: 'Chờ duyệt', chung_loai: 'Chủng loại', kho: 'Kho', may_moc: 'Máy móc', du_an: 'Dự án',
-  quan_ly_nguoi_dung: 'Quản lý người dùng', phan_quyen: 'Phân quyền', audit_log: 'Audit Log',
-  backup_restore: 'Backup & Restore', cai_dat_he_thong: 'Cài đặt hệ thống',
-};
-
-const INITIAL_PERMISSIONS: Record<string, 'none' | 'view' | 'full'> = {};
-Object.keys(PERMISSION_LABELS).forEach(key => {
-  INITIAL_PERMISSIONS[key] = 'none';
-});
-
-interface SupabasePermission {
-  msnv: string;
-  module_key: string;
-  can_view: boolean;
-  can_add: boolean;
-  can_edit: boolean;
-  can_delete: boolean;
-  can_approve: boolean;
-  can_export: boolean;
-}
+const PERMISSION_GROUPS = CANONICAL_PERMISSION_GROUPS;
+const PERMISSION_LABELS = CANONICAL_PERMISSION_LABELS;
+const INITIAL_PERMISSIONS = createPermissionLevelMap('none');
 
 interface EmployeeProfile {
   msnv: string;
-  fullName: string;
+  hoTen: string;
   department: string;
   roleGroup: string;
 }
 
-type PermissionLevel = 'none' | 'view' | 'full';
-
-const convertToSupabase = (level: PermissionLevel): Omit<SupabasePermission, 'msnv' | 'module_key'> => ({
-  can_view: level !== 'none',
-  can_add: level === 'full',
-  can_edit: level === 'full',
-  can_delete: level === 'full',
-  can_approve: level === 'full',
-  can_export: level !== 'none',
-});
-
-const convertFromSupabase = (perm: Partial<SupabasePermission>): PermissionLevel => {
-  if (!perm) return 'none';
-  if (perm.can_edit) return 'full';
-  if (perm.can_view) return 'view';
+const convertFromSupabase = (flag: any): PermissionLevel => {
+  if (!flag) return 'none';
+  if (flag.edit || flag.add || flag.delete || flag.approve) return 'full';
+  if (flag.view || flag.export) return 'view';
   return 'none';
 };
 
@@ -106,7 +67,27 @@ const isSchemaError = (error: any): boolean => {
   );
 };
 
+const savePermissionsLocal = (msnv: string, permissions: Record<string, PermissionLevel>) => {
+  const serialized = JSON.stringify(permissions);
+  localStorage.setItem(getUserPermissionsStorageKey(msnv), serialized);
+  localStorage.setItem(getLegacyWmsUserPermissionsStorageKey(msnv), serialized);
+};
+
 export function Roles() {
+  // ✅ KIỂM TRA AN TOÀN - TRÁNH LỖI useAuth OUTSIDE PROVIDER
+  let user = null;
+  let refreshUser = async () => {};
+  let authError = false;
+
+  try {
+    const auth = useAuth();
+    user = auth.user;
+    refreshUser = auth.refreshUser;
+  } catch (error) {
+    authError = true;
+    console.warn('Roles: AuthContext not available yet');
+  }
+
   const [userList, setUserList] = useState<EmployeeProfile[]>([]);
   const [selectedUserMsnv, setSelectedUserMsnv] = useState<string>('');
   const [searchUserTerm, setSearchUserTerm] = useState<string>('');
@@ -118,11 +99,24 @@ export function Roles() {
   const [useFallback, setUseFallback] = useState<boolean>(!hasSupabaseConfig);
   const [schemaError, setSchemaError] = useState<string>('');
 
+  // Nếu lỗi auth, hiển thị loading
+  if (authError) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-200px)]">
+        <div className="text-center">
+          <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+          <h3 className="text-lg font-semibold text-slate-700">Đang tải dữ liệu...</h3>
+          <p className="text-sm text-slate-400">Vui lòng đợi trong giây lát</p>
+        </div>
+      </div>
+    );
+  }
+
   const filteredUsers = useMemo(() => {
     if (!searchUserTerm.trim()) return userList;
     const lowerSearch = searchUserTerm.toLowerCase();
     return userList.filter(
-      u => u.msnv.toLowerCase().includes(lowerSearch) || u.fullName.toLowerCase().includes(lowerSearch)
+      u => u.msnv.toLowerCase().includes(lowerSearch) || u.hoTen.toLowerCase().includes(lowerSearch)
     );
   }, [userList, searchUserTerm]);
 
@@ -143,15 +137,18 @@ export function Roles() {
       .filter(g => g.filteredKeys.length > 0);
   }, [searchPermTerm]);
 
+  // ===== LOAD USER PERMISSIONS =====
   const loadUserPermissions = useCallback(
     async (msnv: string) => {
       if (!msnv) return;
       try {
         if (useFallback) {
-          const storedPerms = localStorage.getItem(`wms_user_permissions_${msnv}`);
+          const storedPerms =
+            localStorage.getItem(getUserPermissionsStorageKey(msnv)) ||
+            localStorage.getItem(getLegacyWmsUserPermissionsStorageKey(msnv));
           if (storedPerms) {
             try {
-              setUserPermissions(JSON.parse(storedPerms));
+              setUserPermissions(coercePermissionsToLevels(JSON.parse(storedPerms)));
             } catch {
               setUserPermissions({ ...INITIAL_PERMISSIONS });
             }
@@ -159,32 +156,27 @@ export function Roles() {
             setUserPermissions({ ...INITIAL_PERMISSIONS });
           }
         } else {
-          const { data: perms, error } = await supabase
-            .from('user_permissions')
-            .select('*')
-            .eq('msnv', msnv);
-
-          if (error) {
-            if (isSchemaError(error)) {
-              setSchemaError(`Bảng 'user_permissions' không tồn tại. Vui lòng tạo bảng theo migration.`);
-              setUseFallback(true);
-            }
-            throw error;
-          }
-
+          const perms = await PermissionService.getByMsnv(msnv);
           const permMap: Record<string, PermissionLevel> = { ...INITIAL_PERMISSIONS };
-          (perms as SupabasePermission[]).forEach(p => {
-            permMap[p.module_key] = convertFromSupabase(p);
-          });
+          
+          for (const [moduleKey, flag] of Object.entries(perms)) {
+            permMap[moduleKey] = convertFromSupabase(flag);
+          }
           setUserPermissions(permMap);
           setSchemaError('');
         }
       } catch (error: any) {
         console.error('Error loading permissions:', error);
-        const storedPerms = localStorage.getItem(`wms_user_permissions_${msnv}`);
+        if (error?.code && isSchemaError(error)) {
+          setSchemaError(`Bảng 'user_permissions' không tồn tại. Vui lòng tạo bảng theo migration.`);
+          setUseFallback(true);
+        }
+        const storedPerms =
+          localStorage.getItem(getUserPermissionsStorageKey(msnv)) ||
+          localStorage.getItem(getLegacyWmsUserPermissionsStorageKey(msnv));
         if (storedPerms) {
           try {
-            setUserPermissions(JSON.parse(storedPerms));
+            setUserPermissions(coercePermissionsToLevels(JSON.parse(storedPerms)));
           } catch {
             setUserPermissions({ ...INITIAL_PERMISSIONS });
           }
@@ -200,6 +192,7 @@ export function Roles() {
     [useFallback]
   );
 
+  // ===== INITIALIZE USER LIST =====
   const initializeUserList = useCallback(
     (users: EmployeeProfile[], defaultMsnv?: string) => {
       setUserList(users);
@@ -213,6 +206,7 @@ export function Roles() {
     [selectedUserMsnv]
   );
 
+  // ===== LOAD DATA =====
   const loadData = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -224,33 +218,31 @@ export function Roles() {
             .filter((u: any) => u.msnv !== '1118')
             .map((u: any) => ({
               msnv: u.msnv,
-              fullName: u.fullName,
-              department: u.department,
-              roleGroup: u.position || 'User',
+              hoTen: u.fullName || u.hoTen || u.full_name || '',
+              department: u.department || '',
+              roleGroup: u.position || u.roleGroup || 'User',
             }));
           const defaultMsnv = initializeUserList(nonAdminUsers);
           if (defaultMsnv) await loadUserPermissions(defaultMsnv);
         }
       } else {
-        // DÙNG BẢNG employees THAY VÌ users
         const { data: employees, error } = await supabase
           .from('employees')
-          .select('*')
+          .select('msnv, ho_ten, department, position')
           .order('msnv', { ascending: true });
 
         if (error) {
           if (isSchemaError(error)) {
             setSchemaError(`Bảng 'employees' chưa được tạo. Vui lòng chạy migration tạo bảng employees.`);
             setUseFallback(true);
-            // Thử load từ localStorage nếu có
             const storedUsers = localStorage.getItem('wms_users');
             if (storedUsers) {
               const parsedUsers = JSON.parse(storedUsers);
               const nonAdminUsers = parsedUsers.filter((u: any) => u.msnv !== '1118').map((u: any) => ({
                 msnv: u.msnv,
-                fullName: u.fullName,
-                department: u.department,
-                roleGroup: u.position || 'User',
+                hoTen: u.fullName || u.hoTen || u.full_name || '',
+                department: u.department || '',
+                roleGroup: u.position || u.roleGroup || 'User',
               }));
               initializeUserList(nonAdminUsers);
               if (nonAdminUsers.length > 0) await loadUserPermissions(nonAdminUsers[0].msnv);
@@ -259,14 +251,13 @@ export function Roles() {
           throw error;
         }
 
-        // Mapping: employees table có cột full_name, department, position (hoặc role_group)
         const nonAdminUsers: EmployeeProfile[] = (employees as any[])
           .filter(emp => emp.msnv !== '1118')
           .map(emp => ({
             msnv: emp.msnv,
-            fullName: emp.full_name || emp.fullName || '',
+            hoTen: emp.ho_ten || emp.hoTen || '',
             department: emp.department || '',
-            roleGroup: emp.position || emp.role_group || 'User',
+            roleGroup: emp.position || 'User',
           }));
 
         const defaultMsnv = initializeUserList(nonAdminUsers);
@@ -288,6 +279,7 @@ export function Roles() {
     loadData();
   }, [loadData]);
 
+  // ===== HANDLERS =====
   const handleUserSelect = useCallback(
     async (msnv: string) => {
       setSelectedUserMsnv(msnv);
@@ -313,6 +305,7 @@ export function Roles() {
     []
   );
 
+  // ===== SAVE PERMISSIONS =====
   const handleSavePermissions = useCallback(async () => {
     if (!selectedUserMsnv) return;
     setIsSaving(true);
@@ -320,97 +313,77 @@ export function Roles() {
     const previousPermissions = { ...userPermissions };
 
     try {
-      if (useFallback) {
-        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
-        toast.success(`Đã lưu cấu hình phân quyền cho ${currentUser?.fullName} (offline).`);
-      } else {
-        // Kiểm tra bảng user_permissions có tồn tại không
-        const { error: checkError } = await supabase
-          .from('user_permissions')
-          .select('msnv', { count: 'exact', head: true })
-          .limit(1);
-
-        if (checkError && isSchemaError(checkError)) {
-          setSchemaError(`Bảng 'user_permissions' chưa được tạo. Vui lòng chạy migration: CREATE TABLE user_permissions (...);`);
-          setUseFallback(true);
-          localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
-          toast.warning('Bảng quyền chưa có, đã lưu vào bộ nhớ tạm.');
+      if (!useFallback) {
+        const { data, error } = await supabase
+          .from('employees')
+          .select('msnv')
+          .eq('msnv', selectedUserMsnv)
+          .maybeSingle();
+        if (error || !data) {
+          toast.error(`Nhân viên ${selectedUserMsnv} chưa có trong danh sách. Vui lòng tạo nhân viên trước.`);
+          setIsSaving(false);
           return;
         }
+      }
 
-        const permInserts: SupabasePermission[] = Object.entries(userPermissions).map(
-          ([module_key, level]) => ({
-            msnv: selectedUserMsnv,
-            module_key,
-            ...convertToSupabase(level),
-          })
-        );
+      const userPerms: UserPermissions = {};
+      for (const [moduleKey, level] of Object.entries(userPermissions)) {
+        userPerms[moduleKey] = {
+          view: level !== 'none',
+          add: level === 'full',
+          edit: level === 'full',
+          delete: level === 'full',
+          approve: level === 'full',
+          export: level !== 'none',
+        };
+      }
 
-        // Xóa cũ, chèn mới (không dùng RPC để tránh lỗi)
-        const { error: deleteError } = await supabase
-          .from('user_permissions')
-          .delete()
-          .eq('msnv', selectedUserMsnv);
-
-        if (deleteError) {
-          if (isSchemaError(deleteError)) {
-            setSchemaError('Bảng user_permissions chưa tồn tại. Vui lòng chạy migration.');
-            setUseFallback(true);
-            localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
-            toast.warning('Đã lưu offline do thiếu bảng.');
-            return;
-          }
-          throw new Error(`Xóa quyền cũ thất bại: ${deleteError.message}`);
+      if (useFallback) {
+        savePermissionsLocal(selectedUserMsnv, userPermissions);
+        toast.success(`Lưu offline thành công cho ${currentUser?.hoTen || selectedUserMsnv}`);
+      } else {
+        await PermissionService.saveForMsnv(selectedUserMsnv, userPerms);
+        savePermissionsLocal(selectedUserMsnv, userPermissions);
+        toast.success(`Lưu ma trận quyền thành công cho ${currentUser?.hoTen || selectedUserMsnv}`);
+        
+        if (user?.msnv === selectedUserMsnv) {
+          await refreshUser();
+          toast.info('Đã cập nhật quyền của bạn. Các thay đổi có hiệu lực ngay.');
         }
-
-        const { error: insertError } = await supabase
-          .from('user_permissions')
-          .insert(permInserts);
-
-        if (insertError) {
-          // Khôi phục lại dữ liệu cũ (dùng localStorage backup)
-          const rollbackData: SupabasePermission[] = Object.entries(previousPermissions).map(
-            ([module_key, level]) => ({
-              msnv: selectedUserMsnv,
-              module_key,
-              ...convertToSupabase(level),
-            })
-          );
-          await supabase.from('user_permissions').insert(rollbackData);
-          throw new Error(`Lưu thất bại: ${insertError.message}. Đã khôi phục quyền cũ.`);
-        }
-
-        // Backup vào localStorage
-        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
-        toast.success(`Đã lưu ma trận quyền cho ${currentUser?.fullName}`);
       }
     } catch (error: any) {
       console.error('Error saving permissions:', error);
-      if (!useFallback) {
+      if (error?.message?.includes('406') || error?.status === 406) {
+        toast.error(`Nhân viên ${selectedUserMsnv} không tồn tại trong database. Vui lòng tạo nhân viên trước.`);
+      } else if (!useFallback) {
         setUserPermissions(previousPermissions);
-        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(previousPermissions));
+        savePermissionsLocal(selectedUserMsnv, previousPermissions);
         toast.error(error.message || 'Lưu thất bại');
       } else {
-        localStorage.setItem(`wms_user_permissions_${selectedUserMsnv}`, JSON.stringify(userPermissions));
+        savePermissionsLocal(selectedUserMsnv, userPermissions);
         toast.success('Đã lưu vào bộ nhớ cục bộ (offline).');
       }
     } finally {
       setIsSaving(false);
     }
-  }, [selectedUserMsnv, userPermissions, useFallback, currentUser]);
+  }, [selectedUserMsnv, userPermissions, useFallback, currentUser, user, refreshUser]);
 
+  // ===== RENDER =====
   return (
     <div className="w-full space-y-5">
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-4">
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2 tracking-tight">
-            <Shield className="w-5 h-5 text-indigo-600" /> Ma trận Cấp quyền Hệ thống (3-Tier RBAC)
+            <Shield className="w-5 h-5 text-indigo-600" /> Phân quyền hệ thống
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Phân định chi tiết giữa quyền Chỉ xem (Read-only) và quyền Chỉnh sửa (Write) cho từng phân hệ.
           </p>
           {useFallback && (
-            <p className="text-xs text-amber-600 mt-1">Đang sử dụng chế độ offline (localStorage)</p>
+            <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> Đang sử dụng chế độ offline (localStorage)
+            </p>
           )}
           {schemaError && (
             <div className="mt-2 flex items-start gap-1.5 text-xs text-red-700 bg-red-50 border border-red-200 rounded-md p-2">
@@ -428,7 +401,7 @@ export function Roles() {
             className="h-9"
           >
             <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${isLoading ? 'animate-spin' : ''}`} />
-            Đồng bộ dữ liệu
+            Làm mới
           </Button>
           <Button
             size="sm"
@@ -442,7 +415,9 @@ export function Roles() {
         </div>
       </div>
 
+      {/* Main Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+        {/* User List - Left Panel */}
         <div className="lg:col-span-4 space-y-3">
           <Card className="border-slate-200 shadow-sm h-[calc(100vh-180px)] flex flex-col overflow-hidden bg-white">
             <div className="p-3 bg-slate-50/70 border-b border-slate-100">
@@ -481,7 +456,7 @@ export function Roles() {
                             {u.msnv}
                           </span>
                           <span className="text-xs text-slate-300">|</span>
-                          <span className="text-sm font-semibold truncate block">{u.fullName}</span>
+                          <span className="text-sm font-semibold truncate block">{u.hoTen}</span>
                         </div>
                         <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
                           <span className="flex items-center gap-0.5">
@@ -500,9 +475,11 @@ export function Roles() {
           </Card>
         </div>
 
+        {/* Permissions Matrix - Right Panel */}
         <div className="lg:col-span-8 space-y-4">
           {currentUser ? (
             <>
+              {/* User Info */}
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                 <div className="sm:col-span-2 bg-white border border-slate-200 rounded-xl p-3.5 flex items-center gap-3 shadow-sm">
                   <div className="w-10 h-10 rounded-full bg-slate-100 text-slate-600 flex items-center justify-center font-bold text-sm shrink-0 border border-slate-200">
@@ -512,7 +489,7 @@ export function Roles() {
                     <span className="text-[10px] uppercase tracking-wider font-bold text-slate-400 block">
                       Đang thiết lập
                     </span>
-                    <h2 className="text-base font-bold text-slate-800 truncate">{currentUser.fullName}</h2>
+                    <h2 className="text-base font-bold text-slate-800 truncate">{currentUser.hoTen}</h2>
                     <p className="text-xs text-slate-500 font-mono mt-0.5">
                       MSNV: {currentUser.msnv} • {currentUser.department}
                     </p>
@@ -536,6 +513,7 @@ export function Roles() {
                 </div>
               </div>
 
+              {/* Search Filter */}
               <div className="relative">
                 <SlidersHorizontal className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
                 <Input
@@ -546,6 +524,7 @@ export function Roles() {
                 />
               </div>
 
+              {/* Permission Groups */}
               <div className="space-y-3 max-h-[calc(100vh-340px)] overflow-y-auto pr-1">
                 {filteredGroups.map(({ groupName, filteredKeys }) => (
                   <Card key={groupName} className="border border-slate-200 shadow-sm overflow-hidden bg-white">
@@ -638,6 +617,7 @@ export function Roles() {
                 ))}
               </div>
 
+              {/* Info */}
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 flex gap-2.5">
                 <AlertCircle className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
                 <p className="text-xs text-blue-900 leading-normal font-medium">

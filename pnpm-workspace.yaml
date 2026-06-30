@@ -1,0 +1,4 @@
+allowBuilds:
+  '@metagptx/vite-plugin-source-locator': true
+  '@swc/core': true
+  esbuild: true

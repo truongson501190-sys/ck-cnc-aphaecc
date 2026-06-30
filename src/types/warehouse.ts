@@ -1,3 +1,4 @@
+// src/types/warehouse.ts
 export interface InventoryCountEntry {
   id: string;
   itemCode: string;

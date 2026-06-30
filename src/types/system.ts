@@ -1,4 +1,5 @@
-export type PermissionLevel = 'none' | 'view' | 'full';
+import type { PermissionLevel } from '@/lib/permissions';
+export type { PermissionLevel };
 
 export interface RoleRecord {
   id: string;

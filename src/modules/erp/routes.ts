@@ -1,5 +1,6 @@
 // src/modules/erp/routes.ts
 import type { LucideIcon } from 'lucide-react';
+import { hasPermissionFlag, type UserPermissions } from '@/lib/permissions';
 
 import {
   Home,
@@ -41,10 +42,6 @@ import {
 } from 'lucide-react';
 
 // Định nghĩa đơn giản, cho phép mọi key string
-export interface UserPermissions {
-  [key: string]: { view: boolean; create?: boolean; edit?: boolean; delete?: boolean } | undefined;
-}
-
 export type ERPNavAuthUser = {
   role?: string;
   permissions?: UserPermissions;
@@ -293,7 +290,7 @@ export const isNavItemVisible = (
   if (!item.permissionKey) return true;
 
   // Kiểm tra trực tiếp từ user.permissions[permissionKey]
-  const hasPermission = !!user.permissions?.[item.permissionKey];
+  const hasPermission = hasPermissionFlag(user.permissions?.[item.permissionKey], 'view');
   
   return hasPermission;
 };

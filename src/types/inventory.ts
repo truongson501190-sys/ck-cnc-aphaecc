@@ -50,6 +50,7 @@ export interface WarehouseTransaction {
   machineId?: string;
   /** Legacy form fields */
   recipient?: string;
+  supplier?: string;
   projectId?: string;
 }
 

@@ -5,8 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/supabase';
+import { EmployeeService } from '@/services/employeeService';
 import { toast } from 'sonner';
+import { hashPassword, verifyPassword } from '@/lib/passwordUtils';
 
 function evaluateStrength(password: string) {
   const points = [
@@ -24,7 +25,7 @@ function evaluateStrength(password: string) {
 }
 
 export default function ChangePassword() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [oldPassword, setOldPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -77,77 +78,52 @@ export default function ChangePassword() {
       return;
     }
 
+    if (oldPassword === newPassword) {
+      toast.error('Mật khẩu mới không được giống mật khẩu cũ');
+      return;
+    }
+
     setSubmitting(true);
 
     try {
-      // Lấy user record từ Supabase
-      const { data: userRecords, error: fetchError } = await supabase
-        .from('user_records')
-        .select('*')
-        .eq('msnv', user.msnv)
-        .eq('status', true);
-
-      if (fetchError) {
-        console.error('Error fetching user records:', fetchError);
-        toast.error('Có lỗi xảy ra khi truy cập dữ liệu');
-        setSubmitting(false);
-        return;
-      }
-
-      if (!userRecords || userRecords.length === 0) {
+      // Get current employee from Supabase
+      const emp = await EmployeeService.getByMsnv(user.msnv);
+      if (!emp) {
         toast.error('Không tìm thấy thông tin người dùng');
         setSubmitting(false);
         return;
       }
 
-      const currentRecord = userRecords[0];
-
-      // Kiểm tra mật khẩu cũ
-      const currentPassword = currentRecord.password_hash || currentRecord.password;
-      
-      if (currentPassword !== oldPassword) {
+      // Verify old password
+      const isCurrentPasswordCorrect = await verifyPassword(oldPassword, emp.password_hash);
+      if (!isCurrentPasswordCorrect) {
         toast.error('Mật khẩu hiện tại không đúng');
         setSubmitting(false);
         return;
       }
 
-      // Kiểm tra mật khẩu mới không được trùng với mật khẩu cũ
-      if (oldPassword === newPassword) {
-        toast.error('Mật khẩu mới không được trùng với mật khẩu cũ');
-        setSubmitting(false);
-        return;
-      }
-
-      // Cập nhật mật khẩu mới (bỏ updated_at vì không có cột này)
-      const { error: updateError } = await supabase
-        .from('user_records')
-        .update({ 
-          password_hash: newPassword
-        })
-        .eq('msnv', user.msnv);
-      
-      if (updateError) {
-        console.error('Update error:', updateError);
-        toast.error(`Lỗi cập nhật: ${updateError.message}`);
-        setSubmitting(false);
-        return;
-      }
+      // Hash new password and update
+      const newHashedPassword = await hashPassword(newPassword);
+      await EmployeeService.update(user.msnv, {
+        password_hash: newHashedPassword
+      });
 
       toast.success('Đổi mật khẩu thành công! Vui lòng đăng nhập lại với mật khẩu mới.');
-      
+
       // Reset form
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      
-      // Chuyển hướng về trang login sau 2 giây
+
+      // Logout and redirect to login
       setTimeout(() => {
+        logout();
         window.location.href = '/login';
       }, 2000);
-      
-    } catch (error) {
+
+    } catch (error: any) {
       console.error('Error updating password:', error);
-      toast.error('Có lỗi xảy ra khi lưu mật khẩu mới');
+      toast.error('Có lỗi xảy ra khi lưu mật khẩu mới: ' + error.message);
     } finally {
       setSubmitting(false);
     }

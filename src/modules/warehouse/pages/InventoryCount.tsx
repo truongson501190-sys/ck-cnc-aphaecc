@@ -1,3 +1,4 @@
+// src/modules/warehouse/pages/InventoryCount.tsx
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Textarea } from '@/components/ui/textarea';
-import { Search, Plus, Filter, Edit3, Trash2, ArrowLeft } from 'lucide-react';
+import { Search, Plus, Edit3, Trash2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
 import type { InventoryCountEntry } from '@/types/warehouse';
@@ -384,3 +385,5 @@ export function InventoryCount() {
     </div>
   );
 }
+
+export default InventoryCount;

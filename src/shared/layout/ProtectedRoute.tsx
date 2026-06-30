@@ -1,12 +1,7 @@
+// src/shared/layout/ProtectedRoute.tsx
 import React from 'react';
-
-import {
-  Navigate,
-  useLocation,
-} from 'react-router-dom';
-
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { usePermission } from '@/hooks/usePermission';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -14,61 +9,48 @@ interface ProtectedRouteProps {
   requiredModule?: string;
 }
 
-const checkRolePermission = (userRole: string | undefined, requiredRole: string): boolean => {
-  const hierarchy = {
-    'admin': 3,
-    'manager': 2,
-    'user': 1,
-  };
-  
-  const userLevel = hierarchy[userRole as keyof typeof hierarchy] ?? 0;
-  const requiredLevel = hierarchy[requiredRole as keyof typeof hierarchy] ?? 0;
-  
-  return userLevel >= requiredLevel;
-};
-
-const ProtectedRoute: React.FC<
-  ProtectedRouteProps
-> = ({
+const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requiredRole,
   requiredModule,
 }) => {
-  const {
-    isAuthenticated,
-    user,
-  } = useAuth();
-
-  const { canView } = usePermission();
-
-  const location =
-    useLocation();
+  const { isAuthenticated, user, hasPermission } = useAuth();
+  const location = useLocation();
 
   // =========================
   // CHƯA LOGIN
   // =========================
-
-  if (
-    !isAuthenticated ||
-    !user
-  ) {
+  if (!isAuthenticated || !user) {
     return (
       <Navigate
         to="/login"
-        state={{
-          from: location,
-        }}
+        state={{ from: location }}
         replace
       />
     );
   }
 
   // =========================
+  // ADMIN LUÔN CÓ TOÀN QUYỀN
+  // =========================
+  if (user.role === 'admin' || user.msnv === '1118') {
+    return <>{children}</>;
+  }
+
+  // =========================
   // CHECK ROLE REQUIREMENT
   // =========================
   if (requiredRole) {
-    const hasRequiredRole = checkRolePermission(user.role, requiredRole);
-    if (!hasRequiredRole) {
+    const hierarchy = {
+      'admin': 3,
+      'manager': 2,
+      'user': 1,
+    };
+    
+    const userLevel = hierarchy[user.role as keyof typeof hierarchy] ?? 0;
+    const requiredLevel = hierarchy[requiredRole as keyof typeof hierarchy] ?? 0;
+    
+    if (userLevel < requiredLevel) {
       console.log('❌ Insufficient role permissions:', {
         userRole: user.role,
         requiredRole,
@@ -81,10 +63,11 @@ const ProtectedRoute: React.FC<
   // CHECK MODULE PERMISSION
   // =========================
   if (requiredModule) {
-    const hasAccess = canView(requiredModule);
+    const hasAccess = hasPermission(requiredModule, 'view');
     if (!hasAccess) {
       console.log('❌ No module view permission:', {
         module: requiredModule,
+        user: user.msnv,
       });
       return <Navigate to="/" replace />;
     }
@@ -93,10 +76,7 @@ const ProtectedRoute: React.FC<
   // =========================
   // ACCESS ALLOWED
   // =========================
-
-  return <>
-    {children}
-  </>;
+  return <>{children}</>;
 };
 
 export default ProtectedRoute;
