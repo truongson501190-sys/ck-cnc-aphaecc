@@ -12,7 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Plus, Filter, X, ArrowLeft, Upload, Download, Edit, Eye, Trash2, FileSpreadsheet, Search, 
-  CheckCircle, Loader2, CheckSquare, XSquare, Check, X as XIcon 
+  CheckCircle, Loader2, CheckSquare, XSquare 
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { ProductionForm } from './ProductionForm';
@@ -55,12 +55,18 @@ interface ProductionLog {
   updatedAt?: string;
   setup_time_entries?: Array<{ start?: string; end?: string; hours?: number }>;
   work_time_entries?: Array<{ start?: string; end?: string; hours?: number }>;
+  setupTimeEntries?: Array<{ thoiGianBatDau?: string; thoiGianKetThuc?: string; soGio?: number }>;
+  workTimeEntries?: Array<{ thoiGianBatDau?: string; thoiGianKetThuc?: string; soGio?: number }>;
   tgGia_BatDau?: string;
   tgGia_KetThuc?: string;
   soGioGia?: number;
+  gioGa?: number;
   tgChay_BatDau?: string;
   tgChay_KetThuc?: string;
   soGioChay?: number;
+  gioChay?: number;
+  tgGaPhoi?: string;
+  tgTrenCa?: string;
 }
 
 
@@ -154,7 +160,7 @@ export function ProductionReportPage() {
         .select('*')
         .order('ngayThang', { ascending: false });
       if (error) throw error;
-      setLogs(data || []);
+      setLogs(data as ProductionLog[]);
     } catch (error) {
       console.error('Error loading logs:', error);
       toast.error('Không thể tải dữ liệu');
@@ -243,9 +249,8 @@ export function ProductionReportPage() {
       toast.error('Bạn không có quyền thêm nhật ký');
       return;
     }
-    const { data: { user: authUser } } = await supabase.auth.getUser();
-    const userId = authUser?.email || 'unknown';
-    const newLog: Partial<ProductionLog> = {
+    // Only include columns that are definitely in the database
+    const newLog: any = {
       id: crypto.randomUUID(),
       ngayThang: formData.ngayThang,
       maySanXuat: formData.maySanXuat,
@@ -259,6 +264,8 @@ export function ProductionReportPage() {
       vatLieu: formData.vatLieu,
       nguyenCongSo: formData.nguyenCongSo,
       toolEntries: formData.toolEntries || [],
+      work_time_entries: formData.workTimeEntries, // Added by migration 002
+      setup_time_entries: formData.setupTimeEntries, // Added by migration 002
       ca: formData.ca,
       cpMay: formData.chiPhiChayMay || 0,
       cpDaoCu: formData.chiPhiDao || 0,
@@ -266,7 +273,7 @@ export function ProductionReportPage() {
       nguoiKiemTra: formData.nguoiKiemTra || '',
       status: 'pending',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     try {
       const { error } = await supabase.from('production_reports').insert(newLog);
@@ -287,7 +294,8 @@ export function ProductionReportPage() {
       return;
     }
     if (!selectedLog) return;
-    const updatedLog: Partial<ProductionLog> = {
+    // Only include columns that are definitely in the database
+    const updatedLog: any = {
       ngayThang: formData.ngayThang,
       maySanXuat: formData.maySanXuat,
       duAn: formData.duAn,
@@ -300,12 +308,14 @@ export function ProductionReportPage() {
       vatLieu: formData.vatLieu,
       nguyenCongSo: formData.nguyenCongSo,
       toolEntries: formData.toolEntries || [],
+      work_time_entries: formData.workTimeEntries, // Added by migration 002
+      setup_time_entries: formData.setupTimeEntries, // Added by migration 002
       ca: formData.ca,
       cpMay: formData.cpMay || 0,
       cpDaoCu: formData.cpDaoCu || 0,
       nguoiVanHanh: formData.nguoiVanHanh,
       nguoiKiemTra: formData.nguoiKiemTra || selectedLog.nguoiKiemTra,
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
     };
     try {
       const { error } = await supabase
@@ -370,7 +380,6 @@ export function ProductionReportPage() {
         const sheet = workbook.Sheets[sheetName];
         const json = XLSX.utils.sheet_to_json<any>(sheet);
 
-        const { data: { user: authUser } } = await supabase.auth.getUser();
         let addedCount = 0;
 
         for (let i = 0; i < json.length; i++) {
@@ -639,7 +648,7 @@ export function ProductionReportPage() {
                 <DialogTrigger asChild>
                   <Button className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="w-4 h-4 mr-2" />
-                    Thêm tay
+                    Thêm
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -896,97 +905,286 @@ export function ProductionReportPage() {
           </CardContent>
         </Card>
 
-       {/* View Dialog */}
+     {/* View Dialog - CHI TIẾT NHẬT KÝ SẢN XUẤT */}
 <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-  <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
     <DialogHeader>
-      <DialogTitle className="text-xl font-bold text-gray-800">CHI TIẾT NHẬT KÝ SẢN XUẤT</DialogTitle>
+      <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+        <span>📋 CHI TIẾT NHẬT KÝ SẢN XUẤT</span>
+        {selectedLog && getStatusBadge(selectedLog.status)}
+      </DialogTitle>
     </DialogHeader>
+    
     {selectedLog && (
       <div className="space-y-6">
-        {/* Thông tin chung */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-gray-50 p-4 rounded-lg">
-          <div className="space-y-2">
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Ngày tháng:</span><span className="font-medium">{formatDate(selectedLog.ngayThang)}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Máy Sản Xuất:</span><span className="font-medium">{selectedLog.maySanXuat || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Mã Dự Án:</span><span className="font-medium text-blue-600">{selectedLog.duAn || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Tên Dự Án:</span><span className="font-medium">{selectedLog.khach_hang || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Bản Vẽ Số:</span><span>{selectedLog.banVeSo || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Ca:</span><span>{selectedLog.ca || '---'}</span></div>
+        {/* Thông tin cơ bản */}
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+          <div>
+            <p className="text-sm text-gray-500">Ngày tháng</p>
+            <p className="font-semibold">{formatDate(selectedLog.ngayThang)}</p>
           </div>
-          <div className="space-y-2">
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Tên Chi Tiết:</span><span>{selectedLog.tenChiTiet || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Nội dung Gia Công:</span><span>{selectedLog.noiDungGiaCong || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Vật Liệu:</span><span>{selectedLog.vatLieu || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Số NC:</span><span>{selectedLog.nguyenCongSo || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Người Vận Hành:</span><span>{selectedLog.nguoiVanHanh || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Người Kiểm Tra:</span><span>{selectedLog.nguoiKiemTra || '---'}</span></div>
-            <div className="flex"><span className="w-32 text-gray-600 font-medium">Số lượng HT:</span><span className="font-bold text-blue-700">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</span></div>
+          <div>
+            <p className="text-sm text-gray-500">Máy sản xuất</p>
+            <p className="font-semibold">{selectedLog.maySanXuat}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Ca sản xuất</p>
+            <p className="font-semibold">{selectedLog.ca || '---'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Mã dự án</p>
+            <p className="font-semibold text-blue-600">{selectedLog.duAn}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Tên dự án</p>
+            <p className="font-semibold">{selectedLog.khach_hang}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Số lượng hoàn thành</p>
+            <p className="font-semibold">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</p>
           </div>
         </div>
 
-        {/* Thời gian gá phôi và gia công */}
+        {/* Chi tiết gia công */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-gray-500">Bản vẽ số</p>
+            <p className="font-semibold">{selectedLog.banVeSo || '---'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Chi tiết số</p>
+            <p className="font-semibold">{selectedLog.chiTietSo || '---'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Tên chi tiết</p>
+            <p className="font-semibold">{selectedLog.tenChiTiet || '---'}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Nguyên công số</p>
+            <p className="font-semibold">{selectedLog.nguyenCongSo || '---'}</p>
+          </div>
+        </div>
+
+        {/* Nội dung gia công */}
+        <div>
+          <p className="text-sm text-gray-500">Nội dung gia công</p>
+          <p className="font-semibold p-2 bg-gray-50 rounded-lg">{selectedLog.noiDungGiaCong || '---'}</p>
+        </div>
+
+        {/* Vật liệu */}
+        <div>
+          <p className="text-sm text-gray-500">Vật liệu</p>
+          <p className="font-semibold">{selectedLog.vatLieu || '---'}</p>
+        </div>
+
+      {/* Thời gian gá phôi và gia công - HIỂN THỊ TẤT CẢ CÁC KHOẢNG */}
 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+  {/* Thời gian gá phôi */}
   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
     <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
       <span className="text-lg">🔧</span> Thời gian gá phôi
     </h4>
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between items-center border-b border-blue-100 pb-1">
-        <span className="text-gray-600">Giờ bắt đầu:</span>
-        <span className="font-medium">
-          {selectedLog.setup_time_entries?.[0]?.start || 
-           selectedLog.tgGia_BatDau || '---'}
-        </span>
-      </div>
-      <div className="flex justify-between items-center border-b border-blue-100 pb-1">
-        <span className="text-gray-600">Giờ kết thúc:</span>
-        <span className="font-medium">
-          {selectedLog.setup_time_entries?.[0]?.end || 
-           selectedLog.tgGia_KetThuc || '---'}
-        </span>
-      </div>
-      <div className="flex justify-between items-center">
-        <span className="text-gray-600">Số giờ:</span>
-        <span className="font-medium text-blue-700">
-          {selectedLog.setup_time_entries?.[0]?.hours || 
-           selectedLog.soGioGia || '---'}
-        </span>
-      </div>
-    </div>
+    
+    {(() => {
+      // Lấy danh sách thời gian gá phôi từ nhiều nguồn
+      let setupList = selectedLog?.setupTimeEntries || selectedLog?.setup_time_entries || [];
+      
+      // Nếu không có dữ liệu trong setupTimeEntries, thử lấy từ các field riêng lẻ
+      if (setupList.length === 0) {
+        const startField = selectedLog?.tgGia_BatDau;
+        const endField = selectedLog?.tgGia_KetThuc;
+        const hoursField = selectedLog?.soGioGia || selectedLog?.gioGa;
+        
+        if (startField || endField || hoursField) {
+          setupList = [{
+            thoiGianBatDau: startField || '',
+            thoiGianKetThuc: endField || '',
+            soGio: typeof hoursField === 'number' ? hoursField : (hoursField ? parseFloat(hoursField as string) : 0) || 0
+          }];
+        }
+      }
+
+      // Nếu setupList là object (không phải array), chuyển thành array
+      if (!Array.isArray(setupList)) {
+        setupList = [setupList];
+      }
+
+      // Lọc bỏ các item không có dữ liệu
+      const validSetupList = setupList.filter((item: any) => {
+        const start = item?.thoiGianBatDau || item?.start || '';
+        const end = item?.thoiGianKetThuc || item?.end || '';
+        let hours = item?.soGio || item?.hours || 0;
+        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+        return start || end || hours;
+      });
+
+      // Tính tổng số giờ gá phôi
+      const totalSetupHours = validSetupList.reduce((sum: number, item: any) => {
+        let hours = item?.soGio || item?.hours || 0;
+        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+        return sum + (typeof hours === 'number' ? hours : 0);
+      }, 0);
+
+      if (validSetupList.length === 0) {
+        return (
+          <div className="text-center text-gray-400 text-sm py-4">
+            Không có dữ liệu thời gian gá phôi
+          </div>
+        );
+      }
+
+      return (
+        <div className="space-y-3">
+          {/* Bảng thời gian gá phôi - HIỂN THỊ TẤT CẢ */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-blue-100/50">
+                  <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
+                  <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
+                  <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {validSetupList.map((item: any, index: number) => {
+                  // @ts-ignore
+                  const start = item?.thoiGianBatDau || item?.start || '';
+                  // @ts-ignore
+                  const end = item?.thoiGianKetThuc || item?.end || '';
+                  // @ts-ignore
+                  let hours = item?.soGio || item?.hours || 0;
+                  if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+                  
+                  return (
+                    <tr key={index} className="border-b border-blue-100 last:border-b-0 hover:bg-blue-50/50">
+                      <td className="py-1.5 px-2 text-gray-700">{start || '---'}</td>
+                      <td className="py-1.5 px-2 text-gray-700">{end || '---'}</td>
+                      <td className="py-1.5 px-2 text-right font-medium text-blue-700">
+                        {hours ? hours.toFixed(2) : '---'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-blue-300 bg-blue-50/50">
+                  <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
+                  <td className="py-2 px-2 text-right font-bold text-blue-700">
+                    {totalSetupHours ? totalSetupHours.toFixed(2) : '---'}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      );
+    })()}
   </div>
 
+  {/* Thời gian gia công */}
   <div className="bg-green-50 p-4 rounded-lg border border-green-200">
     <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
       <span className="text-lg">⚙️</span> Thời gian gia công
     </h4>
-    <div className="space-y-2 text-sm">
-      <div className="flex justify-between items-center border-b border-green-100 pb-1">
-        <span className="text-gray-600">Giờ bắt đầu:</span>
-        <span className="font-medium">
-          {selectedLog.work_time_entries?.[0]?.start || 
-           selectedLog.tgChay_BatDau || '---'}
-        </span>
-      </div>
-      <div className="flex justify-between items-center border-b border-green-100 pb-1">
-        <span className="text-gray-600">Giờ kết thúc:</span>
-        <span className="font-medium">
-          {selectedLog.work_time_entries?.[0]?.end || 
-           selectedLog.tgChay_KetThuc || '---'}
-        </span>
-      </div>
-      <div className="flex justify-between items-center">
-        <span className="text-gray-600">Số giờ:</span>
-        <span className="font-medium text-green-700">
-          {selectedLog.work_time_entries?.[0]?.hours || 
-           selectedLog.soGioChay || '---'}
-        </span>
-      </div>
-    </div>
+    
+    {(() => {
+      // Lấy danh sách thời gian gia công từ nhiều nguồn
+      let workList = selectedLog?.workTimeEntries || selectedLog?.work_time_entries || [];
+      
+      // Nếu không có dữ liệu trong workTimeEntries, thử lấy từ các field riêng lẻ
+      if (workList.length === 0) {
+        const startField = selectedLog?.tgChay_BatDau;
+        const endField = selectedLog?.tgChay_KetThuc;
+        const hoursField = selectedLog?.soGioChay || selectedLog?.gioChay;
+        
+        if (startField || endField || hoursField) {
+          workList = [{
+            thoiGianBatDau: startField || '',
+            thoiGianKetThuc: endField || '',
+            soGio: typeof hoursField === 'number' ? hoursField : (hoursField ? parseFloat(hoursField as string) : 0) || 0
+          }];
+        }
+      }
+
+      // Nếu workList là object (không phải array), chuyển thành array
+      if (!Array.isArray(workList)) {
+        workList = [workList];
+      }
+
+      // Lọc bỏ các item không có dữ liệu
+      const validWorkList = workList.filter((item: any) => {
+        const start = item?.thoiGianBatDau || item?.start || '';
+        const end = item?.thoiGianKetThuc || item?.end || '';
+        let hours = item?.soGio || item?.hours || 0;
+        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+        return start || end || hours;
+      });
+
+      // Tính tổng số giờ gia công
+      const totalWorkHours = validWorkList.reduce((sum: number, item: any) => {
+        let hours = item?.soGio || item?.hours || 0;
+        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+        return sum + (typeof hours === 'number' ? hours : 0);
+      }, 0);
+
+      if (validWorkList.length === 0) {
+        return (
+          <div className="text-center text-gray-400 text-sm py-4">
+            Không có dữ liệu thời gian gia công
+          </div>
+        );
+      }
+
+      return (
+        <div className="space-y-3">
+          {/* Bảng thời gian gia công - HIỂN THỊ TẤT CẢ */}
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-green-100/50">
+                  <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
+                  <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
+                  <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {validWorkList.map((item: any, index: number) => {
+                  // @ts-ignore
+                  const start = item?.thoiGianBatDau || item?.start || '';
+                  // @ts-ignore
+                  const end = item?.thoiGianKetThuc || item?.end || '';
+                  // @ts-ignore
+                  let hours = item?.soGio || item?.hours || 0;
+                  if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+                  
+                  return (
+                    <tr key={index} className="border-b border-green-100 last:border-b-0 hover:bg-green-50/50">
+                      <td className="py-1.5 px-2 text-gray-700">{start || '---'}</td>
+                      <td className="py-1.5 px-2 text-gray-700">{end || '---'}</td>
+                      <td className="py-1.5 px-2 text-right font-medium text-green-700">
+                        {hours ? hours.toFixed(2) : '---'}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="border-t-2 border-green-300 bg-green-50/50">
+                  <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
+                  <td className="py-2 px-2 text-right font-bold text-green-700">
+                    {totalWorkHours ? totalWorkHours.toFixed(2) : '---'}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </div>
+      );
+    })()}
   </div>
 </div>
-
-        {/* Bảng dao cụ chi tiết (đã bỏ cột đơn giá, thành tiền) */}
+      
+        {/* Bảng dao cụ chi tiết */}
         {selectedLog.toolEntries && selectedLog.toolEntries.length > 0 && (
           <div className="border-t pt-4">
             <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
@@ -1022,6 +1220,18 @@ export function ProductionReportPage() {
           </div>
         )}
 
+        {/* Nhân sự */}
+        <div className="grid grid-cols-2 gap-4 border-t pt-4">
+          <div>
+            <p className="text-sm text-gray-500">Người vận hành</p>
+            <p className="font-semibold">{selectedLog.nguoiVanHanh}</p>
+          </div>
+          <div>
+            <p className="text-sm text-gray-500">Người kiểm tra</p>
+            <p className="font-semibold">{selectedLog.nguoiKiemTra || '---'}</p>
+          </div>
+        </div>
+       
         {/* Footer */}
         <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
           <div className="flex items-center gap-2">

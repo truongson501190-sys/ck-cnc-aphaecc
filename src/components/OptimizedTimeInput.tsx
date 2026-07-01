@@ -27,6 +27,8 @@ interface OptimizedTimeInputProps {
     machiningEntries: WorkTimeEntry[],
     setupEntries: WorkTimeEntry[]
   ) => void;
+  initialMachiningEntries?: WorkTimeEntry[];
+  initialSetupEntries?: WorkTimeEntry[];
 }
 
 interface TimeSectionProps {
@@ -73,6 +75,18 @@ function convertToEntries(
       thoiGianKetThuc: x.endTime,   // Đổi từ gioKetThuc
       soGio: calculateHours(x),
     }));
+}
+
+function convertFromEntries(
+  entries: WorkTimeEntry[]
+): TimeInterval[] {
+  if (!entries || entries.length === 0) {
+    return [{ startTime: '', endTime: '' }];
+  }
+  return entries.map((entry) => ({
+    startTime: entry.thoiGianBatDau || '',
+    endTime: entry.thoiGianKetThuc || '',
+  }));
 }
 const TimeSection: React.FC<TimeSectionProps> = ({
   title,
@@ -199,28 +213,26 @@ const TimeSection: React.FC<TimeSectionProps> = ({
 
 export const OptimizedTimeInput: React.FC<
   OptimizedTimeInputProps
-> = ({ onTimeChange = () => {} }) => {
+> = ({ 
+  onTimeChange = () => {}, 
+  initialMachiningEntries = [], 
+  initialSetupEntries = [] 
+}) => {
   // =========================
   // Gia công
   // =========================
   const [machiningIntervals, setMachiningIntervals] =
-    useState<TimeInterval[]>([
-      {
-        startTime: '',
-        endTime: '',
-      },
-    ]);
+    useState<TimeInterval[]>(() => 
+      convertFromEntries(initialMachiningEntries)
+    );
 
   // =========================
   // Gá phôi
   // =========================
   const [setupIntervals, setSetupIntervals] =
-    useState<TimeInterval[]>([
-      {
-        startTime: '',
-        endTime: '',
-      },
-    ]);
+    useState<TimeInterval[]>(() => 
+      convertFromEntries(initialSetupEntries)
+    );
 
   const [machiningHours, setMachiningHours] =
     useState('');

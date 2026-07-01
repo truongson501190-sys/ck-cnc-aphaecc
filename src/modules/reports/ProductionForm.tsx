@@ -99,72 +99,94 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
 
   const masterData = masterDataHook?.masterData || { machines: [], tools: [], operators: [], inspectors: [], projects: [] };
 
+  // Helper để lấy userId an toàn
+  const getUserId = useCallback(() => {
+    return (user as any)?.id || (user as any)?.userId || (user as any)?.sub || null;
+  }, [user]);
+
+  // Helper để lấy tên user
+  const getUserName = useCallback(() => {
+    return user?.fullName || user?.name || 'Admin';
+  }, [user]);
+
   // ======================
   // STATE QUẢN LÝ KHÓA
   // ======================
   const [isLocked, setIsLocked] = useState(() => {
-    // Nếu là form chỉnh sửa và có dữ liệu, mặc định khóa
-    if (initialData) return true;
-    return false;
+    // Nếu có initialData (đang chỉnh sửa) -> lấy trạng thái từ database
+    if (initialData) {
+      return initialData.is_locked !== undefined ? initialData.is_locked : true;
+    }
+    // Nếu đang thêm mới -> mặc định KHÓA
+    return true;
   });
+  
   const [isTogglingLock, setIsTogglingLock] = useState(false);
   const [lockInfo, setLockInfo] = useState<{
     lockedBy: string;
     lockedAt: string;
     lockedByName: string;
-  } | null>(null);
+  } | null>(() => {
+    if (initialData?.is_locked && initialData?.locked_by) {
+      return {
+        lockedBy: initialData.locked_by || '',
+        lockedAt: initialData.locked_at || new Date().toISOString(),
+        lockedByName: initialData.lockedByName || 'Admin',
+      };
+    }
+    return null;
+  });
 
   // Kiểm tra quyền Admin
   const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin' || isAdmin;
 
   // Kiểm tra quyền toggle khóa (chỉ Admin)
   const canToggleLock = () => {
-    return isUserAdmin && !!initialData; // Chỉ Admin mới được toggle khi đang edit
+    return isUserAdmin;
   };
 
-  // Kiểm tra xem có thể chỉnh sửa trường không
-  const canEditField = () => {
-    // Nếu đang tạo mới, luôn cho phép
-    if (!initialData) return true;
-
-    // Nếu là Admin, luôn có quyền
-    if (isUserAdmin) return true;
-
-    // Nếu không phải Admin và đang bị khóa
-    if (isLocked) return false;
-
-    return true;
+  // Kiểm tra xem trường "Người vận hành" có bị khóa không
+  const isOperatorFieldLocked = () => {
+    return isLocked;
   };
 
   // ======================
-  // FORM STATE
+  // FORM STATE - LOAD ĐẦY ĐỦ DỮ LIỆU
   // ======================
-  const [formData, setFormData] = useState(() => {
+  const [formData, setFormData] = useState<any>(() => {
     if (initialData) {
+      // Load đầy đủ dữ liệu từ initialData
       return {
-        ngayThang: initialData.ngay || initialData.ngayThang || new Date().toISOString().split('T')[0],
-        maySanXuat: initialData.may || initialData.maySanXuat || '',
-        duAn: initialData.maDuAn || initialData.duAn || '',
-        tenDuAn: initialData.tenDuAn || '',
+        ngayThang: initialData.ngayThang || initialData.ngay || new Date().toISOString().split('T')[0],
+        maySanXuat: initialData.maySanXuat || initialData.may || '',
+        duAn: initialData.duAn || initialData.maDuAn || '',
+        tenDuAn: initialData.tenDuAn || initialData.khach_hang || '',
         banVeSo: initialData.banVeSo || '',
         chiTietSo: initialData.chiTietSo || initialData.ncSo || '',
         tenChiTiet: initialData.tenChiTiet || '',
-        noiDungGiaCong: initialData.noiDung || initialData.noiDungGiaCong || '',
-        soLuongHoanThanh: initialData.sanLuong || initialData.soLuongHoanThanh || 0,
+        noiDungGiaCong: initialData.noiDungGiaCong || initialData.noiDung || '',
+        soLuongHoanThanh: initialData.soLuongHoanThanh || initialData.sanLuong || 0,
         vatLieu: initialData.vatLieu || '',
         nguyenCongSo: initialData.nguyenCongSo || initialData.ncSo || '',
-        toolEntries: initialData.toolEntries?.length ? initialData.toolEntries : [createEmptyToolEntry()],
-        workTimeEntries: initialData.workTimeEntries || (initialData.gioChay ? [{ soGio: initialData.gioChay, thoiGianBatDau: '', thoiGianKetThuc: '' }] : []),
-        setupTimeEntries: initialData.setupTimeEntries || (initialData.gioGa ? [{ soGio: initialData.gioGa, thoiGianBatDau: '', thoiGianKetThuc: '' }] : []),
+        toolEntries: initialData.toolEntries?.length ? 
+          initialData.toolEntries : 
+          (initialData.tool_entries?.length ? initialData.tool_entries : [createEmptyToolEntry()]),
+        workTimeEntries: initialData.workTimeEntries?.length ? 
+          initialData.workTimeEntries : 
+          (initialData.work_time_entries?.length ? initialData.work_time_entries : 
+            (initialData.gioChay ? [{ soGio: initialData.gioChay, thoiGianBatDau: initialData.tgChay_BatDau || '', thoiGianKetThuc: initialData.tgChay_KetThuc || '' }] : [])),
+        setupTimeEntries: initialData.setupTimeEntries?.length ? 
+          initialData.setupTimeEntries : 
+          (initialData.setup_time_entries?.length ? initialData.setup_time_entries : 
+            (initialData.gioGa ? [{ soGio: initialData.gioGa, thoiGianBatDau: initialData.tgGia_BatDau || '', thoiGianKetThuc: initialData.tgGia_KetThuc || '' }] : [])),
         ca: initialData.ca || '',
         cpMay: initialData.cpMay || initialData.chiPhiChayMay || 0,
         cpDaoCu: initialData.cpDaoCu || initialData.chiPhiDao || 0,
-        nguoiVanHanh: initialData.nguoiVanHanh || user?.fullName || user?.name || '',
+        nguoiVanHanh: initialData.nguoiVanHanh || getUserName(),
         nguoiKiemTra: initialData.nguoiKiemTra || '',
         tgTrenCa: initialData.tgTrenCa || '',
         tgGaPhoi: initialData.tgGaPhoi || '',
         status: initialData.status || 'draft',
-        // Thông tin khóa
         is_locked: initialData.is_locked || false,
         locked_by: initialData.locked_by || null,
         locked_at: initialData.locked_at || null,
@@ -188,12 +210,12 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       ca: '' as 'ngay' | 'dem' | '',
       cpMay: 0,
       cpDaoCu: 0,
-      nguoiVanHanh: user?.fullName || user?.name || '',
+      nguoiVanHanh: getUserName(),
       nguoiKiemTra: '',
       tgTrenCa: '',
       tgGaPhoi: '',
       status: 'draft' as const,
-      is_locked: false,
+      is_locked: true, // Mặc định KHÓA khi thêm mới
       locked_by: null,
       locked_at: null,
     };
@@ -213,10 +235,11 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
 
   // ======================
-  // HÀM TOGGLE KHÓA
+  // HÀM TOGGLE KHÓA - CHỈ ADMIN MỚI DÙNG ĐƯỢC
   // ======================
   const toggleLock = async () => {
-    if (!canToggleLock()) {
+    // Kiểm tra quyền Admin
+    if (!isUserAdmin) {
       toast.error('Chỉ quản trị viên mới có quyền khóa/mở khóa!');
       return;
     }
@@ -226,21 +249,23 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       const newLockState = !isLocked;
       setIsLocked(newLockState);
 
-      // Cập nhật state local
-      setFormData(prev => ({
+      const userId = getUserId();
+      const userName = getUserName();
+
+      setFormData((prev: any) => ({
         ...prev,
         is_locked: newLockState,
-        locked_by: newLockState ? user?.id : null,
+        locked_by: newLockState ? userId : null,
         locked_at: newLockState ? new Date().toISOString() : null,
       }));
 
-      // Nếu có initialData và có ID, cập nhật database
+      // Nếu có initialData (đang chỉnh sửa) -> cập nhật database
       if (initialData?.id) {
         const { error } = await supabase
           .from('production_reports')
           .update({
             is_locked: newLockState,
-            locked_by: newLockState ? user?.id : null,
+            locked_by: newLockState ? userId : null,
             locked_at: newLockState ? new Date().toISOString() : null,
           })
           .eq('id', initialData.id);
@@ -248,12 +273,11 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         if (error) throw error;
       }
 
-      // Cập nhật thông tin người khóa
       if (newLockState) {
         setLockInfo({
-          lockedBy: user?.id || '',
+          lockedBy: userId || '',
           lockedAt: new Date().toISOString(),
-          lockedByName: user?.fullName || user?.name || 'Admin',
+          lockedByName: userName,
         });
       } else {
         setLockInfo(null);
@@ -261,13 +285,12 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
 
       toast.success(
         newLockState
-          ? '🔒 Đã khóa trường "Người vận hành" thành công!'
-          : '🔓 Đã mở khóa trường "Người vận hành" thành công!'
+          ? '🔒 Đã khóa trường "Người vận hành"! Không ai có thể nhập.'
+          : '🔓 Đã mở khóa trường "Người vận hành"! Mọi người đều có thể nhập.'
       );
     } catch (error) {
       console.error('Error toggling lock:', error);
       toast.error('Có lỗi xảy ra khi thay đổi trạng thái khóa!');
-      // Rollback
       setIsLocked(!isLocked);
     } finally {
       setIsTogglingLock(false);
@@ -313,7 +336,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   }, []);
 
   const loadCategoriesFromSupabase = useCallback(async () => {
-    console.log('🟢 [DEBUG] Bắt đầu load categories...');
     let categoriesData: any[] = [];
 
     try {
@@ -322,15 +344,10 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         .select('*')
         .eq('status', 'active');
 
-      if (error) {
-        console.error('🔴 [DEBUG] Lỗi Supabase:', error);
-        throw error;
-      }
-
-      console.log('🟢 [DEBUG] All active categories:', data);
+      if (error) throw error;
       categoriesData = Array.isArray(data) ? data : [];
     } catch (error) {
-      console.error('🔴 Lỗi load categories từ Supabase:', error);
+      console.error('Error loading categories:', error);
     }
 
     if (categoriesData.length === 0) {
@@ -343,11 +360,10 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
             categoriesData = parsed;
-            console.log(`🟡 [DEBUG] Đã load categories từ localStorage key=${key}:`, categoriesData);
             break;
           }
         } catch (err) {
-          console.warn(`⚠️ Không thể parse ${key} từ localStorage`, err);
+          console.warn(`Cannot parse ${key} from localStorage`, err);
         }
       }
     }
@@ -361,7 +377,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         gia: 0,
         createdAt: new Date().toISOString(),
       }));
-      console.log('🟡 [DEBUG] Đã load categories từ masterData.tools:', categoriesData);
     }
 
     if (categoriesData.length === 0) {
@@ -371,7 +386,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         { id: '3', maLoai: 'DAO003', tenLoai: 'Mũi khoan', donVi: 'cái', gia: 300000, createdAt: new Date().toISOString() },
       ];
       categoriesData = hardcodeCategories;
-      console.log('🟡 [DEBUG] Dùng fallback hardcode categories:', categoriesData);
     }
 
     const formattedCategories: CategoryType[] = categoriesData
@@ -385,9 +399,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       }))
       .filter((cat) => !!cat.tenLoai);
 
-    console.log('🟢 [DEBUG] Formatted categories:', formattedCategories);
     setCategoryTypes(formattedCategories);
-    console.log('🟢 [DEBUG] Đã set categoryTypes, độ dài:', formattedCategories.length);
   }, [masterData.tools]);
 
   const loadEmployees = useCallback(async () => {
@@ -416,7 +428,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   }, []);
 
   const loadAllMasterData = useCallback(async () => {
-    console.log('🟢 [DEBUG] loadAllMasterData - BẮT ĐẦU');
     setIsLoadingData(true);
     try {
       await Promise.all([
@@ -425,21 +436,17 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         loadCategoriesFromSupabase(),
         loadEmployees(),
       ]);
-      console.log('🟢 [DEBUG] loadAllMasterData - HOÀN THÀNH');
     } catch (error) {
       console.error('Error loading master data:', error);
     } finally {
       setIsLoadingData(false);
-      console.log('🟢 [DEBUG] isLoadingData = false');
     }
   }, [loadMachinesFromSupabase, loadProjectsFromSupabase, loadCategoriesFromSupabase, loadEmployees]);
 
   useEffect(() => {
-    console.log('🟢 [DEBUG] useEffect - GỌI loadAllMasterData');
     loadAllMasterData();
 
     const handleStorageChange = () => {
-      console.log('🟢 [DEBUG] Storage changed - reload');
       loadAllMasterData();
     };
 
@@ -453,13 +460,13 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   }, [loadAllMasterData]);
 
   useEffect(() => {
-    if (user?.fullName || user?.name) {
-      setFormData((prev) => ({
+    if (getUserName()) {
+      setFormData((prev: any) => ({
         ...prev,
-        nguoiVanHanh: user.fullName || user.name || prev.nguoiVanHanh,
+        nguoiVanHanh: getUserName() || prev.nguoiVanHanh,
       }));
     }
-  }, [user]);
+  }, [user, getUserName]);
 
   const getInspectorsByRole = useCallback(() => {
     try {
@@ -485,33 +492,12 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     }
   }, [employees, masterData.inspectors]);
 
-  const getInspectorDetails = useCallback((inspectorName: string) => {
-    try {
-      const inspector = employees.find((emp: Employee) => {
-        const name = emp.hoTen || emp.fullName || emp.name || '';
-        return name === inspectorName;
-      });
-      if (inspector) {
-        return {
-          name: inspectorName,
-          role: inspector.role || inspector.chucVu || '',
-          chucVu: inspector.chucVu || inspector.role || '',
-          department: inspector.department || '',
-          msnv: inspector.msnv || '',
-        };
-      }
-      return { name: inspectorName, role: '', chucVu: '', department: '', msnv: '' };
-    } catch (error) {
-      return { name: inspectorName, role: '', chucVu: '', department: '', msnv: '' };
-    }
-  }, [employees]);
-
   useEffect(() => {
     if (employees.length > 0) getInspectorsByRole();
   }, [employees, getInspectorsByRole]);
 
   const isCurrentUserInspector = () => {
-    const currentUserName = user?.fullName || user?.name;
+    const currentUserName = getUserName();
     return formData.nguoiKiemTra === currentUserName;
   };
 
@@ -529,7 +515,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     machiningEntries: WorkTimeEntry[],
     setupEntries: WorkTimeEntry[]
   ) => {
-    setFormData((prev) => ({
+    setFormData((prev: any) => ({
       ...prev,
       tgTrenCa: machiningHours,
       tgGaPhoi: setupHours,
@@ -540,42 +526,37 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   };
 
   const handleInputChange = (field: string, value: string | number) => {
-    // Kiểm tra quyền chỉnh sửa
-    if (!canEditField()) {
-      if (isLocked) {
-        toast.warning('Trường "Người vận hành" đang bị khóa bởi quản trị viên. Vui lòng liên hệ Admin để mở khóa.');
-      } else {
-        toast.warning('Bạn không có quyền chỉnh sửa trường này.');
-      }
+    // Nếu là trường "nguoiVanHanh" và đang bị khóa
+    if (field === 'nguoiVanHanh' && isOperatorFieldLocked()) {
+      toast.warning('Trường "Người vận hành" đang bị khóa! Vui lòng liên hệ Admin để mở khóa.');
       return;
     }
-    setFormData(prev => ({ ...prev, [field]: value }));
+    setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
   const handleProjectSelect = (project: Project) => {
-    setFormData(prev => ({ ...prev, duAn: project.maDuAn, tenDuAn: project.tenDuAn }));
+    setFormData((prev: any) => ({ ...prev, duAn: project.maDuAn, tenDuAn: project.tenDuAn }));
     setProjectSearch(project.maDuAn);
     setIsProjectDropdownOpen(false);
   };
 
   const addToolEntry = () => {
-    console.log('🔧 Current tool entries:', formData.toolEntries.length);
-
     if (formData.toolEntries.length < 20) {
-      setFormData(prev => ({
+      setFormData((prev: any) => ({
         ...prev,
         toolEntries: [...prev.toolEntries, createEmptyToolEntry()]
       }));
-      console.log('✅ Added successfully, new length:', formData.toolEntries.length + 1);
       toast.success(`Đã thêm dao cụ (${formData.toolEntries.length + 1}/20)`);
     } else {
-      console.log('❌ Cannot add, limit reached (20/20)');
       toast.warning('Đã đạt giới hạn tối đa');
     }
   };
 
   const removeToolEntry = (index: number) => {
-    setFormData(prev => ({ ...prev, toolEntries: prev.toolEntries.filter((_: ToolEntry, i: number) => i !== index) }));
+    setFormData((prev: any) => ({ 
+      ...prev, 
+      toolEntries: prev.toolEntries.filter((_: ToolEntry, i: number) => i !== index) 
+    }));
     setOpenCombobox(prev => {
       const newState = { ...prev };
       delete newState[index];
@@ -584,7 +565,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   };
 
   const updateToolEntry = (index: number, field: keyof ToolEntry, value: string | number) => {
-    setFormData(prev => ({
+    setFormData((prev: any) => ({
       ...prev,
       toolEntries: prev.toolEntries.map((entry: ToolEntry, i: number) => {
         if (i === index) {
@@ -614,9 +595,9 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      // Kiểm tra nếu đang bị khóa và không phải Admin
-      if (isLocked && initialData && !isUserAdmin) {
-        toast.error('Trường "Người vận hành" đang bị khóa. Vui lòng liên hệ Admin để mở khóa.');
+      // Kiểm tra nếu đang bị khóa
+      if (isOperatorFieldLocked()) {
+        toast.error('Trường "Người vận hành" đang bị khóa! Vui lòng mở khóa trước khi lưu.');
         return;
       }
 
@@ -654,21 +635,24 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         thanhTien: (tool.slSuDung || 0) * (tool.donGia || 0),
       }));
 
-      onSubmit({
+      const userId = getUserId();
+
+      const submitData: any = {
         ...formData,
         toolEntries: updatedToolEntries,
-        nguoiVanHanh: user?.fullName || user?.name || formData.nguoiVanHanh,
+        nguoiVanHanh: getUserName() || formData.nguoiVanHanh,
         status: initialData?.status || 'pending',
         chiPhiGa: setupAmount,
         chiPhiChayMay: runAmount,
         chiPhiDao: updatedToolEntries.reduce((sum: number, tool: ToolEntry) => sum + (tool.thanhTien || 0), 0),
         gioGa: totalSetupHours,
         gioChay: totalRunHours,
-        // Giữ trạng thái khóa
         is_locked: isLocked,
-        locked_by: formData.locked_by,
-        locked_at: formData.locked_at,
-      });
+        locked_by: isLocked ? userId : null,
+        locked_at: isLocked ? new Date().toISOString() : null,
+      };
+
+      onSubmit(submitData);
 
       if (!initialData) {
         setFormData({
@@ -689,16 +673,16 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
           ca: '',
           cpMay: 0,
           cpDaoCu: 0,
-          nguoiVanHanh: user?.fullName || user?.name || '',
+          nguoiVanHanh: getUserName(),
           nguoiKiemTra: '',
           tgTrenCa: '',
           tgGaPhoi: '',
           status: 'draft',
-          is_locked: false,
+          is_locked: true,
           locked_by: null,
           locked_at: null,
         });
-        setIsLocked(false);
+        setIsLocked(true);
         setLockInfo(null);
       }
       toast.success(initialData ? 'Đã cập nhật báo cáo!' : 'Đã gửi báo cáo!');
@@ -722,7 +706,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     return Array.from(machineMap.values());
   }, [machines]);
 
-  // Hiển thị loading nếu đang load và chưa có dữ liệu
   if (isLoadingData && machines.length === 0 && projects.length === 0 && categoryTypes.length === 0) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -743,7 +726,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <Badge variant="secondary" className="px-3 py-1 text-sm">
-                  Người dùng: {user?.fullName || user?.name}
+                  Người dùng: {getUserName()}
                 </Badge>
                 {canApprove() && (
                   <Badge variant="outline" className="px-3 py-1 text-sm text-green-600 border-green-300 bg-green-50">
@@ -765,11 +748,23 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                     {isLocked ? '🔒 Đã khóa' : '🔓 Mở khóa'}
                   </Badge>
                 )}
+                {!initialData && (
+                  <Badge 
+                    variant={isLocked ? 'destructive' : 'default'} 
+                    className={`px-3 py-1 text-sm ${isLocked ? 'bg-red-500' : 'bg-green-500'}`}
+                  >
+                    {isLocked ? '🔒 Đã khóa' : '🔓 Mở khóa'}
+                  </Badge>
+                )}
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mt-2">
                 {initialData ? 'Chỉnh sửa nhật ký sản xuất' : 'Thêm mới nhật ký sản xuất'}
               </h1>
-              <p className="text-gray-500 text-sm mt-1">Nhập đầy đủ thông tin sản xuất, dao cụ và thời gian gia công</p>
+              <p className="text-gray-500 text-sm mt-1">
+                {initialData 
+                  ? 'Chỉnh sửa thông tin nhật ký sản xuất' 
+                  : 'Nhập đầy đủ thông tin sản xuất, dao cụ và thời gian gia công'}
+              </p>
             </div>
           </div>
         </div>
@@ -1123,128 +1118,151 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
           </Card>
 
           {/* Thời gian gia công */}
-          <OptimizedTimeInput onTimeChange={handleTimeChange} />
+          <OptimizedTimeInput 
+            onTimeChange={handleTimeChange} 
+            initialMachiningEntries={formData.workTimeEntries} 
+            initialSetupEntries={formData.setupTimeEntries} 
+          />
 
-          {/* Nhân sự - PHẦN QUAN TRỌNG: CÓ KHÓA/MỞ KHÓA */}
+          {/* Nhân sự - CÓ NÚT MỞ/KHÓA */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 bg-slate-50/50">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-base font-bold text-slate-800">👥 Nhân sự</CardTitle>
-                {initialData && (
-                  <div className="flex items-center gap-3">
-                    <Badge
-                      variant={isLocked ? 'destructive' : 'default'}
-                      className={`text-xs ${isLocked ? 'bg-red-500' : 'bg-green-500'}`}
-                    >
-                      {isLocked ? '🔒 Đã khóa' : '🔓 Mở khóa'}
-                    </Badge>
-                    {canToggleLock() && (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={toggleLock}
-                              disabled={isTogglingLock}
-                              className={`h-8 px-3 text-xs font-medium ${
-                                isLocked
-                                  ? 'border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700'
-                                  : 'border-green-300 text-green-600 hover:bg-green-50 hover:text-green-700'
-                              }`}
-                            >
-                              {isTogglingLock ? (
-                                <Loader2 className="w-3 h-3 animate-spin" />
-                              ) : isLocked ? (
-                                <>
-                                  <Unlock className="w-3 h-3 mr-1" />
-                                  Mở khóa
-                                </>
-                              ) : (
-                                <>
-                                  <Lock className="w-3 h-3 mr-1" />
-                                  Khóa
-                                </>
-                              )}
-                            </Button>
-                          </TooltipTrigger>
-                          <TooltipContent>
-                            <p className="text-xs">Chỉ quản trị viên mới có quyền</p>
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                    {!canToggleLock() && isLocked && (
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <Lock className="w-3 h-3" />
-                        Chỉ Admin mở khóa
-                      </span>
-                    )}
-                  </div>
-                )}
+                <div className="flex items-center gap-3">
+                  {/* Badge trạng thái */}
+                  <Badge
+                    variant={isLocked ? 'destructive' : 'default'}
+                    className={`text-xs ${isLocked ? 'bg-red-500' : 'bg-green-500'}`}
+                  >
+                    {isLocked ? '🔒 Đã khóa' : '🔓 Mở khóa'}
+                  </Badge>
+                  
+                  {/* NÚT MỞ/KHÓA - CHỈ ADMIN MỚI THẤY VÀ HOẠT ĐỘNG */}
+                  {isUserAdmin && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={toggleLock}
+                            disabled={isTogglingLock}
+                            className={`h-8 px-4 text-sm font-medium ${
+                              isLocked
+                                ? 'border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700'
+                                : 'border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700'
+                            }`}
+                          >
+                            {isTogglingLock ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : isLocked ? (
+                              <>
+                                <Unlock className="w-4 h-4 mr-2" />
+                                Mở khóa
+                              </>
+                            ) : (
+                              <>
+                                <Lock className="w-4 h-4 mr-2" />
+                                Khóa
+                              </>
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          <p className="text-xs">
+                            {isLocked 
+                              ? 'Mở khóa để cho phép nhập liệu' 
+                              : 'Khóa để ngăn nhập liệu'}
+                          </p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  
+                  {!isUserAdmin && isLocked && (
+                    <span className="text-xs text-slate-400 flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      Đã bị khóa
+                    </span>
+                  )}
+                  {!isUserAdmin && !isLocked && (
+                    <span className="text-xs text-green-400 flex items-center gap-1">
+                      <Unlock className="w-3 h-3" />
+                      Đang mở
+                    </span>
+                  )}
+                </div>
               </div>
             </CardHeader>
+            
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Người vận hành - CÓ KHÓA/MỞ KHÓA */}
+                {/* Người vận hành */}
                 <div>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="nguoiVanHanh" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                      {isLocked && initialData ? (
+                      {isLocked ? (
                         <Lock className="w-4 h-4 text-red-500" />
                       ) : (
                         <Unlock className="w-4 h-4 text-green-500" />
                       )}
                       Người vận hành
-                      {isLocked && initialData && (
+                      {isLocked && (
                         <Badge variant="secondary" className="text-[10px] bg-red-100 text-red-600">
-                          Đã khóa
+                          ĐÃ KHÓA
+                        </Badge>
+                      )}
+                      {!isLocked && (
+                        <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-600">
+                          ĐANG MỞ
                         </Badge>
                       )}
                     </Label>
-                    {isLocked && initialData && (
-                      <span className="text-[10px] text-slate-400 flex items-center gap-1">
+                    {isLocked && (
+                      <span className="text-[10px] text-red-400 flex items-center gap-1">
                         <Lock className="w-3 h-3" />
-                        Chỉ Admin mở khóa
+                        Đã khóa
+                      </span>
+                    )}
+                    {!isLocked && (
+                      <span className="text-[10px] text-green-400 flex items-center gap-1">
+                        <Unlock className="w-3 h-3" />
+                        Đang mở
                       </span>
                     )}
                   </div>
+                  
                   <Input
                     id="nguoiVanHanh"
                     value={formData.nguoiVanHanh}
                     onChange={(e) => handleInputChange('nguoiVanHanh', e.target.value)}
-                    disabled={isLocked && !!initialData}
+                    disabled={isLocked}
                     className={`mt-1.5 ${
-                      isLocked && initialData
-                        ? 'bg-gray-100 border-gray-200 text-gray-600 cursor-not-allowed'
-                        : 'bg-white'
+                      isLocked
+                        ? 'bg-gray-100 border-red-200 text-gray-400 cursor-not-allowed'
+                        : 'bg-white border-blue-200 focus:border-blue-400'
                     }`}
-                    placeholder={isLocked && initialData ? '🔒 Đã bị khóa' : 'Nhập tên người vận hành...'}
+                    placeholder={
+                      isLocked 
+                        ? '🔒 ĐÃ BỊ KHÓA - KHÔNG THỂ NHẬP' 
+                        : 'Nhập tên người vận hành...'
+                    }
                   />
                   
-                  {/* Thông báo trạng thái khóa */}
-                  {isLocked && initialData && !isUserAdmin && (
+                  {/* Thông báo trạng thái */}
+                  {isLocked && (
                     <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
                       <Lock className="w-3 h-3" />
-                      Trường đã bị khóa bởi quản trị viên. Vui lòng liên hệ Admin để mở khóa.
+                      Trường đã bị khóa. {isUserAdmin ? 'Nhấn "Mở khóa" để cho phép nhập' : 'Vui lòng liên hệ Admin để mở khóa'}
                     </p>
                   )}
-                  {isLocked && initialData && isUserAdmin && (
-                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
-                      <Unlock className="w-3 h-3" />
-                      Nhấn "Mở khóa" để cho phép chỉnh sửa trường này
-                    </p>
-                  )}
-                  {!isLocked && initialData && (
+                  
+                  {!isLocked && (
                     <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
                       <Unlock className="w-3 h-3" />
-                      Trường đã được mở khóa, bạn có thể chỉnh sửa
-                    </p>
-                  )}
-                  {!initialData && (
-                    <p className="text-xs text-slate-400 mt-1">
-                      * Nhập tên người vận hành
+                      Trường đang mở. {isUserAdmin ? 'Nhấn "Khóa" để ngăn chỉnh sửa' : 'Bạn có thể nhập tên người vận hành'}
                     </p>
                   )}
                 </div>
@@ -1258,7 +1276,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                   <Select
                     value={formData.nguoiKiemTra}
                     onValueChange={(value: string) => handleInputChange('nguoiKiemTra', value)}
-                    disabled={isLocked && !!initialData}
+                    disabled={isLocked}
                   >
                     <SelectTrigger className="mt-1.5">
                       <SelectValue placeholder="Chọn người kiểm tra" />
@@ -1282,11 +1300,17 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                   <p className="text-xs text-gray-400 mt-1">
                     * Chọn người kiểm tra (Tổ trưởng, Tổ phó, Nhóm trưởng, Quản lý)
                   </p>
+                  {isLocked && (
+                    <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
+                      <Lock className="w-3 h-3" />
+                      Trường này cũng bị khóa
+                    </p>
+                  )}
                 </div>
               </div>
 
               {/* Hiển thị thông tin người khóa */}
-              {isLocked && initialData && lockInfo && (
+              {isLocked && lockInfo && (
                 <div className="mt-4 flex items-center gap-4 text-xs text-slate-500 bg-slate-50 rounded-md px-4 py-2 border border-slate-100">
                   <div className="flex items-center gap-1">
                     <UserCog className="w-3.5 h-3.5" />
@@ -1316,6 +1340,45 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                   )}
                 </div>
               )}
+
+              {/* Hướng dẫn cho Admin */}
+              {isUserAdmin && (
+                <div className="mt-4 flex items-center gap-2 text-xs text-blue-600 bg-blue-50 rounded-md px-4 py-2 border border-blue-100">
+                  {isLocked ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Trường đang <strong>KHÓA</strong>. Nhấn <strong>"Mở khóa"</strong> để cho phép nhập liệu.</span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="w-3.5 h-3.5" />
+                      <span>Trường đang <strong>MỞ</strong>. Nhấn <strong>"Khóa"</strong> để ngăn chỉnh sửa.</span>
+                    </>
+                  )}
+                  {!initialData && (
+                    <span className="text-xs text-blue-400 ml-2">
+                      (Mặc định khóa khi thêm mới)
+                    </span>
+                  )}
+                </div>
+              )}
+
+              {/* Hướng dẫn cho User thường */}
+              {!isUserAdmin && (
+                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-md px-4 py-2 border border-slate-100">
+                  {isLocked ? (
+                    <>
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Trường đang bị <strong>KHÓA</strong>. Vui lòng liên hệ Admin để mở khóa.</span>
+                    </>
+                  ) : (
+                    <>
+                      <Unlock className="w-3.5 h-3.5" />
+                      <span>Trường đang <strong>MỞ</strong>. Bạn có thể nhập tên người vận hành.</span>
+                    </>
+                  )}
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -1327,41 +1390,42 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
             <Button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-8"
-              disabled={isLocked && initialData && !isUserAdmin}
+              disabled={isLocked}
             >
               {initialData ? 'Cập nhật' : 'Lưu nhật ký'}
             </Button>
           </div>
-        </form>
-      </div>
 
-      {/* QR Scanner Dialog */}
-      <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>Quét mã QR máy</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-gray-600 mb-3">Đưa mã QR vào khung camera để quét.</p>
-            <Suspense fallback={<div className="text-center py-8 text-gray-500">Đang tải máy quét...</div>}>
-              <LazyScanner onDetected={(text: string) => {
-                const found = machines.find(m =>
-                  (m as any).qrData === text ||
-                  (m as any).id === text ||
-                  getMachineName(m) === text
-                );
-                if (found) {
-                  setFormData(prev => ({ ...prev, maySanXuat: getMachineName(found) }));
-                  toast.success(`Đã chọn máy: ${getMachineName(found)}`);
-                } else {
-                  toast.error(`Không tìm thấy máy ứng với mã: ${text}`);
-                }
-                setScannerOpen(false);
-              }} />
-            </Suspense>
-          </div>
-        </DialogContent>
-      </Dialog>
+        </form>
+
+        {/* QR Scanner Dialog */}
+        <Dialog open={scannerOpen} onOpenChange={setScannerOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Quét mã QR máy</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-gray-600 mb-3">Đưa mã QR vào khung camera để quét.</p>
+              <Suspense fallback={<div className="text-center py-8 text-gray-500">Đang tải máy quét...</div>}>
+                <LazyScanner onDetected={(text: string) => {
+                  const found = machines.find(m =>
+                    (m as any).qrData === text ||
+                    (m as any).id === text ||
+                    getMachineName(m) === text
+                  );
+                  if (found) {
+                    setFormData((prev: any) => ({ ...prev, maySanXuat: getMachineName(found) }));
+                    toast.success(`Đã chọn máy: ${getMachineName(found)}`);
+                  } else {
+                    toast.error(`Không tìm thấy máy ứng với mã: ${text}`);
+                  }
+                  setScannerOpen(false);
+                }} />
+              </Suspense>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
     </div>
   );
 }
