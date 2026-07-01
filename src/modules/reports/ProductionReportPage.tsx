@@ -330,7 +330,8 @@ export function ProductionReportPage() {
       return;
     }
     const log = logs.find(l => l.id === id);
-    if (log?.status === 'approved') {
+    const userRole = user?.role || '';
+    if (log?.status === 'approved' && userRole !== 'admin') {
       toast.error('Không thể xóa nhật ký đã duyệt');
       return;
     }
