@@ -28,6 +28,7 @@ import {
   createPermissionLevelMap,
   getLegacyWmsUserPermissionsStorageKey,
   getUserPermissionsStorageKey,
+  permissionsToLevels,
   type PermissionLevel,
   type UserPermissions,
 } from '@/lib/permissions';
@@ -44,13 +45,6 @@ interface EmployeeProfile {
   department: string;
   roleGroup: string;
 }
-
-const convertFromSupabase = (flag: any): PermissionLevel => {
-  if (!flag) return 'none';
-  if (flag.edit || flag.add || flag.delete || flag.approve) return 'full';
-  if (flag.view || flag.export) return 'view';
-  return 'none';
-};
 
 const isSchemaError = (error: any): boolean => {
   if (!error) return false;
@@ -156,12 +150,9 @@ export function Roles() {
             setUserPermissions({ ...INITIAL_PERMISSIONS });
           }
         } else {
+          // ✅ Lấy permissions từ database
           const perms = await PermissionService.getByMsnv(msnv);
-          const permMap: Record<string, PermissionLevel> = { ...INITIAL_PERMISSIONS };
-          
-          for (const [moduleKey, flag] of Object.entries(perms)) {
-            permMap[moduleKey] = convertFromSupabase(flag);
-          }
+          const permMap = permissionsToLevels(perms);
           setUserPermissions(permMap);
           setSchemaError('');
         }
@@ -305,7 +296,7 @@ export function Roles() {
     []
   );
 
-  // ===== SAVE PERMISSIONS =====
+  // ===== SAVE PERMISSIONS - SỬA DỨT ĐIỂM =====
   const handleSavePermissions = useCallback(async () => {
     if (!selectedUserMsnv) return;
     setIsSaving(true);
@@ -313,6 +304,7 @@ export function Roles() {
     const previousPermissions = { ...userPermissions };
 
     try {
+      // Kiểm tra employee tồn tại
       if (!useFallback) {
         const { data, error } = await supabase
           .from('employees')
@@ -326,34 +318,26 @@ export function Roles() {
         }
       }
 
-      const userPerms: UserPermissions = {};
-      for (const [moduleKey, level] of Object.entries(userPermissions)) {
-        userPerms[moduleKey] = {
-          view: level !== 'none',
-          add: level === 'full',
-          edit: level === 'full',
-          delete: level === 'full',
-          approve: level === 'full',
-          export: level !== 'none',
-        };
-      }
-
-      if (useFallback) {
-        savePermissionsLocal(selectedUserMsnv, userPermissions);
-        toast.success(`Lưu offline thành công cho ${currentUser?.hoTen || selectedUserMsnv}`);
-      } else {
-        await PermissionService.saveForMsnv(selectedUserMsnv, userPerms);
-        savePermissionsLocal(selectedUserMsnv, userPermissions);
-        toast.success(`Lưu ma trận quyền thành công cho ${currentUser?.hoTen || selectedUserMsnv}`);
-        
-        if (user?.msnv === selectedUserMsnv) {
-          await refreshUser();
-          toast.info('Đã cập nhật quyền của bạn. Các thay đổi có hiệu lực ngay.');
-        }
+      // ✅ GỬI TRỰC TIẾP userPermissions (PermissionLevel map)
+      // PermissionService.saveForMsnv sẽ tự động chuyển đổi sang format database
+      await PermissionService.saveForMsnv(selectedUserMsnv, userPermissions);
+      
+      // Backup local
+      savePermissionsLocal(selectedUserMsnv, userPermissions);
+      toast.success(`Lưu ma trận quyền thành công cho ${currentUser?.hoTen || selectedUserMsnv}`);
+      
+      // ✅ Nếu đang sửa chính user đăng nhập → refresh context
+      if (user?.msnv === selectedUserMsnv) {
+        await refreshUser();
+        toast.info('Đã cập nhật quyền của bạn. Các thay đổi có hiệu lực ngay.');
       }
     } catch (error: any) {
       console.error('Error saving permissions:', error);
-      if (error?.message?.includes('406') || error?.status === 406) {
+      
+      // Xử lý lỗi foreign key constraint
+      if (error?.message?.includes('23503') || error?.message?.includes('foreign key')) {
+        toast.error(`Nhân viên ${selectedUserMsnv} không tồn tại. Vui lòng tạo nhân viên trước khi phân quyền.`);
+      } else if (error?.message?.includes('406') || error?.status === 406) {
         toast.error(`Nhân viên ${selectedUserMsnv} không tồn tại trong database. Vui lòng tạo nhân viên trước.`);
       } else if (!useFallback) {
         setUserPermissions(previousPermissions);

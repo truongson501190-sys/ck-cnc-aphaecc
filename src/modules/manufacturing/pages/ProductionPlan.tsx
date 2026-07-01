@@ -58,6 +58,7 @@ saveArrayToStorage,
 import type {
 ProductionPlanEntry,
 } from '@/types/manufacturing';
+import { usePermission } from '@/hooks/usePermission';
 
 const STORAGE_KEY = 'productionPlanEntries';
 
@@ -198,6 +199,8 @@ note: '',
 
 export function ProductionPlan() {
 const navigate = useNavigate();
+const { canEdit } = usePermission();
+const canEditOrDelete = canEdit('ke_hoach_san_xuat');
 
 const [plans, setPlans] =
 useState<ProductionPlanEntry[]>([]);
@@ -501,6 +504,7 @@ return (
         onClick={
           deleteSelected
         }
+        disabled={!canEditOrDelete}
       >
         <Trash2 className="w-4 h-4 mr-2" />
         Delete
@@ -510,6 +514,7 @@ return (
         onClick={
           openNewDialog
         }
+        disabled={!canEditOrDelete}
       >
         <Plus className="w-4 h-4 mr-2" />
         Add Job
@@ -954,6 +959,7 @@ return (
               onClick={() =>
                 handleEdit(plan)
               }
+              disabled={!canEditOrDelete}
             >
               <Edit3 className="w-4 h-4" />
             </Button>
@@ -964,6 +970,7 @@ return (
               onClick={() =>
                 handleDelete(plan.id)
               }
+              disabled={!canEditOrDelete}
             >
               
               <Trash2 className="w-4 h-4" />

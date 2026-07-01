@@ -14,6 +14,7 @@ import { Search, Plus, Edit3, Trash2, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
 import type { InventoryCountEntry } from '@/types/warehouse';
+import { usePermission } from '@/hooks/usePermission';
 
 const STORAGE_KEY = 'inventoryCountEntries';
 const PAGE_SIZE = 8;
@@ -47,6 +48,8 @@ const defaultItems: InventoryCountEntry[] = [
 
 export function InventoryCount() {
   const navigate = useNavigate();
+  const { canEdit } = usePermission();
+  const canEditOrDelete = canEdit('kiem_ke_kho');
   const [entries, setEntries] = useState<InventoryCountEntry[]>([]);
   const [selectedEntry, setSelectedEntry] = useState<InventoryCountEntry | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -176,7 +179,7 @@ export function InventoryCount() {
             <Badge variant="secondary">{entries.length} phiếu</Badge>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="inline-flex items-center gap-2">
+                <Button className="inline-flex items-center gap-2" disabled={!canEditOrDelete}>
                   <Plus className="w-4 h-4" /> Thêm phiếu
                 </Button>
               </DialogTrigger>
@@ -353,10 +356,10 @@ export function InventoryCount() {
                           </Badge>
                         </TableCell>
                         <TableCell className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(entry)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(entry)} disabled={!canEditOrDelete}>
                             <Edit3 className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(entry.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(entry.id)} disabled={!canEditOrDelete}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </TableCell>

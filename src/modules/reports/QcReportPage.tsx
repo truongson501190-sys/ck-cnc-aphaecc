@@ -13,10 +13,13 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Plus, ArrowLeft, ClipboardCheck, CheckCircle2, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { loadReports, saveReports } from '@/lib/reportsStorage';
+import { usePermission } from '@/hooks/usePermission';
 
 export function QcReportPage() {
   const navigate = useNavigate();
   const { user, isAdmin } = useAuth();
+  const { canEdit } = usePermission();
+  const canEditOrDelete = canEdit('nhat_ky_qc');
   const [reports, setReports] = useState<QcReport[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -108,7 +111,7 @@ export function QcReportPage() {
             </CardTitle>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="bg-gray-900 hover:bg-gray-800">
+                <Button className="bg-gray-900 hover:bg-gray-800" disabled={!canEditOrDelete}>
                   <Plus className="w-4 h-4 mr-2" />
                   Thêm báo cáo QC
                 </Button>
@@ -227,6 +230,7 @@ export function QcReportPage() {
                           size="sm"
                           className="text-red-600"
                           onClick={() => handleDelete(report.id)}
+                          disabled={!canEditOrDelete}
                         >
                           Xóa
                         </Button>

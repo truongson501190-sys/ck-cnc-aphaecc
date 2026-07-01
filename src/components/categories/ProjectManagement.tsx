@@ -11,7 +11,7 @@ import { toast } from 'sonner';
 import { Search, Plus, Edit2, Trash2, Briefcase, Upload, ListFilter, Loader2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { supabase } from '@/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 
 interface Project {
   id: string;
@@ -23,7 +23,7 @@ interface Project {
 }
 
 export function ProjectManagement() {
-  const { user } = useAuth();
+  const { canView: permCanView, canEdit: permCanEdit } = usePermission();
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -33,11 +33,11 @@ export function ProjectManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   
-  // Kiểm tra quyền dựa trên role
-  const canAdd = user?.role === 'admin';
-  const canEdit = user?.role === 'admin';
-  const canDelete = user?.role === 'admin';
-  const canView = user?.role === 'admin';
+  // Kiểm tra quyền dựa trên permission system
+  const canView = permCanView('du_an');
+  const canAdd = permCanEdit('du_an');
+  const canEdit = permCanEdit('du_an');
+  const canDelete = permCanEdit('du_an');
   
   const [formData, setFormData] = useState({
     maDuAn: '',

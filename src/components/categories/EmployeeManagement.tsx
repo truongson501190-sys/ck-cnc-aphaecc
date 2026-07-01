@@ -9,8 +9,12 @@ import { toast } from 'sonner';
 import { Search, Plus, Edit2, Trash2, Users, Upload } from 'lucide-react';
 import { Employee } from '@/types/categories';
 import * as XLSX from 'xlsx';
+import { usePermission } from '@/hooks/usePermission';
 
 export function EmployeeManagement() {
+  const { canEdit: permCanEdit, canView: permCanView } = usePermission();
+  const canView = permCanView('quan_ly_nguoi_dung');
+  const canEdit = permCanEdit('quan_ly_nguoi_dung');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -250,6 +254,7 @@ export function EmployeeManagement() {
                     onChange={(e) => setFormData({ ...formData, msnv: e.target.value })}
                     placeholder="VD: NV001"
                     required
+                    disabled={!canEdit}
                   />
                 </div>
 
@@ -261,6 +266,7 @@ export function EmployeeManagement() {
                     onChange={(e) => setFormData({ ...formData, ten_nhan_vien: e.target.value })}
                     placeholder="Nhập tên nhân viên"
                     required
+                    disabled={!canEdit}
                   />
                 </div>
 
@@ -272,44 +278,50 @@ export function EmployeeManagement() {
                     onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
                     placeholder="Nhập ghi chú (tùy chọn)"
                     rows={3}
+                    disabled={!canEdit}
                   />
                 </div>
 
-                <div className="flex gap-2">
-                  <Button type="submit" className="flex-1">
-                    {editingId ? 'Cập nhật' : 'Thêm nhân viên'}
-                  </Button>
-                  {editingId && (
-                    <Button type="button" variant="outline" onClick={handleCancel}>
-                      Hủy
+                {canEdit && (
+                  <div className="flex gap-2">
+                    <Button type="submit" className="flex-1" disabled={!canEdit}>
+                      {editingId ? 'Cập nhật' : 'Thêm nhân viên'}
                     </Button>
-                  )}
-                </div>
+                    {editingId && (
+                      <Button type="button" variant="outline" onClick={handleCancel} disabled={!canEdit}>
+                        Hủy
+                      </Button>
+                    )}
+                  </div>
+                )}
               </form>
 
               {/* Import Excel */}
-              <div className="border-t pt-4">
-                <Label className="text-sm font-semibold mb-2 block">Import từ Excel</Label>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".xlsx,.xls"
-                  onChange={handleImportExcel}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full"
-                >
-                  <Upload className="w-4 h-4 mr-2" />
-                  Import Excel
-                </Button>
-                <p className="text-xs text-gray-500 mt-2">
-                  File cần có cột: msnv, ten_nhan_vien (tùy chọn: ghiChu)
-                </p>
-              </div>
+              {canEdit && (
+                <div className="border-t pt-4">
+                  <Label className="text-sm font-semibold mb-2 block">Import từ Excel</Label>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".xlsx,.xls"
+                    onChange={handleImportExcel}
+                    className="hidden"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full"
+                    disabled={!canEdit}
+                  >
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import Excel
+                  </Button>
+                  <p className="text-xs text-gray-500 mt-2">
+                    File cần có cột: msnv, ten_nhan_vien (tùy chọn: ghiChu)
+                  </p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </div>
@@ -362,24 +374,28 @@ export function EmployeeManagement() {
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleEdit(employee)}
-                          className="text-blue-600 hover:text-blue-800"
-                        >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDelete(employee.id)}
-                          className="text-red-600 hover:text-red-800"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
+                      {canEdit && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEdit(employee)}
+                            className="text-blue-600 hover:text-blue-800"
+                            disabled={!canEdit}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(employee.id)}
+                            className="text-red-600 hover:text-red-800"
+                            disabled={!canEdit}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

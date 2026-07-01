@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Eye, Download, Truck, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 
 interface TransferRecord {
   soPhieu: string;
@@ -26,6 +27,8 @@ interface TransferRecord {
 
 export const ChuyenKho: React.FC = () => {
   const { user } = useAuth();
+  const { canEdit } = usePermission();
+  const canAddOrEdit = canEdit('chuyen_kho');
   const [open, setOpen] = useState(false);
   const [transfersList, setTransfersList] = useState<TransferRecord[]>([]);
   const [viewOpen, setViewOpen] = useState(false);
@@ -150,7 +153,7 @@ export const ChuyenKho: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900">Chuyển Kho</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-purple-600 hover:bg-purple-700">
+            <Button className="bg-purple-600 hover:bg-purple-700" disabled={!canAddOrEdit}>
               <Plus className="w-4 h-4 mr-2" /> Thêm phiếu chuyển
             </Button>
           </DialogTrigger>
@@ -187,12 +190,12 @@ export const ChuyenKho: React.FC = () => {
                   <td className="px-6 py-4 text-center">{getStatusBadge(t.status)}</td>
                   <td className="px-6 py-4 text-center space-x-2">
                     {canConfirmTransfer(t) && (
-                      <Button size="sm" variant="outline" className="text-blue-600" onClick={() => updateTransferStatus(t.soPhieu, 'transferred')}>
+                      <Button size="sm" variant="outline" className="text-blue-600" onClick={() => updateTransferStatus(t.soPhieu, 'transferred')} disabled={!canAddOrEdit}>
                         <Truck className="w-4 h-4 mr-1" /> Xác nhận chuyển
                       </Button>
                     )}
                     {canConfirmReceive(t) && (
-                      <Button size="sm" variant="outline" className="text-green-600" onClick={() => updateTransferStatus(t.soPhieu, 'received')}>
+                      <Button size="sm" variant="outline" className="text-green-600" onClick={() => updateTransferStatus(t.soPhieu, 'received')} disabled={!canAddOrEdit}>
                         <UserCheck className="w-4 h-4 mr-1" /> Đã nhận
                       </Button>
                     )}

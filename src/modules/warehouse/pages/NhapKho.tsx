@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Eye, Download } from 'lucide-react';
+import { usePermission } from '@/hooks/usePermission';
 
 interface ImportRecord {
   soPhieu: string;
@@ -29,6 +30,8 @@ interface ImportRecord {
 
 export const NhapKho: React.FC = () => {
   const queryClient = useQueryClient();
+  const { canEdit } = usePermission();
+  const canAdd = canEdit('nhap_kho');
   const [open, setOpen] = useState(false);
   const [imports, setImports] = useState<ImportRecord[]>([]);
   const [viewOpen, setViewOpen] = useState(false);
@@ -141,7 +144,7 @@ export const NhapKho: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900">Nhập Kho</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-green-600 hover:bg-green-700">
+            <Button className="bg-green-600 hover:bg-green-700" disabled={!canAdd}>
               <Plus className="w-4 h-4 mr-2" /> Thêm phiếu nhập
             </Button>
           </DialogTrigger>

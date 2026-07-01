@@ -17,7 +17,7 @@ import {
   Briefcase,
 } from 'lucide-react';
 import { supabase } from '@/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 import * as XLSX from 'xlsx';
 
 interface Machine {
@@ -41,7 +41,7 @@ const formatNumber = (value: number | undefined): string => {
 };
 
 export function MachineManagement() {
-  const { user } = useAuth();
+  const { canView: permCanView, canEdit: permCanEdit } = usePermission();
   const [machines, setMachines] = useState<Machine[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,11 +50,11 @@ export function MachineManagement() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  // Kiểm tra quyền dựa trên role
-  const canAdd = user?.role === 'admin';
-  const canEdit = user?.role === 'admin';
-  const canDelete = user?.role === 'admin';
-  const canView = user?.role === 'admin';
+  // Kiểm tra quyền dựa trên permission system
+  const canView = permCanView('may_moc');
+  const canAdd = permCanEdit('may_moc');
+  const canEdit = permCanEdit('may_moc');
+  const canDelete = permCanEdit('may_moc');
 
   const [formData, setFormData] = useState({
     maMay: '',

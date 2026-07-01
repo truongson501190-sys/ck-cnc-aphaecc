@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { toast } from 'sonner';
 import { BackupRestoreRecord } from '@/types/system';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+import { usePermission } from '@/hooks/usePermission';
 
 const HISTORY_KEY = 'erp-backup-restore-history';
 
@@ -36,6 +37,9 @@ function downloadJsonFile(payload: Record<string, unknown>, filename: string) {
 }
 
 export default function BackupRestore() {
+  const { canEdit: permCanEdit, canView: permCanView } = usePermission();
+  const canView = permCanView('backup_restore');
+  const canEdit = permCanEdit('backup_restore');
   const [history, setHistory] = useState<BackupRestoreRecord[]>([]);
   const [restoreCandidateName, setRestoreCandidateName] = useState('');
   const [restoreCandidateData, setRestoreCandidateData] = useState<Record<string, unknown> | null>(null);
@@ -178,13 +182,17 @@ export default function BackupRestore() {
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row">
-            <Button onClick={handleCreateBackup} disabled={isProcessing}>
-              Tạo backup và tải xuống
-            </Button>
-            <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
-              Chọn file restore
-              <input type="file" accept="application/json" className="sr-only" onChange={handleFileChange} disabled={isProcessing} />
-            </label>
+            {canEdit && (
+              <>
+                <Button onClick={handleCreateBackup} disabled={isProcessing || !canEdit}>
+                  Tạo backup và tải xuống
+                </Button>
+                <label className="inline-flex cursor-pointer items-center rounded-md border border-slate-200 bg-white px-4 py-2 text-sm text-slate-700 transition hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800">
+                  Chọn file restore
+                  <input type="file" accept="application/json" className="sr-only" onChange={handleFileChange} disabled={isProcessing || !canEdit} />
+                </label>
+              </>
+            )}
           </div>
         </div>
 

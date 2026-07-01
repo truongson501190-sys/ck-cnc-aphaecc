@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { toast } from 'sonner';
 import { AuditLogEntry } from '@/types/system';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+import { usePermission } from '@/hooks/usePermission';
 
 const STORAGE_KEY = 'erp-audit-log';
 
@@ -92,6 +93,9 @@ function getUserOptions(logs: AuditLogEntry[]) {
 }
 
 export default function AuditLog() {
+  const { canEdit: permCanEdit, canView: permCanView } = usePermission();
+  const canView = permCanView('audit_log');
+  const canAdd = permCanEdit('audit_log');
   const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [search, setSearch] = useState('');
   const [userFilter, setUserFilter] = useState('all');
@@ -165,7 +169,7 @@ export default function AuditLog() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Button variant="outline" onClick={handleResetFilters}>Reset bộ lọc</Button>
-            <Button onClick={handleAddSample}>Thêm bản ghi mẫu</Button>
+            {canAdd && <Button onClick={handleAddSample}>Thêm bản ghi mẫu</Button>}
           </div>
         </div>
 

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Eye, Download, Truck, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 
 interface ConsumableRecord {
   soPhieu: string;
@@ -28,6 +29,8 @@ interface ConsumableRecord {
 
 export const XuatVatTuTieuHao: React.FC = () => {
   const { user } = useAuth();
+  const { canEdit } = usePermission();
+  const canEditOrDelete = canEdit('xuat_dau');
   const [open, setOpen] = useState(false);
   const [exportsList, setExportsList] = useState<ConsumableRecord[]>([]);
   const [viewOpen, setViewOpen] = useState(false);
@@ -157,7 +160,7 @@ export const XuatVatTuTieuHao: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900">Xuất Vật Tư Tiêu Hao</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-teal-600 hover:bg-teal-700">
+            <Button className="bg-teal-600 hover:bg-teal-700" disabled={!canEditOrDelete}>
               <Plus className="w-4 h-4 mr-2" /> Thêm phiếu xuất
             </Button>
           </DialogTrigger>
@@ -196,12 +199,12 @@ export const XuatVatTuTieuHao: React.FC = () => {
                   <td className="px-6 py-4 text-center">{getStatusBadge(exp.status)}</td>
                   <td className="px-6 py-4 text-center space-x-2">
                     {canApproveExport(exp) && (
-                      <Button size="sm" variant="outline" className="text-blue-600" onClick={() => updateExportStatus(exp.soPhieu, 'approved')}>
+                      <Button size="sm" variant="outline" className="text-blue-600" onClick={() => updateExportStatus(exp.soPhieu, 'approved')} disabled={!canEditOrDelete}>
                         <Truck className="w-4 h-4 mr-1" /> Xác nhận xuất
                       </Button>
                     )}
                     {canConfirmReceive(exp) && (
-                      <Button size="sm" variant="outline" className="text-green-600" onClick={() => updateExportStatus(exp.soPhieu, 'received')}>
+                      <Button size="sm" variant="outline" className="text-green-600" onClick={() => updateExportStatus(exp.soPhieu, 'received')} disabled={!canEditOrDelete}>
                         <UserCheck className="w-4 h-4 mr-1" /> Đã nhận
                       </Button>
                     )}

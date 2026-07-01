@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 
 interface Warehouse {
   id: string;
@@ -24,6 +25,8 @@ interface Warehouse {
 
 export function WarehouseManagement() {
   const { user } = useAuth();
+  const { canEdit } = usePermission();
+  const canEditOrDelete = canEdit('kho');
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -327,6 +330,7 @@ export function WarehouseManagement() {
                   value={formData.tenKho}
                   onChange={(e) => setFormData({ ...formData, tenKho: e.target.value })}
                   placeholder="Nhập tên kho"
+                  disabled={!canEditOrDelete}
                 />
               </div>
               <div>
@@ -336,15 +340,16 @@ export function WarehouseManagement() {
                   value={formData.ghiChu}
                   onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
                   placeholder="Ghi chú..."
+                  disabled={!canEditOrDelete}
                 />
               </div>
               <div className="flex gap-2">
-                <Button type="submit" className="flex-1">
+                <Button type="submit" className="flex-1" disabled={!canEditOrDelete}>
                   <Plus className="w-4 h-4 mr-2" />
                   {editingId ? 'Cập nhật' : 'Thêm kho'}
                 </Button>
                 {editingId && (
-                  <Button type="button" variant="outline" onClick={resetForm}>
+                  <Button type="button" variant="outline" onClick={resetForm} disabled={!canEditOrDelete}>
                     Hủy
                   </Button>
                 )}
@@ -360,7 +365,7 @@ export function WarehouseManagement() {
                 className="hidden"
                 onChange={handleImportExcel}
               />
-              <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()}>
+              <Button variant="outline" className="w-full" onClick={() => fileInputRef.current?.click()} disabled={!canEditOrDelete}>
                 <Upload className="w-4 h-4 mr-2" />
                 Import Excel
               </Button>
@@ -373,8 +378,8 @@ export function WarehouseManagement() {
           <CardHeader className="space-y-4">
             <div className="flex items-center justify-between">
               <CardTitle>Danh sách kho</CardTitle>
-              {selectedIds.length > 0 && (
-                <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={isDeleting}>
+              {selectedIds.length > 0 && canEditOrDelete && (
+                <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={isDeleting || !canEditOrDelete}>
                   <Trash2 className="w-4 h-4 mr-2" />
                   Xóa ({selectedIds.length})
                 </Button>
@@ -428,10 +433,10 @@ export function WarehouseManagement() {
                         <td className="py-3 text-muted-foreground">{warehouse.ghiChu || '-'}</td>
                         <td className="py-3">
                           <div className="flex justify-end gap-2">
-                            <Button size="icon" variant="ghost" onClick={() => handleEdit(warehouse)}>
+                            <Button size="icon" variant="ghost" onClick={() => handleEdit(warehouse)} disabled={!canEditOrDelete}>
                               <Edit2 className="w-4 h-4 text-blue-600" />
                             </Button>
-                            <Button size="icon" variant="ghost" onClick={() => handleDelete(warehouse.id)} disabled={isDeleting}>
+                            <Button size="icon" variant="ghost" onClick={() => handleDelete(warehouse.id)} disabled={isDeleting || !canEditOrDelete}>
                               <Trash2 className="w-4 h-4 text-red-600" />
                             </Button>
                           </div>

@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { supabase } from '@/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermission } from '@/hooks/usePermission'
 
 interface Category {
   id: string
@@ -26,6 +27,8 @@ interface Category {
 
 export function CategoryTypeManagement() {
   const { user } = useAuth();
+  const { canEdit } = usePermission();
+  const canEditOrDelete = canEdit('chung_loai');
   const [categories, setCategories] = useState<Category[]>([])
   const [editingId, setEditingId] = useState<string | null>(null)
   const [selectedIds, setSelectedIds] = useState<string[]>([])
@@ -351,6 +354,7 @@ export function CategoryTypeManagement() {
                       onChange={(e) => setFormData({ ...formData, tenLoai: e.target.value })}
                       placeholder="Nhập tên loại"
                       className="border-slate-200"
+                      disabled={!canEditOrDelete}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -360,6 +364,7 @@ export function CategoryTypeManagement() {
                       onChange={(e) => setFormData({ ...formData, donVi: e.target.value })}
                       placeholder="VD: Cái, Kg, m, Lít..."
                       className="border-slate-200"
+                      disabled={!canEditOrDelete}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -369,6 +374,7 @@ export function CategoryTypeManagement() {
                       value={formData.gia}
                       onChange={(e) => setFormData({ ...formData, gia: Number(e.target.value) })}
                       className="border-slate-200"
+                      disabled={!canEditOrDelete}
                     />
                   </div>
                   <div className="space-y-1.5">
@@ -379,13 +385,14 @@ export function CategoryTypeManagement() {
                       onChange={(e) => setFormData({ ...formData, ghiChu: e.target.value })}
                       placeholder="Nhập ghi chú (nếu có)"
                       className="border-slate-200 resize-none"
+                      disabled={!canEditOrDelete}
                     />
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg">
+                    <Button type="submit" className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg" disabled={!canEditOrDelete}>
                       Lưu
                     </Button>
-                    <Button type="button" variant="outline" onClick={resetForm} className="flex-1 border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50">
+                    <Button type="button" variant="outline" onClick={resetForm} className="flex-1 border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50" disabled={!canEditOrDelete}>
                       Hủy
                     </Button>
                   </div>
@@ -413,6 +420,7 @@ export function CategoryTypeManagement() {
                   variant="outline"
                   className="w-full h-24 border-dashed border-2 border-slate-200 hover:bg-slate-50/80 rounded-xl transition-all"
                   onClick={() => fileInputRef.current?.click()}
+                  disabled={!canEditOrDelete}
                 >
                   <div className="flex flex-col items-center gap-2 text-slate-500">
                     <Upload className="w-5 h-5 text-slate-400" />
@@ -446,12 +454,12 @@ export function CategoryTypeManagement() {
                       onChange={(e) => setSearch(e.target.value)}
                     />
                   </div>
-                  {selectedIds.length > 0 && (
+                  {selectedIds.length > 0 && canEditOrDelete && (
                     <Button 
                       variant="outline" 
                       className="border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 h-9 rounded-lg px-3 flex items-center gap-1.5"
                       onClick={handleDeleteSelected}
-                      disabled={isDeleting}
+                      disabled={isDeleting || !canEditOrDelete}
                     >
                       <Trash2 className="w-4 h-4" />
                       <span>Xóa đã chọn ({selectedIds.length})</span>
@@ -521,10 +529,10 @@ export function CategoryTypeManagement() {
                           <TableCell className="text-slate-500 py-2 max-w-xs truncate">{item.ghiChu || '—'}</TableCell>
                           <TableCell className="text-center py-2">
                             <div className="flex justify-center gap-1">
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(item)}>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-blue-600 hover:bg-blue-50" onClick={() => handleEdit(item)} disabled={!canEditOrDelete}>
                                 <Edit className="w-3.5 h-3.5" />
                               </Button>
-                              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:bg-red-50" onClick={() => handleDelete(item.id)} disabled={isDeleting}>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:bg-red-50" onClick={() => handleDelete(item.id)} disabled={isDeleting || !canEditOrDelete}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>

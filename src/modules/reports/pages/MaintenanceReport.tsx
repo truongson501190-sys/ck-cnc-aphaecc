@@ -8,15 +8,18 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Wrench, Calendar, AlertTriangle, AlertOctagon, Plus, Search } from "lucide-react";
+import { usePermission } from '@/hooks/usePermission';
 
 export default function MaintenanceReport() {
+  const { canEdit: permCanEdit } = usePermission();
+  const canEditOrDelete = permCanEdit('nhat_ky_bao_tri');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold">Nhật Ký Bảo Trì</h1>
-        <Button onClick={() => setIsModalOpen(true)}>
+        <Button onClick={() => setIsModalOpen(true)} disabled={!canEditOrDelete}>
           <Plus className="mr-2 h-4 w-4" /> Thêm nhật ký bảo trì
         </Button>
       </div>

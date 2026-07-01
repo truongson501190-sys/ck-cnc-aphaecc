@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Plus, Eye, Download, Truck, UserCheck } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 
 interface ExportRecord {
   soPhieu: string;
@@ -29,6 +30,8 @@ interface ExportRecord {
 
 export const XuatKho: React.FC = () => {
   const { user } = useAuth();
+  const { canEdit } = usePermission();
+  const canAddOrEdit = canEdit('xuat_kho');
   const [open, setOpen] = useState(false);
   const [exportsList, setExportsList] = useState<ExportRecord[]>([]);
   const [viewOpen, setViewOpen] = useState(false);
@@ -175,7 +178,7 @@ export const XuatKho: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-900">Xuất Kho</h1>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-orange-600 hover:bg-orange-700">
+            <Button className="bg-orange-600 hover:bg-orange-700" disabled={!canAddOrEdit}>
               <Plus className="w-4 h-4 mr-2" /> Thêm phiếu xuất
             </Button>
           </DialogTrigger>
@@ -219,6 +222,7 @@ export const XuatKho: React.FC = () => {
                         variant="outline"
                         className="text-blue-600 border-blue-300 hover:bg-blue-50"
                         onClick={() => updateExportStatus(exp.soPhieu, 'approved')}
+                        disabled={!canAddOrEdit}
                       >
                         <Truck className="w-4 h-4 mr-1" /> Xác nhận xuất
                       </Button>
@@ -229,6 +233,7 @@ export const XuatKho: React.FC = () => {
                         variant="outline"
                         className="text-green-600 border-green-300 hover:bg-green-50"
                         onClick={() => updateExportStatus(exp.soPhieu, 'received')}
+                        disabled={!canAddOrEdit}
                       >
                         <UserCheck className="w-4 h-4 mr-1" /> Đã nhận
                       </Button>

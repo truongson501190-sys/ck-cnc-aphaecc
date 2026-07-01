@@ -13,6 +13,7 @@ import { Search, Plus, Edit3, Trash2, Activity, ArrowLeft } from 'lucide-react';
 import { toast } from 'sonner';
 import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
 import type { ProgressUpdateEntry } from '@/types/manufacturing';
+import { usePermission } from '@/hooks/usePermission';
 
 const STORAGE_KEY = 'progressUpdateEntries';
 const PAGE_SIZE = 8;
@@ -21,6 +22,8 @@ const defaultUpdates: ProgressUpdateEntry[] = [];
 
 export function ProgressTracking() {
   const navigate = useNavigate();
+  const { canEdit } = usePermission();
+  const canEditOrDelete = canEdit('theo_doi_tien_do');
   const [updates, setUpdates] = useState<ProgressUpdateEntry[]>([]);
   const [selectedUpdate, setSelectedUpdate] = useState<ProgressUpdateEntry | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -149,7 +152,7 @@ export function ProgressTracking() {
               <p className="text-sm text-slate-600 mt-2">Quản lý tiến độ thực tế cho đơn hàng và lệnh sản xuất.</p>
             </div>
           </div>
-          <Button onClick={openNewDialog} className="inline-flex items-center gap-2">
+          <Button onClick={openNewDialog} className="inline-flex items-center gap-2" disabled={!canEditOrDelete}>
             <Plus className="w-4 h-4" /> Ghi tiến độ
           </Button>
         </div>
@@ -230,10 +233,10 @@ export function ProgressTracking() {
                         <TableCell>{statusBadge(item.status)}</TableCell>
                         <TableCell>{item.updatedAt}</TableCell>
                         <TableCell className="flex gap-2">
-                          <Button variant="ghost" size="sm" onClick={() => handleEdit(item)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleEdit(item)} disabled={!canEditOrDelete}>
                             <Edit3 className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)}>
+                          <Button variant="ghost" size="sm" onClick={() => handleDelete(item.id)} disabled={!canEditOrDelete}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </TableCell>

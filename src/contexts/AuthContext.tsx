@@ -50,7 +50,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // ✅ SỬA: Load user permissions from Supabase
   const loadPermissions = useCallback(async (msnv: string): Promise<UserPermissions> => {
     // PermissionService.getByMsnv() đã trả về UserPermissions đúng format
-    return await PermissionService.getByMsnv(msnv);
+    const perms = await PermissionService.getByMsnv(msnv);
+    console.log('📥 loadPermissions:', { msnv, perms: JSON.stringify(perms, null, 2) });
+    return perms;
   }, []);
 
   // Refresh user data and permissions from Supabase
@@ -156,10 +158,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const hasPermission = useCallback((module: string, level: 'view' | 'edit') => {
-    if (!user) return false;
-    if (user.role === 'admin' || user.msnv === '1118') return true;
-    if (!user.permissions) return false;
-    return hasPermissionFlag(user.permissions[module], level);
+    if (!user) {
+      console.log('❌ hasPermission: User not logged in');
+      return false;
+    }
+    if (user.role === 'admin' || user.msnv === '1118') {
+      console.log('✅ hasPermission: Admin or super user');
+      return true;
+    }
+    if (!user.permissions) {
+      console.log('❌ hasPermission: No permissions found');
+      return false;
+    }
+    const modulePermissions = user.permissions[module];
+    const result = hasPermissionFlag(modulePermissions, level);
+    console.log(`🔍 hasPermission(${module}, ${level}):`, JSON.stringify({ modulePermissions }, null, 2), 'result:', result);
+    return result;
   }, [user]);
 
   const value: AuthContextType = {

@@ -46,6 +46,8 @@ export const PERMISSION_KEYS = [
   'dashboard_tong_hop',
   'bao_cao_kho',
   'bao_cao_gia_cong',
+  'bao_cao_qc',
+  'bao_cao_bao_tri',
   'hieu_suat_may',
   'tieu_hao_vat_lieu',
   'cho_duyet',
@@ -93,6 +95,8 @@ export const PERMISSION_GROUPS: Record<string, string[]> = {
     'dashboard_tong_hop',
     'bao_cao_kho',
     'bao_cao_gia_cong',
+    'bao_cao_qc',
+    'bao_cao_bao_tri',
     'hieu_suat_may',
     'tieu_hao_vat_lieu',
     'cho_duyet'
@@ -141,6 +145,8 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'dashboard_tong_hop': 'Dashboard tổng hợp',
   'bao_cao_kho': 'Báo cáo kho',
   'bao_cao_gia_cong': 'Báo cáo gia công',
+  'bao_cao_qc': 'Báo cáo QC',
+  'bao_cao_bao_tri': 'Báo cáo bảo trì',
   'hieu_suat_may': 'Hiệu suất máy',
   'tieu_hao_vat_lieu': 'Tiêu hao vật liệu',
   'cho_duyet': 'Chờ duyệt',
@@ -179,7 +185,7 @@ export function levelToFlag(level: PermissionLevel): PermissionFlag {
 
 export function flagToLevel(flag: PermissionFlag | null | undefined): PermissionLevel {
   if (!flag) return 'none';
-  if (flag.edit && flag.delete && flag.add) return 'full';
+  if (flag.edit || flag.add || flag.delete || flag.approve) return 'full';
   if (flag.view || flag.export) return 'view';
   return 'none';
 }
@@ -214,7 +220,7 @@ export function createUserPermissions(level: PermissionLevel): UserPermissions {
 
 // ==================== DEFAULT PERMISSIONS ====================
 
-export function createDefaultPermissions(): UserPermissions {
+export function createDefaultPermissionLevels(): Record<string, PermissionLevel> {
   const levels = createPermissionLevelMap('none');
   // User thường chỉ xem được các module cơ bản
   levels.ton_kho = 'view';
@@ -223,7 +229,11 @@ export function createDefaultPermissions(): UserPermissions {
   levels.dashboard_tong_hop = 'view';
   levels.bao_cao_kho = 'view';
   levels.bao_cao_gia_cong = 'view';
-  return levelsToPermissions(levels);
+  return levels;
+}
+
+export function createDefaultPermissions(): UserPermissions {
+  return levelsToPermissions(createDefaultPermissionLevels());
 }
 
 export function createAdminPermissions(): UserPermissions {

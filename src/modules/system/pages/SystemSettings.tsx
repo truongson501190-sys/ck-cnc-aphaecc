@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+import { usePermission } from '@/hooks/usePermission';
 
 interface EmailConfig {
   smtpServer: string;
@@ -62,6 +63,9 @@ function applyTheme(theme: SystemSettingsData['theme']) {
 }
 
 export default function SystemSettings() {
+  const { canEdit: permCanEdit, canView: permCanView } = usePermission();
+  const canView = permCanView('system_settings');
+  const canEdit = permCanEdit('system_settings');
   const [settings, setSettings] = useState<SystemSettingsData>(DEFAULT_SETTINGS);
   const [activeTab, setActiveTab] = useState('general');
   const [submitting, setSubmitting] = useState(false);
@@ -120,9 +124,11 @@ export default function SystemSettings() {
             <h1 className="text-3xl font-semibold text-slate-900 dark:text-slate-100">Cài đặt hệ thống</h1>
             <p className="text-sm text-slate-600 dark:text-slate-400">Quản lý cấu hình công ty, giao diện, email và backup tự động.</p>
           </div>
-          <Button onClick={handleSave} disabled={submitting || !canSave}>
-            {submitting ? 'Đang lưu...' : 'Lưu cài đặt'}
-          </Button>
+          {canEdit && (
+            <Button onClick={handleSave} disabled={submitting || !canSave || !canEdit}>
+              {submitting ? 'Đang lưu...' : 'Lưu cài đặt'}
+            </Button>
+          )}
         </div>
 
         <Card>
@@ -146,10 +152,12 @@ export default function SystemSettings() {
                             <Building2 className="h-14 w-14" />
                           </div>
                         )}
-                        <label className="absolute bottom-0 right-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-slate-900 text-white shadow-lg">
-                          <Camera className="h-5 w-5" />
-                          <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
-                        </label>
+                        {canEdit && (
+                          <label className="absolute bottom-0 right-0 flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-slate-900 text-white shadow-lg">
+                            <Camera className="h-5 w-5" />
+                            <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} disabled={!canEdit} />
+                          </label>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <p className="text-sm text-slate-500 dark:text-slate-400">Upload logo công ty</p>
@@ -166,6 +174,7 @@ export default function SystemSettings() {
                           id="companyName"
                           value={settings.companyName}
                           onChange={(event) => setSettings((prev) => ({ ...prev, companyName: event.target.value }))}
+                          disabled={!canEdit}
                         />
                       </div>
                       <div className="space-y-2">
@@ -173,6 +182,7 @@ export default function SystemSettings() {
                         <Select
                           value={settings.currency}
                           onValueChange={(value) => setSettings((prev) => ({ ...prev, currency: value as SystemSettingsData['currency'] }))}
+                          disabled={!canEdit}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -191,6 +201,7 @@ export default function SystemSettings() {
                         <Select
                           value={settings.theme}
                           onValueChange={(value) => setSettings((prev) => ({ ...prev, theme: value as SystemSettingsData['theme'] }))}
+                          disabled={!canEdit}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -206,6 +217,7 @@ export default function SystemSettings() {
                         <Select
                           value={settings.language}
                           onValueChange={(value) => setSettings((prev) => ({ ...prev, language: value as SystemSettingsData['language'] }))}
+                          disabled={!canEdit}
                         >
                           <SelectTrigger>
                             <SelectValue />
@@ -234,6 +246,7 @@ export default function SystemSettings() {
                             ...prev,
                             emailConfig: { ...prev.emailConfig, smtpServer: event.target.value },
                           }))}
+                          disabled={!canEdit}
                         />
                         <Server className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       </div>
@@ -248,6 +261,7 @@ export default function SystemSettings() {
                             ...prev,
                             emailConfig: { ...prev.emailConfig, port: event.target.value },
                           }))}
+                          disabled={!canEdit}
                         />
                         <Mail className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       </div>
@@ -257,13 +271,14 @@ export default function SystemSettings() {
                     <Label htmlFor="fromAddress">Email gửi</Label>
                     <div className="relative">
                       <Input
-                        id="fromAddress"
-                        value={settings.emailConfig.fromAddress}
-                        onChange={(event) => setSettings((prev) => ({
-                          ...prev,
-                          emailConfig: { ...prev.emailConfig, fromAddress: event.target.value },
-                        }))}
-                      />
+                          id="fromAddress"
+                          value={settings.emailConfig.fromAddress}
+                          onChange={(event) => setSettings((prev) => ({
+                            ...prev,
+                            emailConfig: { ...prev.emailConfig, fromAddress: event.target.value },
+                          }))}
+                          disabled={!canEdit}
+                        />
                       <Mail className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     </div>
                   </div>
@@ -281,6 +296,7 @@ export default function SystemSettings() {
                           ...prev,
                           backupConfig: { ...prev.backupConfig, enabled: value === 'enabled' },
                         }))}
+                        disabled={!canEdit}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -299,6 +315,7 @@ export default function SystemSettings() {
                           ...prev,
                           backupConfig: { ...prev.backupConfig, frequency: value as BackupConfig['frequency'] },
                         }))}
+                        disabled={!canEdit}
                       >
                         <SelectTrigger>
                           <SelectValue />
@@ -323,6 +340,7 @@ export default function SystemSettings() {
                         ...prev,
                         backupConfig: { ...prev.backupConfig, retentionDays: Number(event.target.value) },
                       }))}
+                      disabled={!canEdit}
                     />
                   </div>
 

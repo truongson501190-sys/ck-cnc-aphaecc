@@ -219,48 +219,48 @@ export default function Index() {
             <p className="text-slate-500 text-sm mt-1">Quản lý sản xuất, kho bãi và báo cáo toàn diện</p>
           </div>
           
-          {/* Card thông tin user - CỐ ĐỊNH, SÁT MÉP PHẢI */}
-          <div className="w-72 sticky top-6 flex-shrink-0">
-            <Card className="border-l-4 border-blue-500 shadow-md rounded-xl overflow-hidden bg-white">
+          {/* Card thông tin user - CO GIÃN LINH HOẠT */}
+          <div className="flex-1 min-w-[200px] max-w-[320px] sticky top-6">
+            <Card className="border-l-4 border-blue-500 shadow-md rounded-xl overflow-hidden bg-white h-full">
               <CardContent className="p-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="text-xs font-medium text-slate-500">{formattedDate}</div>
-                    <div className="text-xl font-bold text-blue-600 font-mono">{formattedTime}</div>
-                    <div className="text-xs font-medium text-orange-500 mt-0.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-[10px] sm:text-xs font-medium text-slate-500 truncate">{formattedDate}</div>
+                    <div className="text-base sm:text-xl font-bold text-blue-600 font-mono">{formattedTime}</div>
+                    <div className="text-[10px] sm:text-xs font-medium text-orange-500 mt-0.5 truncate">
                       {greeting.icon} {greeting.text}
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="font-semibold text-slate-800 text-sm">
+                  <div className="text-right flex-shrink-0">
+                    <div className="font-semibold text-slate-800 text-xs sm:text-sm truncate max-w-[100px] sm:max-w-[120px]">
                       {user?.fullName || user?.username || 'Người dùng'}
                     </div>
-                    <div className="flex items-center justify-end gap-2 text-xs text-slate-500">
-                      <span className="flex items-center gap-0.5">
-                        <UserCircle size={12} />
+                    <div className="flex items-center justify-end gap-1 sm:gap-2 text-[10px] sm:text-xs text-slate-500">
+                      <span className="flex items-center gap-0.5 whitespace-nowrap">
+                        <UserCircle size={10} className="sm:w-3 sm:h-3" />
                         {user?.role || 'User'}
                       </span>
-                      <span className="text-green-500 flex items-center gap-0.5">
-                        <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
-                        Online
+                      <span className="text-green-500 flex items-center gap-0.5 whitespace-nowrap">
+                        <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                        <span className="hidden xs:inline">Online</span>
                       </span>
                     </div>
                     <Button 
                       variant="ghost" 
                       size="sm" 
                       onClick={() => logout()}
-                      className="text-xs text-red-500 hover:text-red-600 hover:bg-red-50 h-6 px-2 mt-1"
+                      className="text-[10px] sm:text-xs text-red-500 hover:text-red-600 hover:bg-red-50 h-5 sm:h-6 px-1 sm:px-2 mt-0.5 sm:mt-1 whitespace-nowrap"
                     >
-                      <LogOut size={12} className="mr-0.5" />
-                      Đăng xuất
+                      <LogOut size={10} className="sm:w-3 sm:h-3 mr-0.5" />
+                      <span className="hidden xs:inline">Đăng xuất</span>
                     </Button>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
-        </div>
-        
+        </div> {/* 👈 THÊM DẤU ĐÓNG NÀY */}
+
         {/* NỘI DUNG CHÍNH - full width, không có container rào cản */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* CỘT TRÁI - Danh sách module (chiếm 8/12 cột) */}

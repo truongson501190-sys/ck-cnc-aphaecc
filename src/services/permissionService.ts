@@ -7,7 +7,7 @@ import {
   flagToLevel,
   permissionsToLevels,
   levelsToPermissions,
-  createDefaultPermissions as createDefaultPermissionLevels,
+  createDefaultPermissionLevels,
   PERMISSION_KEYS,
 } from '../lib/permissions';
 
@@ -147,7 +147,7 @@ export const PermissionService = {
     msnv: string,
     levels: Record<string, PermissionLevel>
   ): Promise<void> {
-    await this.saveLevelsForMsnv(msnv, permissions);
+    await this.saveForMsnv(msnv, levels);
   },
 
   /**

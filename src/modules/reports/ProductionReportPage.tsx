@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { ProductionForm } from './ProductionForm';
 import { supabase } from '@/supabase';
 import { useAuth } from '@/contexts/AuthContext';
+import { usePermission } from '@/hooks/usePermission';
 
 // ====================== TYPES ======================
 interface ToolEntry {
@@ -62,53 +63,7 @@ interface ProductionLog {
   soGioChay?: number;
 }
 
-// ====================== HÀM KIỂM TRA QUYỀN ======================
-const checkPermission = async (action: 'view' | 'add' | 'edit' | 'delete' | 'approve' = 'view'): Promise<boolean> => {
-  try {
-    const sessionUser = localStorage.getItem('sessionUser');
-    let currentMsnv = null;
-    if (sessionUser) {
-      try {
-        const parsed = JSON.parse(sessionUser);
-        currentMsnv = parsed.msnv;
-      } catch (e) {}
-    }
-    if (!currentMsnv) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user?.email) currentMsnv = user.email;
-    }
-    if (!currentMsnv) return false;
 
-    const { data: currentUser, error: userError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('msnv', currentMsnv)
-      .maybeSingle();
-    if (userError) console.error('Error fetching user role:', userError);
-    if (currentUser?.role === 'admin') return true;
-
-    const { data: perm, error: permError } = await supabase
-      .from('user_permissions')
-      .select('can_view, can_add, can_edit, can_delete, can_approve, can_export')
-      .eq('msnv', currentMsnv)
-      .eq('module_key', 'nhat_ky_san_xuat')
-      .maybeSingle();
-    if (permError) console.error('Error fetching permissions:', permError);
-    if (!perm) return false;
-
-    switch (action) {
-      case 'view': return perm.can_view === true;
-      case 'add': return perm.can_add === true;
-      case 'edit': return perm.can_edit === true;
-      case 'delete': return perm.can_delete === true;
-      case 'approve': return perm.can_approve === true;
-      default: return false;
-    }
-  } catch (error) {
-    console.error('Permission check error:', error);
-    return false;
-  }
-};
 
 // ====================== HÀM TIỆN ÍCH ======================
 const formatDate = (value: any) => {
@@ -157,6 +112,7 @@ const formatCurrency = (value: number) => {
 export function ProductionReportPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { canView: permCanView, canEdit: permCanEdit } = usePermission();
   const [logs, setLogs] = useState<ProductionLog[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -177,36 +133,16 @@ export function ProductionReportPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
-  const [permissions, setPermissions] = useState({
-    canView: true,
-    canAdd: false,
-    canEdit: false,
-    canDelete: false,
-    canApprove: false,
-  });
-  const [isCheckingPermission, setIsCheckingPermission] = useState(true);
-
-  // Kiểm tra quyền khi mount
-  useEffect(() => {
-    const checkAccess = async () => {
-      setIsCheckingPermission(true);
-      try {
-        const [view, add, edit, del, approve] = await Promise.all([
-          checkPermission('view'),
-          checkPermission('add'),
-          checkPermission('edit'),
-          checkPermission('delete'),
-          checkPermission('approve'),
-        ]);
-        setPermissions({ canView: view, canAdd: add, canEdit: edit, canDelete: del, canApprove: approve });
-      } catch (error) {
-        console.error('Error checking permissions:', error);
-      } finally {
-        setIsCheckingPermission(false);
-      }
-    };
-    checkAccess();
-  }, []);
+  // Get permissions for nhat_ky_gia_cong
+  const MODULE_KEY = 'nhat_ky_gia_cong';
+  const permissions = {
+    canView: permCanView(MODULE_KEY),
+    canAdd: permCanEdit(MODULE_KEY),
+    canEdit: permCanEdit(MODULE_KEY),
+    canDelete: permCanEdit(MODULE_KEY),
+    canApprove: permCanEdit(MODULE_KEY),
+  };
+  const isCheckingPermission = false; // No more async check
 
   // Tải dữ liệu
   const loadLogs = async () => {
@@ -227,11 +163,12 @@ export function ProductionReportPage() {
     }
   };
 
+  // Tải dữ liệu ngay lập tức
   useEffect(() => {
-    if (!isCheckingPermission && permissions.canView) {
+    if (permissions.canView) {
       loadLogs();
     }
-  }, [isCheckingPermission, permissions.canView]);
+  }, [permissions.canView]);
 
   // Hàm duyệt hàng loạt
   const handleBatchApprove = async (newStatus: 'approved' | 'rejected') => {
