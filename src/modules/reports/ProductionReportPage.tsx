@@ -142,34 +142,62 @@ export default function ProductionReportPage() {
   const isCheckingPermission = false;
 
   // Kiểm tra quyền của user
+  const checkRole = (userCheck: typeof user, roles: string[], vietnameseNames: string[]): boolean => {
+    if (!userCheck) return false;
+    const roleLower = (userCheck.role || '').toLowerCase().trim();
+    const chucVuLower = (userCheck.chuc_vu || '').toLowerCase().trim();
+    const roleMatch = roles.some(role => roleLower === role);
+    const chucVuMatch = vietnameseNames.some(name => chucVuLower.includes(name));
+    return roleMatch || chucVuMatch;
+  };
+  
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
-  const isQuanLyXuong = user?.role === 'quan_ly_xuong';
-  const isNguoiVanHanh = user?.role === 'nguoi_van_hanh' || user?.role === 'user';
-  const isNguoiKiemTra = user?.role === 'to_truong' || user?.role === 'to_pho' || user?.role === 'nhom_truong';
-  const userName = user?.fullName || user?.name || '';
+  const isQuanLyXuong = checkRole(user, ['quan_ly_xuong'], ['quản lý xưởng']);
+  const isNguoiVanHanh = checkRole(user, ['nguoi_van_hanh', 'user'], ['người vận hành', 'vận hành']);
+  const isNguoiKiemTra = checkRole(user, ['to_truong', 'to_pho', 'nhom_truong'], ['tổ trưởng', 'tổ phó', 'nhóm trưởng']);
+  const userName = (user?.fullName || user?.name || user?.ho_ten || '').trim();
+  
+  // Debug log
+  console.log('🔍 ProductionReportPage User Info:', {
+    user,
+    isAdmin,
+    isQuanLyXuong,
+    isNguoiVanHanh,
+    isNguoiKiemTra,
+    userName,
+    userRole: user?.role,
+    userChucVu: user?.chuc_vu
+  });
 
   // Tải dữ liệu với phân quyền
   const loadLogs = async () => {
     if (!permissions.canView) return;
     setIsLoading(true);
     try {
+      console.log('📥 Loading production logs...');
       let query = supabase.from('production_reports').select('*');
 
       if (isAdmin || isQuanLyXuong) {
         // Admin và Quản lý xưởng: xem tất cả
+        console.log('✅ Loading ALL logs (Admin/Quản lý xưởng)');
       } else if (isNguoiKiemTra) {
-        query = query.eq('nguoiKiemTra', userName);
+        // Sử dụng ilike để tìm kiếm không phân biệt chữ hoa chữ thường và bỏ qua khoảng trắng
+        query = query.ilike('nguoiKiemTra', `%${userName}%`);
+        console.log(`🔍 Loading logs for inspector: ${userName}`);
       } else if (isNguoiVanHanh) {
-        query = query.eq('nguoiVanHanh', userName);
+        query = query.ilike('nguoiVanHanh', `%${userName}%`);
+        console.log(`🔍 Loading logs for operator: ${userName}`);
       } else {
-        query = query.or(`nguoiVanHanh.eq.${userName},nguoiKiemTra.eq.${userName}`);
+        query = query.or(`nguoiVanHanh.ilike.%${userName}%,nguoiKiemTra.ilike.%${userName}%`);
+        console.log(`🔍 Loading logs for user: ${userName}`);
       }
 
       const { data, error } = await query.order('ngayThang', { ascending: false });
       if (error) throw error;
+      console.log('📥 Logs loaded:', data);
       setLogs(data as ProductionLog[]);
     } catch (error) {
-      console.error('Error loading logs:', error);
+      console.error('❌ Error loading logs:', error);
       toast.error('Không thể tải dữ liệu');
     } finally {
       setIsLoading(false);
@@ -242,10 +270,10 @@ export default function ProductionReportPage() {
   };
 
   const canApprove = (log: ProductionLog) => {
-    const userRole = user?.role || '';
-    const userName = user?.fullName || user?.name || '';
+    const currentUserName = (user?.fullName || user?.name || user?.ho_ten || '').trim().toLowerCase();
+    const logNguoiKiemTra = (log.nguoiKiemTra || '').trim().toLowerCase();
     if (isAdmin || isQuanLyXuong) return true;
-    if ((userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') && log.nguoiKiemTra === userName) return true;
+    if (isNguoiKiemTra && logNguoiKiemTra.includes(currentUserName)) return true;
     return false;
   };
 
@@ -274,8 +302,8 @@ export default function ProductionReportPage() {
       ca: formData.ca,
       cpMay: formData.chiPhiChayMay || 0,
       cpDaoCu: formData.chiPhiDao || 0,
-      nguoiVanHanh: formData.nguoiVanHanh || user?.fullName || user?.name || '',
-      nguoiKiemTra: formData.nguoiKiemTra || '',
+      nguoiVanHanh: (formData.nguoiVanHanh || user?.fullName || user?.name || '').trim(),
+      nguoiKiemTra: (formData.nguoiKiemTra || '').trim(),
       status: 'pending',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
@@ -317,8 +345,8 @@ export default function ProductionReportPage() {
       ca: formData.ca,
       cpMay: formData.cpMay || 0,
       cpDaoCu: formData.cpDaoCu || 0,
-      nguoiVanHanh: formData.nguoiVanHanh,
-      nguoiKiemTra: formData.nguoiKiemTra || selectedLog.nguoiKiemTra,
+      nguoiVanHanh: (formData.nguoiVanHanh || selectedLog.nguoiVanHanh || '').trim(),
+      nguoiKiemTra: (formData.nguoiKiemTra || selectedLog.nguoiKiemTra || '').trim(),
       updatedAt: new Date().toISOString(),
     };
     try {
