@@ -151,7 +151,7 @@ export function Sidebar({ isOpen, setIsOpen }: SidebarProps) {
                 <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-slate-500">
                   <span className="text-blue-600 font-medium">MSNV: {user?.msnv || '---'}</span>
                   <span className="text-slate-300">|</span>
-                  <span className="truncate">{user?.department || 'Tổ CNC'}</span>
+                  <span className="truncate">{user?.department || ''}</span>
                 </div>
               </div>
             </div>
