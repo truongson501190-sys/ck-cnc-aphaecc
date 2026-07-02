@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
+﻿import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/DateInput';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { Plus, Lock, Unlock, QrCode, Search, ShieldCheck, Loader2, X, Check, ChevronsUpDown, UserCog, Clock } from 'lucide-react';
+import { Plus, QrCode, Search, ShieldCheck, Loader2, X, Check, ChevronsUpDown } from 'lucide-react';
 import { ProductionReport, ToolEntry, WorkTimeEntry } from '@/types/production';
 import { useMasterData } from '@/hooks/useMasterData';
 import { useAuth } from '@/contexts/AuthContext';
@@ -28,12 +28,6 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/lib/utils';
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '@/components/ui/tooltip';
 
 interface ProductionFormProps {
   onSubmit: (report: Omit<ProductionReport, 'id' | 'createdAt'>) => void;
@@ -93,69 +87,22 @@ const createEmptyToolEntry = (): ToolEntry => ({
   thanhTien: 0,
 });
 
-export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFormProps) {
+export default function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFormProps) {
   const masterDataHook = useMasterData();
-  const { user, isAdmin } = useAuth();
+  const { user } = useAuth();
 
   const masterData = masterDataHook?.masterData || { machines: [], tools: [], operators: [], inspectors: [], projects: [] };
 
-  // Helper để lấy userId an toàn
-  const getUserId = useCallback(() => {
-    return (user as any)?.id || (user as any)?.userId || (user as any)?.sub || null;
-  }, [user]);
-
   // Helper để lấy tên user
   const getUserName = useCallback(() => {
-    return user?.fullName || user?.name || 'Admin';
+    return user?.fullName || user?.name || '';
   }, [user]);
 
   // ======================
-  // STATE QUẢN LÝ KHÓA
-  // ======================
-  const [isLocked, setIsLocked] = useState(() => {
-    // Nếu có initialData (đang chỉnh sửa) -> lấy trạng thái từ database
-    if (initialData) {
-      return initialData.is_locked !== undefined ? initialData.is_locked : true;
-    }
-    // Nếu đang thêm mới -> mặc định KHÓA
-    return true;
-  });
-  
-  const [isTogglingLock, setIsTogglingLock] = useState(false);
-  const [lockInfo, setLockInfo] = useState<{
-    lockedBy: string;
-    lockedAt: string;
-    lockedByName: string;
-  } | null>(() => {
-    if (initialData?.is_locked && initialData?.locked_by) {
-      return {
-        lockedBy: initialData.locked_by || '',
-        lockedAt: initialData.locked_at || new Date().toISOString(),
-        lockedByName: initialData.lockedByName || 'Admin',
-      };
-    }
-    return null;
-  });
-
-  // Kiểm tra quyền Admin
-  const isUserAdmin = user?.role === 'admin' || user?.role === 'super_admin' || isAdmin;
-
-  // Kiểm tra quyền toggle khóa (chỉ Admin)
-  const canToggleLock = () => {
-    return isUserAdmin;
-  };
-
-  // Kiểm tra xem trường "Người vận hành" có bị khóa không
-  const isOperatorFieldLocked = () => {
-    return isLocked;
-  };
-
-  // ======================
-  // FORM STATE - LOAD ĐẦY ĐỦ DỮ LIỆU
+  // FORM STATE
   // ======================
   const [formData, setFormData] = useState<any>(() => {
     if (initialData) {
-      // Load đầy đủ dữ liệu từ initialData
       return {
         ngayThang: initialData.ngayThang || initialData.ngay || new Date().toISOString().split('T')[0],
         maySanXuat: initialData.maySanXuat || initialData.may || '',
@@ -187,9 +134,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         tgTrenCa: initialData.tgTrenCa || '',
         tgGaPhoi: initialData.tgGaPhoi || '',
         status: initialData.status || 'draft',
-        is_locked: initialData.is_locked || false,
-        locked_by: initialData.locked_by || null,
-        locked_at: initialData.locked_at || null,
       };
     }
     return {
@@ -215,9 +159,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
       tgTrenCa: '',
       tgGaPhoi: '',
       status: 'draft' as const,
-      is_locked: true, // Mặc định KHÓA khi thêm mới
-      locked_by: null,
-      locked_at: null,
     };
   });
 
@@ -233,69 +174,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   const [openCombobox, setOpenCombobox] = useState<Record<number, boolean>>({});
 
   const LazyScanner = React.lazy(() => import('@/components/QRCodeScanner').then(mod => ({ default: mod.QRCodeScanner }))) as unknown as React.ComponentType<{ onDetected?: (text: string) => void }>;
-
-  // ======================
-  // HÀM TOGGLE KHÓA - CHỈ ADMIN MỚI DÙNG ĐƯỢC
-  // ======================
-  const toggleLock = async () => {
-    // Kiểm tra quyền Admin
-    if (!isUserAdmin) {
-      toast.error('Chỉ quản trị viên mới có quyền khóa/mở khóa!');
-      return;
-    }
-
-    setIsTogglingLock(true);
-    try {
-      const newLockState = !isLocked;
-      setIsLocked(newLockState);
-
-      const userId = getUserId();
-      const userName = getUserName();
-
-      setFormData((prev: any) => ({
-        ...prev,
-        is_locked: newLockState,
-        locked_by: newLockState ? userId : null,
-        locked_at: newLockState ? new Date().toISOString() : null,
-      }));
-
-      // Nếu có initialData (đang chỉnh sửa) -> cập nhật database
-      if (initialData?.id) {
-        const { error } = await supabase
-          .from('production_reports')
-          .update({
-            is_locked: newLockState,
-            locked_by: newLockState ? userId : null,
-            locked_at: newLockState ? new Date().toISOString() : null,
-          })
-          .eq('id', initialData.id);
-
-        if (error) throw error;
-      }
-
-      if (newLockState) {
-        setLockInfo({
-          lockedBy: userId || '',
-          lockedAt: new Date().toISOString(),
-          lockedByName: userName,
-        });
-      } else {
-        setLockInfo(null);
-      }
-
-      toast.success(
-        newLockState
-          ? '🔒 Đã khóa trường "Người vận hành"! Không ai có thể nhập.'
-          : '🔓 Đã mở khóa trường "Người vận hành"! Mọi người đều có thể nhập.'
-      );
-    } catch (error) {
-      console.error('Error toggling lock:', error);
-      toast.error('Có lỗi xảy ra khi thay đổi trạng thái khóa!');
-      setIsLocked(!isLocked);
-    } finally {
-      setIsTogglingLock(false);
-    }
-  };
 
   // ======================
   // LOAD DỮ LIỆU TỪ SUPABASE
@@ -496,18 +374,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
     if (employees.length > 0) getInspectorsByRole();
   }, [employees, getInspectorsByRole]);
 
-  const isCurrentUserInspector = () => {
-    const currentUserName = getUserName();
-    return formData.nguoiKiemTra === currentUserName;
-  };
-
-  const canApprove = () => {
-    const userRole = (user?.role || '').toLowerCase();
-    if (userRole === 'admin' || userRole === 'quan_ly_xuong') return true;
-    if (isCurrentUserInspector()) return true;
-    return false;
-  };
-
   const handleTimeChange = (
     machiningHours: string,
     setupHours: string,
@@ -526,11 +392,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   };
 
   const handleInputChange = (field: string, value: string | number) => {
-    // Nếu là trường "nguoiVanHanh" và đang bị khóa
-    if (field === 'nguoiVanHanh' && isOperatorFieldLocked()) {
-      toast.warning('Trường "Người vận hành" đang bị khóa! Vui lòng liên hệ Admin để mở khóa.');
-      return;
-    }
     setFormData((prev: any) => ({ ...prev, [field]: value }));
   };
 
@@ -595,17 +456,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
-      // Kiểm tra nếu đang bị khóa
-      if (isOperatorFieldLocked()) {
-        toast.error('Trường "Người vận hành" đang bị khóa! Vui lòng mở khóa trước khi lưu.');
-        return;
-      }
-
-      if (initialData && initialData.status === 'approved' && !isUserAdmin) {
-        toast.error('Không có quyền chỉnh sửa nhật ký đã duyệt');
-        return;
-      }
-
       if (!formData.maySanXuat || !formData.duAn || !formData.tenDuAn) {
         toast.error('Vui lòng điền đầy đủ thông tin bắt buộc (Máy sản xuất, Dự án)');
         return;
@@ -635,8 +485,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         thanhTien: (tool.slSuDung || 0) * (tool.donGia || 0),
       }));
 
-      const userId = getUserId();
-
       const submitData: any = {
         ...formData,
         toolEntries: updatedToolEntries,
@@ -647,9 +495,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
         chiPhiDao: updatedToolEntries.reduce((sum: number, tool: ToolEntry) => sum + (tool.thanhTien || 0), 0),
         gioGa: totalSetupHours,
         gioChay: totalRunHours,
-        is_locked: isLocked,
-        locked_by: isLocked ? userId : null,
-        locked_at: isLocked ? new Date().toISOString() : null,
       };
 
       onSubmit(submitData);
@@ -678,12 +523,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
           tgTrenCa: '',
           tgGaPhoi: '',
           status: 'draft',
-          is_locked: true,
-          locked_by: null,
-          locked_at: null,
         });
-        setIsLocked(true);
-        setLockInfo(null);
       }
       toast.success(initialData ? 'Đã cập nhật báo cáo!' : 'Đã gửi báo cáo!');
     } catch (error) {
@@ -728,34 +568,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                 <Badge variant="secondary" className="px-3 py-1 text-sm">
                   Người dùng: {getUserName()}
                 </Badge>
-                {canApprove() && (
-                  <Badge variant="outline" className="px-3 py-1 text-sm text-green-600 border-green-300 bg-green-50">
-                    <ShieldCheck className="w-3.5 h-3.5 mr-1" />
-                    Có quyền duyệt
-                  </Badge>
-                )}
-                {isUserAdmin && (
-                  <Badge variant="outline" className="px-3 py-1 text-sm text-purple-600 border-purple-300 bg-purple-50">
-                    <UserCog className="w-3.5 h-3.5 mr-1" />
-                    Admin
-                  </Badge>
-                )}
-                {initialData && (
-                  <Badge 
-                    variant={isLocked ? 'destructive' : 'default'} 
-                    className={`px-3 py-1 text-sm ${isLocked ? 'bg-red-500' : 'bg-green-500'}`}
-                  >
-                    {isLocked ? '🔒 Đã khóa' : '🔓 Mở khóa'}
-                  </Badge>
-                )}
-                {!initialData && (
-                  <Badge 
-                    variant={isLocked ? 'destructive' : 'default'} 
-                    className={`px-3 py-1 text-sm ${isLocked ? 'bg-red-500' : 'bg-green-500'}`}
-                  >
-                    {isLocked ? '🔒 Đã khóa' : '🔓 Mở khóa'}
-                  </Badge>
-                )}
               </div>
               <h1 className="text-2xl font-bold text-gray-900 mt-2">
                 {initialData ? 'Chỉnh sửa nhật ký sản xuất' : 'Thêm mới nhật ký sản xuất'}
@@ -883,10 +695,7 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                   </div>
                 </div>
                 <div>
-                  <Label htmlFor="tenDuAn" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                    <Lock className="w-4 h-4 text-red-500" />
-                    Tên Dự Án <span className="text-red-500">*</span>
-                  </Label>
+                  <Label htmlFor="tenDuAn" className="text-sm font-semibold text-slate-700">Tên Dự Án <span className="text-red-500">*</span></Label>
                   <Input
                     id="tenDuAn"
                     value={formData.tenDuAn}
@@ -1124,147 +933,29 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
             initialSetupEntries={formData.setupTimeEntries} 
           />
 
-          {/* Nhân sự - CÓ NÚT MỞ/KHÓA */}
+          {/* Nhân sự */}
           <Card className="border-slate-200 shadow-sm">
             <CardHeader className="border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-base font-bold text-slate-800">👥 Nhân sự</CardTitle>
-                <div className="flex items-center gap-3">
-                  {/* Badge trạng thái */}
-                  <Badge
-                    variant={isLocked ? 'destructive' : 'default'}
-                    className={`text-xs ${isLocked ? 'bg-red-500' : 'bg-green-500'}`}
-                  >
-                    {isLocked ? '🔒 Đã khóa' : '🔓 Mở khóa'}
-                  </Badge>
-                  
-                  {/* NÚT MỞ/KHÓA - CHỈ ADMIN MỚI THẤY VÀ HOẠT ĐỘNG */}
-                  {isUserAdmin && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={toggleLock}
-                            disabled={isTogglingLock}
-                            className={`h-8 px-4 text-sm font-medium ${
-                              isLocked
-                                ? 'border-green-500 text-green-600 hover:bg-green-50 hover:text-green-700'
-                                : 'border-red-500 text-red-600 hover:bg-red-50 hover:text-red-700'
-                            }`}
-                          >
-                            {isTogglingLock ? (
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            ) : isLocked ? (
-                              <>
-                                <Unlock className="w-4 h-4 mr-2" />
-                                Mở khóa
-                              </>
-                            ) : (
-                              <>
-                                <Lock className="w-4 h-4 mr-2" />
-                                Khóa
-                              </>
-                            )}
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          <p className="text-xs">
-                            {isLocked 
-                              ? 'Mở khóa để cho phép nhập liệu' 
-                              : 'Khóa để ngăn nhập liệu'}
-                          </p>
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  
-                  {!isUserAdmin && isLocked && (
-                    <span className="text-xs text-slate-400 flex items-center gap-1">
-                      <Lock className="w-3 h-3" />
-                      Đã bị khóa
-                    </span>
-                  )}
-                  {!isUserAdmin && !isLocked && (
-                    <span className="text-xs text-green-400 flex items-center gap-1">
-                      <Unlock className="w-3 h-3" />
-                      Đang mở
-                    </span>
-                  )}
-                </div>
-              </div>
+              <CardTitle className="text-base font-bold text-slate-800">👥 Nhân sự</CardTitle>
             </CardHeader>
             
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Người vận hành */}
                 <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="nguoiVanHanh" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
-                      {isLocked ? (
-                        <Lock className="w-4 h-4 text-red-500" />
-                      ) : (
-                        <Unlock className="w-4 h-4 text-green-500" />
-                      )}
-                      Người vận hành
-                      {isLocked && (
-                        <Badge variant="secondary" className="text-[10px] bg-red-100 text-red-600">
-                          ĐÃ KHÓA
-                        </Badge>
-                      )}
-                      {!isLocked && (
-                        <Badge variant="secondary" className="text-[10px] bg-green-100 text-green-600">
-                          ĐANG MỞ
-                        </Badge>
-                      )}
-                    </Label>
-                    {isLocked && (
-                      <span className="text-[10px] text-red-400 flex items-center gap-1">
-                        <Lock className="w-3 h-3" />
-                        Đã khóa
-                      </span>
-                    )}
-                    {!isLocked && (
-                      <span className="text-[10px] text-green-400 flex items-center gap-1">
-                        <Unlock className="w-3 h-3" />
-                        Đang mở
-                      </span>
-                    )}
-                  </div>
-                  
+                  <Label htmlFor="nguoiVanHanh" className="text-sm font-semibold text-slate-700">
+                    Người vận hành
+                  </Label>
                   <Input
                     id="nguoiVanHanh"
                     value={formData.nguoiVanHanh}
                     onChange={(e) => handleInputChange('nguoiVanHanh', e.target.value)}
-                    disabled={isLocked}
-                    className={`mt-1.5 ${
-                      isLocked
-                        ? 'bg-gray-100 border-red-200 text-gray-400 cursor-not-allowed'
-                        : 'bg-white border-blue-200 focus:border-blue-400'
-                    }`}
-                    placeholder={
-                      isLocked 
-                        ? '🔒 ĐÃ BỊ KHÓA - KHÔNG THỂ NHẬP' 
-                        : 'Nhập tên người vận hành...'
-                    }
+                    className="mt-1.5 bg-white border-blue-200 focus:border-blue-400"
+                    placeholder="Nhập tên người vận hành..."
                   />
-                  
-                  {/* Thông báo trạng thái */}
-                  {isLocked && (
-                    <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                      <Lock className="w-3 h-3" />
-                      Trường đã bị khóa. {isUserAdmin ? 'Nhấn "Mở khóa" để cho phép nhập' : 'Vui lòng liên hệ Admin để mở khóa'}
-                    </p>
-                  )}
-                  
-                  {!isLocked && (
-                    <p className="text-xs text-green-400 mt-1 flex items-center gap-1">
-                      <Unlock className="w-3 h-3" />
-                      Trường đang mở. {isUserAdmin ? 'Nhấn "Khóa" để ngăn chỉnh sửa' : 'Bạn có thể nhập tên người vận hành'}
-                    </p>
-                  )}
+                  <p className="text-xs text-slate-400 mt-1">
+                    * Nhập tên người vận hành
+                  </p>
                 </div>
 
                 {/* Người kiểm tra */}
@@ -1276,7 +967,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                   <Select
                     value={formData.nguoiKiemTra}
                     onValueChange={(value: string) => handleInputChange('nguoiKiemTra', value)}
-                    disabled={isLocked}
                   >
                     <SelectTrigger className="mt-1.5">
                       <SelectValue placeholder="Chọn người kiểm tra" />
@@ -1300,85 +990,8 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
                   <p className="text-xs text-gray-400 mt-1">
                     * Chọn người kiểm tra (Tổ trưởng, Tổ phó, Nhóm trưởng, Quản lý)
                   </p>
-                  {isLocked && (
-                    <p className="text-xs text-red-400 mt-1 flex items-center gap-1">
-                      <Lock className="w-3 h-3" />
-                      Trường này cũng bị khóa
-                    </p>
-                  )}
                 </div>
               </div>
-
-              {/* Hiển thị thông tin người khóa */}
-              {isLocked && lockInfo && (
-                <div className="mt-4 flex items-center gap-4 text-xs text-slate-500 bg-slate-50 rounded-md px-4 py-2 border border-slate-100">
-                  <div className="flex items-center gap-1">
-                    <UserCog className="w-3.5 h-3.5" />
-                    <span>Khóa bởi: <strong className="text-slate-700">{lockInfo.lockedByName}</strong></span>
-                  </div>
-                  <span className="w-px h-4 bg-slate-200" />
-                  <div className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>Lúc: <strong className="text-slate-700">
-                      {new Date(lockInfo.lockedAt).toLocaleString('vi-VN', {
-                        day: '2-digit',
-                        month: '2-digit',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      })}
-                    </strong></span>
-                  </div>
-                  {isUserAdmin && (
-                    <>
-                      <span className="w-px h-4 bg-slate-200" />
-                      <span className="text-green-600 flex items-center gap-1">
-                        <Unlock className="w-3 h-3" />
-                        Bạn có quyền mở khóa
-                      </span>
-                    </>
-                  )}
-                </div>
-              )}
-
-              {/* Hướng dẫn cho Admin */}
-              {isUserAdmin && (
-                <div className="mt-4 flex items-center gap-2 text-xs text-blue-600 bg-blue-50 rounded-md px-4 py-2 border border-blue-100">
-                  {isLocked ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Trường đang <strong>KHÓA</strong>. Nhấn <strong>"Mở khóa"</strong> để cho phép nhập liệu.</span>
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-3.5 h-3.5" />
-                      <span>Trường đang <strong>MỞ</strong>. Nhấn <strong>"Khóa"</strong> để ngăn chỉnh sửa.</span>
-                    </>
-                  )}
-                  {!initialData && (
-                    <span className="text-xs text-blue-400 ml-2">
-                      (Mặc định khóa khi thêm mới)
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Hướng dẫn cho User thường */}
-              {!isUserAdmin && (
-                <div className="mt-4 flex items-center gap-2 text-xs text-slate-500 bg-slate-50 rounded-md px-4 py-2 border border-slate-100">
-                  {isLocked ? (
-                    <>
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>Trường đang bị <strong>KHÓA</strong>. Vui lòng liên hệ Admin để mở khóa.</span>
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-3.5 h-3.5" />
-                      <span>Trường đang <strong>MỞ</strong>. Bạn có thể nhập tên người vận hành.</span>
-                    </>
-                  )}
-                </div>
-              )}
             </CardContent>
           </Card>
 
@@ -1390,7 +1003,6 @@ export function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFo
             <Button
               type="submit"
               className="bg-blue-600 hover:bg-blue-700 text-white px-8"
-              disabled={isLocked}
             >
               {initialData ? 'Cập nhật' : 'Lưu nhật ký'}
             </Button>

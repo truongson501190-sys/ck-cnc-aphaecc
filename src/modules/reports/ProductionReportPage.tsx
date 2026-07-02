@@ -1,4 +1,3 @@
-// ProductionReportPage.tsx - NHẬT KÝ SẢN XUẤT (TÍCH HỢP DUYỆT HÀNG LOẠT, SỬA IMPORT/EXPORT)
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -12,10 +11,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Plus, Filter, X, ArrowLeft, Upload, Download, Edit, Eye, Trash2, FileSpreadsheet, Search, 
-  CheckCircle, Loader2, CheckSquare, XSquare 
+  CheckCircle, Loader2, CheckSquare, XSquare
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ProductionForm } from './ProductionForm';
+import ProductionForm from './ProductionForm';
 import { supabase } from '@/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
@@ -69,12 +68,9 @@ interface ProductionLog {
   tgTrenCa?: string;
 }
 
-
-
 // ====================== HÀM TIỆN ÍCH ======================
 const formatDate = (value: any) => {
   if (!value) return '';
-  // Nếu là số serial của Excel
   if (typeof value === 'number') {
     const excelDate = XLSX.SSF.parse_date_code(value);
     return `${String(excelDate.d).padStart(2, '0')}/${String(excelDate.m).padStart(2, '0')}/${excelDate.y}`;
@@ -87,18 +83,15 @@ const formatDate = (value: any) => {
   return str;
 };
 
-// Chuyển đổi từ Excel serial sang YYYY-MM-DD
 const parseExcelDate = (value: any): string => {
   if (!value) return '';
   if (typeof value === 'number') {
-    // Excel serial date (days since 1900-01-01)
     const date = new Date((value - 25569) * 86400 * 1000);
     const year = date.getFullYear();
     const month = String(date.getMonth() + 1).padStart(2, '0');
     const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
-  // Nếu là chuỗi, chuyển đổi từ dd/mm/yyyy sang yyyy-mm-dd
   const str = String(value);
   if (str.includes('/')) {
     const parts = str.split('/');
@@ -115,7 +108,7 @@ const formatCurrency = (value: number) => {
 };
 
 // ====================== COMPONENT CHÍNH ======================
-export function ProductionReportPage() {
+export default function ProductionReportPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { canView: permCanView, canEdit: permCanEdit } = usePermission();
@@ -135,11 +128,9 @@ export function ProductionReportPage() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // State cho duyệt hàng loạt
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [selectAll, setSelectAll] = useState(false);
 
-  // Get permissions for nhat_ky_gia_cong
   const MODULE_KEY = 'nhat_ky_gia_cong';
   const permissions = {
     canView: permCanView(MODULE_KEY),
@@ -148,17 +139,33 @@ export function ProductionReportPage() {
     canDelete: permCanEdit(MODULE_KEY),
     canApprove: permCanEdit(MODULE_KEY),
   };
-  const isCheckingPermission = false; // No more async check
+  const isCheckingPermission = false;
 
-  // Tải dữ liệu
+  // Kiểm tra quyền của user
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const isQuanLyXuong = user?.role === 'quan_ly_xuong';
+  const isNguoiVanHanh = user?.role === 'nguoi_van_hanh' || user?.role === 'user';
+  const isNguoiKiemTra = user?.role === 'to_truong' || user?.role === 'to_pho' || user?.role === 'nhom_truong';
+  const userName = user?.fullName || user?.name || '';
+
+  // Tải dữ liệu với phân quyền
   const loadLogs = async () => {
     if (!permissions.canView) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('production_reports')
-        .select('*')
-        .order('ngayThang', { ascending: false });
+      let query = supabase.from('production_reports').select('*');
+
+      if (isAdmin || isQuanLyXuong) {
+        // Admin và Quản lý xưởng: xem tất cả
+      } else if (isNguoiKiemTra) {
+        query = query.eq('nguoiKiemTra', userName);
+      } else if (isNguoiVanHanh) {
+        query = query.eq('nguoiVanHanh', userName);
+      } else {
+        query = query.or(`nguoiVanHanh.eq.${userName},nguoiKiemTra.eq.${userName}`);
+      }
+
+      const { data, error } = await query.order('ngayThang', { ascending: false });
       if (error) throw error;
       setLogs(data as ProductionLog[]);
     } catch (error) {
@@ -169,12 +176,11 @@ export function ProductionReportPage() {
     }
   };
 
-  // Tải dữ liệu ngay lập tức
   useEffect(() => {
     if (permissions.canView) {
       loadLogs();
     }
-  }, [permissions.canView]);
+  }, [permissions.canView, user]);
 
   // Hàm duyệt hàng loạt
   const handleBatchApprove = async (newStatus: 'approved' | 'rejected') => {
@@ -238,7 +244,7 @@ export function ProductionReportPage() {
   const canApprove = (log: ProductionLog) => {
     const userRole = user?.role || '';
     const userName = user?.fullName || user?.name || '';
-    if (userRole === 'admin' || userRole === 'quan_ly_xuong') return true;
+    if (isAdmin || isQuanLyXuong) return true;
     if ((userRole === 'to_truong' || userRole === 'to_pho' || userRole === 'nhom_truong') && log.nguoiKiemTra === userName) return true;
     return false;
   };
@@ -249,7 +255,6 @@ export function ProductionReportPage() {
       toast.error('Bạn không có quyền thêm nhật ký');
       return;
     }
-    // Only include columns that are definitely in the database
     const newLog: any = {
       id: crypto.randomUUID(),
       ngayThang: formData.ngayThang,
@@ -264,12 +269,12 @@ export function ProductionReportPage() {
       vatLieu: formData.vatLieu,
       nguyenCongSo: formData.nguyenCongSo,
       toolEntries: formData.toolEntries || [],
-      work_time_entries: formData.workTimeEntries, // Added by migration 002
-      setup_time_entries: formData.setupTimeEntries, // Added by migration 002
+      work_time_entries: formData.workTimeEntries,
+      setup_time_entries: formData.setupTimeEntries,
       ca: formData.ca,
       cpMay: formData.chiPhiChayMay || 0,
       cpDaoCu: formData.chiPhiDao || 0,
-      nguoiVanHanh: formData.nguoiVanHanh,
+      nguoiVanHanh: formData.nguoiVanHanh || user?.fullName || user?.name || '',
       nguoiKiemTra: formData.nguoiKiemTra || '',
       status: 'pending',
       createdAt: new Date().toISOString(),
@@ -294,7 +299,6 @@ export function ProductionReportPage() {
       return;
     }
     if (!selectedLog) return;
-    // Only include columns that are definitely in the database
     const updatedLog: any = {
       ngayThang: formData.ngayThang,
       maySanXuat: formData.maySanXuat,
@@ -308,8 +312,8 @@ export function ProductionReportPage() {
       vatLieu: formData.vatLieu,
       nguyenCongSo: formData.nguyenCongSo,
       toolEntries: formData.toolEntries || [],
-      work_time_entries: formData.workTimeEntries, // Added by migration 002
-      setup_time_entries: formData.setupTimeEntries, // Added by migration 002
+      work_time_entries: formData.workTimeEntries,
+      setup_time_entries: formData.setupTimeEntries,
       ca: formData.ca,
       cpMay: formData.cpMay || 0,
       cpDaoCu: formData.cpDaoCu || 0,
@@ -335,14 +339,8 @@ export function ProductionReportPage() {
 
   const handleDeleteLog = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!permissions.canDelete) {
-      toast.error('Bạn không có quyền xóa nhật ký');
-      return;
-    }
-    const log = logs.find(l => l.id === id);
-    const userRole = user?.role || '';
-    if (log?.status === 'approved' && userRole !== 'admin') {
-      toast.error('Không thể xóa nhật ký đã duyệt');
+    if (!isAdmin) {
+      toast.error('Chỉ Admin mới có quyền xóa nhật ký');
       return;
     }
     if (!confirm('Bạn có chắc chắn muốn xóa nhật ký này?')) return;
@@ -360,7 +358,7 @@ export function ProductionReportPage() {
     }
   };
 
-  // ====================== IMPORT EXCEL (ĐÃ SỬA) ======================
+  // ====================== IMPORT EXCEL ======================
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!permissions.canAdd) {
       toast.error('Bạn không có quyền thêm nhật ký');
@@ -385,9 +383,7 @@ export function ProductionReportPage() {
         for (let i = 0; i < json.length; i++) {
           const row = json[i];
           try {
-            // --- Đọc các cột theo tên mới ---
             let ngayThangRaw = row['Ngày'] || '';
-            // Chuyển đổi ngày tháng từ Excel
             const ngayThang = parseExcelDate(ngayThangRaw);
 
             const maySanXuat = row['Máy Sản Xuất'] || '';
@@ -395,20 +391,18 @@ export function ProductionReportPage() {
             const khach_hang = row['Tên dự án'] || '';
             const banVeSo = row['Bản Vẽ Số'] || '';
             const chiTietSo = row['Chi Tiết Số'] || '';
-            const tenChiTiet = chiTietSo; // hoặc có thể lấy từ cột khác
+            const tenChiTiet = chiTietSo;
             const noiDungGiaCong = row['Nội dung Gia Công'] || '';
             const soLuongHoanThanh = Number(row['SL HT'] || 0);
             const vatLieu = row['Vật Liệu'] || '';
             const nguyenCongSo = row['NC Số'] || '';
             const ca = row['CA'] || '';
-            const nguoiVanHanh = row['Người vận hành (MSNV)'] || '';
+            const nguoiVanHanh = row['Người vận hành (MSNV)'] || user?.fullName || user?.name || '';
             const nguoiKiemTra = row['Người kiểm tra'] || '';
 
-            // Đọc chi phí (nếu có) từ các cột khác, nếu không có thì để 0
             const cpMay = Number(String(row['Chi phí chạy máy (VND)'] || 0).replace(/[^0-9]/g, ''));
             const cpDaoCu = Number(String(row['Chi phí dao cụ (VND)'] || 0).replace(/[^0-9]/g, ''));
 
-            // Xử lý toolEntries
             const toolEntries = [];
             if (row['Tên dao']) {
               toolEntries.push({
@@ -421,8 +415,6 @@ export function ProductionReportPage() {
                 thanhTien: cpDaoCu,
               });
             }
-
-            // Bỏ qua các cột không có trong bảng: Kích thước, TG BĐ gá, TG KT gá, Tổng TG gá (h), TG BĐ chạy, TG KT chạy, Tổng TG chạy (h)
 
             if (duAn && ngayThang) {
               const { error } = await supabase.from('production_reports').insert({
@@ -576,7 +568,6 @@ export function ProductionReportPage() {
     setShowFilters(false);
   };
 
-  // Checkbox handlers
   const toggleSelectItem = (id: string) => {
     const newSelected = new Set(selectedIds);
     if (newSelected.has(id)) newSelected.delete(id);
@@ -648,7 +639,7 @@ export function ProductionReportPage() {
                 <DialogTrigger asChild>
                   <Button className="bg-blue-600 hover:bg-blue-700">
                     <Plus className="w-4 h-4 mr-2" />
-                    Thêm
+                    Thêm tay
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -827,8 +818,8 @@ export function ProductionReportPage() {
                     </TableRow>
                   ) : (
                     filteredLogs.map((log, index) => {
-                      const canEdit = (log.status !== 'approved' || user?.role === 'admin') && permissions.canEdit;
-                      const canDelete = (log.status !== 'approved' || user?.role === 'admin') && permissions.canDelete;
+                      const canEdit = (log.status !== 'approved' || isAdmin) && permissions.canEdit;
+                      const canDelete = isAdmin;
                       const showApprove = log.status === 'pending' && (permissions.canApprove || canApprove(log));
                       const isSelected = selectedIds.has(log.id);
                       const daoList = log.toolEntries?.map(t => t.tenDao).join(', ') || '';
@@ -905,345 +896,260 @@ export function ProductionReportPage() {
           </CardContent>
         </Card>
 
-     {/* View Dialog - CHI TIẾT NHẬT KÝ SẢN XUẤT */}
-<Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-  <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-    <DialogHeader>
-      <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-        <span>📋 CHI TIẾT NHẬT KÝ SẢN XUẤT</span>
-        {selectedLog && getStatusBadge(selectedLog.status)}
-      </DialogTitle>
-    </DialogHeader>
-    
-    {selectedLog && (
-      <div className="space-y-6">
-        {/* Thông tin cơ bản */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
-          <div>
-            <p className="text-sm text-gray-500">Ngày tháng</p>
-            <p className="font-semibold">{formatDate(selectedLog.ngayThang)}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Máy sản xuất</p>
-            <p className="font-semibold">{selectedLog.maySanXuat}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Ca sản xuất</p>
-            <p className="font-semibold">{selectedLog.ca || '---'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Mã dự án</p>
-            <p className="font-semibold text-blue-600">{selectedLog.duAn}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Tên dự án</p>
-            <p className="font-semibold">{selectedLog.khach_hang}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Số lượng hoàn thành</p>
-            <p className="font-semibold">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</p>
-          </div>
-        </div>
+        {/* View Dialog */}
+        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold flex items-center gap-3">
+                <span>📋 CHI TIẾT NHẬT KÝ SẢN XUẤT</span>
+                {selectedLog && getStatusBadge(selectedLog.status)}
+              </DialogTitle>
+            </DialogHeader>
+            
+            {selectedLog && (
+              <div className="space-y-6">
+                {/* Thông tin cơ bản */}
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+                  <div><p className="text-sm text-gray-500">Ngày tháng</p><p className="font-semibold">{formatDate(selectedLog.ngayThang)}</p></div>
+                  <div><p className="text-sm text-gray-500">Máy sản xuất</p><p className="font-semibold">{selectedLog.maySanXuat}</p></div>
+                  <div><p className="text-sm text-gray-500">Ca sản xuất</p><p className="font-semibold">{selectedLog.ca || '---'}</p></div>
+                  <div><p className="text-sm text-gray-500">Mã dự án</p><p className="font-semibold text-blue-600">{selectedLog.duAn}</p></div>
+                  <div><p className="text-sm text-gray-500">Tên dự án</p><p className="font-semibold">{selectedLog.khach_hang}</p></div>
+                  <div><p className="text-sm text-gray-500">Số lượng hoàn thành</p><p className="font-semibold">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</p></div>
+                </div>
 
-        {/* Chi tiết gia công */}
-        <div className="grid grid-cols-2 gap-4">
-          <div>
-            <p className="text-sm text-gray-500">Bản vẽ số</p>
-            <p className="font-semibold">{selectedLog.banVeSo || '---'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Chi tiết số</p>
-            <p className="font-semibold">{selectedLog.chiTietSo || '---'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Tên chi tiết</p>
-            <p className="font-semibold">{selectedLog.tenChiTiet || '---'}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Nguyên công số</p>
-            <p className="font-semibold">{selectedLog.nguyenCongSo || '---'}</p>
-          </div>
-        </div>
+                {/* Chi tiết gia công */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div><p className="text-sm text-gray-500">Bản vẽ số</p><p className="font-semibold">{selectedLog.banVeSo || '---'}</p></div>
+                  <div><p className="text-sm text-gray-500">Chi tiết số</p><p className="font-semibold">{selectedLog.chiTietSo || '---'}</p></div>
+                  <div><p className="text-sm text-gray-500">Tên chi tiết</p><p className="font-semibold">{selectedLog.tenChiTiet || '---'}</p></div>
+                  <div><p className="text-sm text-gray-500">Nguyên công số</p><p className="font-semibold">{selectedLog.nguyenCongSo || '---'}</p></div>
+                </div>
 
-        {/* Nội dung gia công */}
-        <div>
-          <p className="text-sm text-gray-500">Nội dung gia công</p>
-          <p className="font-semibold p-2 bg-gray-50 rounded-lg">{selectedLog.noiDungGiaCong || '---'}</p>
-        </div>
+                {/* Nội dung gia công */}
+                <div><p className="text-sm text-gray-500">Nội dung gia công</p><p className="font-semibold p-2 bg-gray-50 rounded-lg">{selectedLog.noiDungGiaCong || '---'}</p></div>
 
-        {/* Vật liệu */}
-        <div>
-          <p className="text-sm text-gray-500">Vật liệu</p>
-          <p className="font-semibold">{selectedLog.vatLieu || '---'}</p>
-        </div>
+                {/* Vật liệu */}
+                <div><p className="text-sm text-gray-500">Vật liệu</p><p className="font-semibold">{selectedLog.vatLieu || '---'}</p></div>
 
-      {/* Thời gian gá phôi và gia công - HIỂN THỊ TẤT CẢ CÁC KHOẢNG */}
-<div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-  {/* Thời gian gá phôi */}
-  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-    <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-      <span className="text-lg">🔧</span> Thời gian gá phôi
-    </h4>
-    
-    {(() => {
-      // Lấy danh sách thời gian gá phôi từ nhiều nguồn
-      let setupList = selectedLog?.setupTimeEntries || selectedLog?.setup_time_entries || [];
-      
-      // Nếu không có dữ liệu trong setupTimeEntries, thử lấy từ các field riêng lẻ
-      if (setupList.length === 0) {
-        const startField = selectedLog?.tgGia_BatDau;
-        const endField = selectedLog?.tgGia_KetThuc;
-        const hoursField = selectedLog?.soGioGia || selectedLog?.gioGa;
-        
-        if (startField || endField || hoursField) {
-          setupList = [{
-            thoiGianBatDau: startField || '',
-            thoiGianKetThuc: endField || '',
-            soGio: typeof hoursField === 'number' ? hoursField : (hoursField ? parseFloat(hoursField as string) : 0) || 0
-          }];
-        }
-      }
+                {/* Thời gian gá phôi và gia công */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                  {/* Thời gian gá phôi */}
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <span className="text-lg">🔧</span> Thời gian gá phôi
+                    </h4>
+                    {(() => {
+                      let setupList = selectedLog?.setupTimeEntries || selectedLog?.setup_time_entries || [];
+                      if (setupList.length === 0) {
+                        const startField = selectedLog?.tgGia_BatDau;
+                        const endField = selectedLog?.tgGia_KetThuc;
+                        const hoursField = selectedLog?.soGioGia || selectedLog?.gioGa;
+                        if (startField || endField || hoursField) {
+                          setupList = [{
+                            thoiGianBatDau: startField || '',
+                            thoiGianKetThuc: endField || '',
+                            soGio: typeof hoursField === 'number' ? hoursField : (hoursField ? parseFloat(String(hoursField)) : 0) || 0
+                          }];
+                        }
+                      }
+                      if (!Array.isArray(setupList)) setupList = [setupList];
+                      const validSetupList = setupList.filter((item: any) => {
+                        // @ts-ignore - Bỏ qua lỗi type
+                        const start = item?.thoiGianBatDau || item?.start || '';
+                        // @ts-ignore
+                        const end = item?.thoiGianKetThuc || item?.end || '';
+                        let hours = item?.soGio || item?.hours || 0;
+                        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+                        return start || end || hours;
+                      });
+                      const totalSetupHours = validSetupList.reduce((sum: number, item: any) => {
+                        let hours = item?.soGio || item?.hours || 0;
+                        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+                        return sum + (typeof hours === 'number' ? hours : 0);
+                      }, 0);
 
-      // Nếu setupList là object (không phải array), chuyển thành array
-      if (!Array.isArray(setupList)) {
-        setupList = [setupList];
-      }
+                      if (validSetupList.length === 0) {
+                        return <div className="text-center text-gray-400 text-sm py-4">Không có dữ liệu</div>;
+                      }
 
-      // Lọc bỏ các item không có dữ liệu
-      const validSetupList = setupList.filter((item: any) => {
-        const start = item?.thoiGianBatDau || item?.start || '';
-        const end = item?.thoiGianKetThuc || item?.end || '';
-        let hours = item?.soGio || item?.hours || 0;
-        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-        return start || end || hours;
-      });
+                      return (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-blue-100/50">
+                                <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
+                                <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
+                                <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {validSetupList.map((item: any, index: number) => {
+                                // @ts-ignore
+                                const start = item?.thoiGianBatDau || item?.start || '';
+                                // @ts-ignore
+                                const end = item?.thoiGianKetThuc || item?.end || '';
+                                let hours = item?.soGio || item?.hours || 0;
+                                if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+                                return (
+                                  <tr key={index} className="border-b border-blue-100 last:border-b-0 hover:bg-blue-50/50">
+                                    <td className="py-1.5 px-2 text-gray-700">{start || '---'}</td>
+                                    <td className="py-1.5 px-2 text-gray-700">{end || '---'}</td>
+                                    <td className="py-1.5 px-2 text-right font-medium text-blue-700">{hours ? hours.toFixed(2) : '---'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t-2 border-blue-300 bg-blue-50/50">
+                                <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
+                                <td className="py-2 px-2 text-right font-bold text-blue-700">{totalSetupHours ? totalSetupHours.toFixed(2) : '---'}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
 
-      // Tính tổng số giờ gá phôi
-      const totalSetupHours = validSetupList.reduce((sum: number, item: any) => {
-        let hours = item?.soGio || item?.hours || 0;
-        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-        return sum + (typeof hours === 'number' ? hours : 0);
-      }, 0);
+                  {/* Thời gian gia công */}
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                      <span className="text-lg">⚙️</span> Thời gian gia công
+                    </h4>
+                    {(() => {
+                      let workList = selectedLog?.workTimeEntries || selectedLog?.work_time_entries || [];
+                      if (workList.length === 0) {
+                        const startField = selectedLog?.tgChay_BatDau;
+                        const endField = selectedLog?.tgChay_KetThuc;
+                        const hoursField = selectedLog?.soGioChay || selectedLog?.gioChay;
+                        if (startField || endField || hoursField) {
+                          workList = [{
+                            thoiGianBatDau: startField || '',
+                            thoiGianKetThuc: endField || '',
+                            soGio: typeof hoursField === 'number' ? hoursField : (hoursField ? parseFloat(String(hoursField)) : 0) || 0
+                          }];
+                        }
+                      }
+                      if (!Array.isArray(workList)) workList = [workList];
+                      const validWorkList = workList.filter((item: any) => {
+                        // @ts-ignore
+                        const start = item?.thoiGianBatDau || item?.start || '';
+                        // @ts-ignore
+                        const end = item?.thoiGianKetThuc || item?.end || '';
+                        let hours = item?.soGio || item?.hours || 0;
+                        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+                        return start || end || hours;
+                      });
+                      const totalWorkHours = validWorkList.reduce((sum: number, item: any) => {
+                        let hours = item?.soGio || item?.hours || 0;
+                        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+                        return sum + (typeof hours === 'number' ? hours : 0);
+                      }, 0);
 
-      if (validSetupList.length === 0) {
-        return (
-          <div className="text-center text-gray-400 text-sm py-4">
-            Không có dữ liệu thời gian gá phôi
-          </div>
-        );
-      }
+                      if (validWorkList.length === 0) {
+                        return <div className="text-center text-gray-400 text-sm py-4">Không có dữ liệu</div>;
+                      }
 
-      return (
-        <div className="space-y-3">
-          {/* Bảng thời gian gá phôi - HIỂN THỊ TẤT CẢ */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-blue-100/50">
-                  <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
-                  <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
-                  <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {validSetupList.map((item: any, index: number) => {
-                  // @ts-ignore
-                  const start = item?.thoiGianBatDau || item?.start || '';
-                  // @ts-ignore
-                  const end = item?.thoiGianKetThuc || item?.end || '';
-                  // @ts-ignore
-                  let hours = item?.soGio || item?.hours || 0;
-                  if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-                  
-                  return (
-                    <tr key={index} className="border-b border-blue-100 last:border-b-0 hover:bg-blue-50/50">
-                      <td className="py-1.5 px-2 text-gray-700">{start || '---'}</td>
-                      <td className="py-1.5 px-2 text-gray-700">{end || '---'}</td>
-                      <td className="py-1.5 px-2 text-right font-medium text-blue-700">
-                        {hours ? hours.toFixed(2) : '---'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-blue-300 bg-blue-50/50">
-                  <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
-                  <td className="py-2 px-2 text-right font-bold text-blue-700">
-                    {totalSetupHours ? totalSetupHours.toFixed(2) : '---'}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      );
-    })()}
-  </div>
+                      return (
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="bg-green-100/50">
+                                <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
+                                <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
+                                <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {validWorkList.map((item: any, index: number) => {
+                                // @ts-ignore
+                                const start = item?.thoiGianBatDau || item?.start || '';
+                                // @ts-ignore
+                                const end = item?.thoiGianKetThuc || item?.end || '';
+                                let hours = item?.soGio || item?.hours || 0;
+                                if (typeof hours === 'string') hours = parseFloat(hours) || 0;
+                                return (
+                                  <tr key={index} className="border-b border-green-100 last:border-b-0 hover:bg-green-50/50">
+                                    <td className="py-1.5 px-2 text-gray-700">{start || '---'}</td>
+                                    <td className="py-1.5 px-2 text-gray-700">{end || '---'}</td>
+                                    <td className="py-1.5 px-2 text-right font-medium text-green-700">{hours ? hours.toFixed(2) : '---'}</td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                            <tfoot>
+                              <tr className="border-t-2 border-green-300 bg-green-50/50">
+                                <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
+                                <td className="py-2 px-2 text-right font-bold text-green-700">{totalWorkHours ? totalWorkHours.toFixed(2) : '---'}</td>
+                              </tr>
+                            </tfoot>
+                          </table>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
 
-  {/* Thời gian gia công */}
-  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-    <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-      <span className="text-lg">⚙️</span> Thời gian gia công
-    </h4>
-    
-    {(() => {
-      // Lấy danh sách thời gian gia công từ nhiều nguồn
-      let workList = selectedLog?.workTimeEntries || selectedLog?.work_time_entries || [];
-      
-      // Nếu không có dữ liệu trong workTimeEntries, thử lấy từ các field riêng lẻ
-      if (workList.length === 0) {
-        const startField = selectedLog?.tgChay_BatDau;
-        const endField = selectedLog?.tgChay_KetThuc;
-        const hoursField = selectedLog?.soGioChay || selectedLog?.gioChay;
-        
-        if (startField || endField || hoursField) {
-          workList = [{
-            thoiGianBatDau: startField || '',
-            thoiGianKetThuc: endField || '',
-            soGio: typeof hoursField === 'number' ? hoursField : (hoursField ? parseFloat(hoursField as string) : 0) || 0
-          }];
-        }
-      }
+                {/* Nhân sự */}
+                <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                  <div><p className="text-sm text-gray-500">Người vận hành</p><p className="font-semibold">{selectedLog.nguoiVanHanh}</p></div>
+                  <div><p className="text-sm text-gray-500">Người kiểm tra</p><p className="font-semibold">{selectedLog.nguoiKiemTra || '---'}</p></div>
+                </div>
 
-      // Nếu workList là object (không phải array), chuyển thành array
-      if (!Array.isArray(workList)) {
-        workList = [workList];
-      }
+                {/* Bảng dao cụ */}
+                {selectedLog.toolEntries && selectedLog.toolEntries.length > 0 && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                      <span>🔩 Thông tin Dao Cụ</span>
+                      <Badge variant="outline" className="ml-2">{selectedLog.toolEntries.length} loại</Badge>
+                    </h3>
+                    <div className="overflow-x-auto border rounded-lg">
+                      <Table className="text-sm">
+                        <TableHeader>
+                          <TableRow className="bg-gray-100">
+                            <TableHead className="font-semibold">Tên Dao</TableHead>
+                            <TableHead className="text-center font-semibold">SL Cấp</TableHead>
+                            <TableHead className="text-center font-semibold">SL Sử Dụng</TableHead>
+                            <TableHead className="text-center font-semibold">SL Hỏng</TableHead>
+                            <TableHead className="text-center font-semibold">Đơn Vị</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {selectedLog.toolEntries.map((tool, idx) => (
+                            <TableRow key={idx} className="hover:bg-gray-50">
+                              <TableCell className="font-medium">{tool.tenDao}</TableCell>
+                              <TableCell className="text-center">{tool.slCap}</TableCell>
+                              <TableCell className="text-center">{tool.slSuDung}</TableCell>
+                              <TableCell className="text-center">{tool.hong}</TableCell>
+                              <TableCell className="text-center">{tool.donVi}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                )}
 
-      // Lọc bỏ các item không có dữ liệu
-      const validWorkList = workList.filter((item: any) => {
-        const start = item?.thoiGianBatDau || item?.start || '';
-        const end = item?.thoiGianKetThuc || item?.end || '';
-        let hours = item?.soGio || item?.hours || 0;
-        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-        return start || end || hours;
-      });
+                {/* Chi phí */}
+                <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                  <div><p className="text-sm text-gray-500">Chi phí máy</p><p className="font-semibold text-blue-600">{formatCurrency(selectedLog.cpMay)}</p></div>
+                  <div><p className="text-sm text-gray-500">Chi phí dao cụ</p><p className="font-semibold text-orange-600">{formatCurrency(selectedLog.cpDaoCu)}</p></div>
+                </div>
 
-      // Tính tổng số giờ gia công
-      const totalWorkHours = validWorkList.reduce((sum: number, item: any) => {
-        let hours = item?.soGio || item?.hours || 0;
-        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-        return sum + (typeof hours === 'number' ? hours : 0);
-      }, 0);
+                {/* Footer */}
+                <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
+                  <div className="flex items-center gap-2">
+                    <span>Trạng thái:</span>
+                    {getStatusBadge(selectedLog.status)}
+                  </div>
+                  <div>Ngày tạo: {new Date(selectedLog.createdAt).toLocaleString('vi-VN')}</div>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
-      if (validWorkList.length === 0) {
-        return (
-          <div className="text-center text-gray-400 text-sm py-4">
-            Không có dữ liệu thời gian gia công
-          </div>
-        );
-      }
-
-      return (
-        <div className="space-y-3">
-          {/* Bảng thời gian gia công - HIỂN THỊ TẤT CẢ */}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-green-100/50">
-                  <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
-                  <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
-                  <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {validWorkList.map((item: any, index: number) => {
-                  // @ts-ignore
-                  const start = item?.thoiGianBatDau || item?.start || '';
-                  // @ts-ignore
-                  const end = item?.thoiGianKetThuc || item?.end || '';
-                  // @ts-ignore
-                  let hours = item?.soGio || item?.hours || 0;
-                  if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-                  
-                  return (
-                    <tr key={index} className="border-b border-green-100 last:border-b-0 hover:bg-green-50/50">
-                      <td className="py-1.5 px-2 text-gray-700">{start || '---'}</td>
-                      <td className="py-1.5 px-2 text-gray-700">{end || '---'}</td>
-                      <td className="py-1.5 px-2 text-right font-medium text-green-700">
-                        {hours ? hours.toFixed(2) : '---'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-              <tfoot>
-                <tr className="border-t-2 border-green-300 bg-green-50/50">
-                  <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
-                  <td className="py-2 px-2 text-right font-bold text-green-700">
-                    {totalWorkHours ? totalWorkHours.toFixed(2) : '---'}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
-        </div>
-      );
-    })()}
-  </div>
-</div>
-      
-        {/* Bảng dao cụ chi tiết */}
-        {selectedLog.toolEntries && selectedLog.toolEntries.length > 0 && (
-          <div className="border-t pt-4">
-            <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-              <span>🔩 Thông tin Dao Cụ</span>
-              <Badge variant="outline" className="ml-2">
-                {selectedLog.toolEntries.length} loại
-              </Badge>
-            </h3>
-            <div className="overflow-x-auto border rounded-lg">
-              <Table className="text-sm">
-                <TableHeader>
-                  <TableRow className="bg-gray-100">
-                    <TableHead className="font-semibold">Tên Dao</TableHead>
-                    <TableHead className="text-center font-semibold">SL Cấp</TableHead>
-                    <TableHead className="text-center font-semibold">SL Sử Dụng</TableHead>
-                    <TableHead className="text-center font-semibold">SL Hỏng</TableHead>
-                    <TableHead className="text-center font-semibold">Đơn Vị</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {selectedLog.toolEntries.map((tool, idx) => (
-                    <TableRow key={idx} className="hover:bg-gray-50">
-                      <TableCell className="font-medium">{tool.tenDao}</TableCell>
-                      <TableCell className="text-center">{tool.slCap}</TableCell>
-                      <TableCell className="text-center">{tool.slSuDung}</TableCell>
-                      <TableCell className="text-center">{tool.hong}</TableCell>
-                      <TableCell className="text-center">{tool.donVi}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
-
-        {/* Nhân sự */}
-        <div className="grid grid-cols-2 gap-4 border-t pt-4">
-          <div>
-            <p className="text-sm text-gray-500">Người vận hành</p>
-            <p className="font-semibold">{selectedLog.nguoiVanHanh}</p>
-          </div>
-          <div>
-            <p className="text-sm text-gray-500">Người kiểm tra</p>
-            <p className="font-semibold">{selectedLog.nguoiKiemTra || '---'}</p>
-          </div>
-        </div>
-       
-        {/* Footer */}
-        <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
-          <div className="flex items-center gap-2">
-            <span>Trạng thái:</span>
-            {getStatusBadge(selectedLog.status)}
-          </div>
-          <div>Ngày tạo: {new Date(selectedLog.createdAt).toLocaleString('vi-VN')}</div>
-        </div>
-      </div>
-    )}
-  </DialogContent>
-</Dialog>
         {/* Edit Dialog */}
         <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -1263,5 +1169,3 @@ export function ProductionReportPage() {
     </div>
   );
 }
-
-export default ProductionReportPage;

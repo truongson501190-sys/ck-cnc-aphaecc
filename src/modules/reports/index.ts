@@ -2,7 +2,7 @@
 export { default as ProductionReportPage } from './ProductionReportPage';
 export { default as MaintenanceReportPage } from './MaintenanceReportPage';
 export { default as QcReportPage } from './QcReportPage';
-export { ProductionForm } from './ProductionForm';
+export { default as ProductionForm } from './ProductionForm';
 export { MaintenanceForm } from './MaintenanceForm';
 export { QcForm } from './QcForm';
 export { InventoryPage } from './InventoryPage';
