@@ -2,13 +2,14 @@
 import { useMemo } from 'react';
 import { useProductionReports } from '@/hooks/useProductionReports';
 import { ReportTable, Column } from '@/components/ReportTable';
-import { Card, CardContent } from '@/components/ui/card';
 
 interface CostRow {
   id: string;
   ngay: string;
   may: string;
   ca: string;
+  caMay: string;        // Thêm: Ca máy (ví dụ: 8h/1Ca)
+  donGia: number;       // Thêm: Đơn giá máy
   maDuAn: string;
   chiPhiChayMay: number;
   chiPhiGa: number;
@@ -31,21 +32,112 @@ export function CostBreakdown() {
     return value.toLocaleString('vi-VN') + ' đ';
   };
 
+  // Hàm tính tổng giờ gá
+  const getTotalSetupHours = (report: any) => {
+    if (report.setup_time_entries && Array.isArray(report.setup_time_entries)) {
+      return report.setup_time_entries.reduce((sum: number, entry: any) => {
+        return sum + (entry.soGio || 0);
+      }, 0);
+    }
+    return 0;
+  };
+
+  // Hàm tính tổng giờ chạy
+  const getTotalWorkHours = (report: any) => {
+    if (report.work_time_entries && Array.isArray(report.work_time_entries)) {
+      return report.work_time_entries.reduce((sum: number, entry: any) => {
+        return sum + (entry.soGio || 0);
+      }, 0);
+    }
+    return 0;
+  };
+
+  // Hàm xác định loại ca máy dựa trên tổng giờ làm việc
+  const getMachineShift = (report: any) => {
+    const totalHours = getTotalWorkHours(report) + getTotalSetupHours(report);
+    
+    // Xác định ca dựa trên tổng giờ
+    if (totalHours <= 8) return '8h/1Ca';
+    if (totalHours <= 10) return '10h/1Ca';
+    if (totalHours <= 12) return '12h/1Ca';
+    if (totalHours <= 16) return '8h/2Ca';
+    if (totalHours <= 20) return '10h/2Ca';
+    if (totalHours <= 24) return '12h/2Ca';
+    return `${totalHours}h/${Math.ceil(totalHours / 8)}Ca`;
+  };
+
+  // Hàm tính đơn giá máy
+  const getMachineRate = (report: any) => {
+    const cpMay = report.cpMay || 0;
+    const totalHours = getTotalWorkHours(report) + getTotalSetupHours(report);
+    
+    // Nếu có cpMay và tổng giờ > 0, tính đơn giá máy = cpMay / tổng giờ
+    if (cpMay > 0 && totalHours > 0) {
+      return cpMay / totalHours;
+    }
+    
+    return 0;
+  };
+
+  // Hàm tính chi phí gá: CP gá = (Đơn giá máy / 2) × Tổng giờ gá
+  const calculateSetupCost = (report: any) => {
+    const setupHours = getTotalSetupHours(report);
+    const machineRate = getMachineRate(report);
+    
+    // CP gá = (Đơn giá máy / 2) × Tổng giờ gá
+    return (machineRate / 2) * setupHours;
+  };
+
   const data: CostRow[] = useMemo(() => {
     return reports.map((r) => {
-      const chiPhiDao = (r.toolEntries || []).reduce((sum: number, t: any) => sum + (t.thanhTien || 0), 0);
-      const cpMay = r.cpMay || 0;
-      const cpGa = r.cpGa || 0;
+      const report = r as any;
+      
+      // Tính chi phí dao
+      const chiPhiDao = (report.toolEntries || []).reduce((sum: number, t: any) => {
+        return sum + (t.thanhTien || 0);
+      }, 0);
+      
+      // Chi phí chạy máy (lấy từ cpMay)
+      const chiPhiChayMay = report.cpMay || 0;
+      
+      // Tổng giờ
+      const totalSetupHours = getTotalSetupHours(report);
+      const totalWorkHours = getTotalWorkHours(report);
+      const totalHours = totalSetupHours + totalWorkHours;
+      
+      // Đơn giá máy
+      const donGia = getMachineRate(report);
+      
+      // Ca máy
+      const caMay = getMachineShift(report);
+      
+      // Chi phí gá = (Đơn giá máy / 2) × Tổng giờ gá
+      const chiPhiGa = calculateSetupCost(report);
+      
+      console.log(`Report ${report.id}:`, {
+        'Tổng giờ': totalHours,
+        'Ca máy': caMay,
+        'Đơn giá máy': donGia,
+        'Giờ gá': totalSetupHours,
+        'Giờ chạy': totalWorkHours,
+        'CP gá': chiPhiGa,
+        'CP chạy máy': chiPhiChayMay,
+        'CP dao': chiPhiDao,
+        'Tổng CP': chiPhiChayMay + chiPhiGa + chiPhiDao
+      });
+
       return {
-        id: r.id,
-        ngay: formatDate(r.ngayThang),
-        may: r.maySanXuat || '---',
-        ca: r.ca || 'Ngày',
-        maDuAn: r.duAn || '---',
-        chiPhiChayMay: cpMay,
-        chiPhiGa: cpGa,
+        id: report.id,
+        ngay: formatDate(report.ngayThang),
+        may: report.maySanXuat || '---',
+        ca: report.ca || 'Ngày',
+        caMay: caMay,
+        donGia: donGia,
+        maDuAn: report.duAn || '---',
+        chiPhiChayMay: chiPhiChayMay,
+        chiPhiGa: chiPhiGa,
         chiPhiDao: chiPhiDao,
-        tongChiPhi: cpMay + cpGa + chiPhiDao,
+        tongChiPhi: chiPhiChayMay + chiPhiGa + chiPhiDao,
       };
     });
   }, [reports]);
@@ -53,11 +145,31 @@ export function CostBreakdown() {
   const columns: Column<CostRow>[] = [
     { key: 'ngay', header: 'Ngày' },
     { key: 'may', header: 'Máy' },
-    { key: 'ca', header: 'Ca', align: 'center' },
+    { key: 'ca', header: 'Ca làm việc', align: 'center' },
+    { 
+      key: 'caMay', 
+      header: 'Ca máy', 
+      align: 'center',
+      render: (row) => (
+        <span className="font-mono font-semibold text-purple-600">
+          {row.caMay}
+        </span>
+      )
+    },
     { key: 'maDuAn', header: 'Dự án' },
     {
+      key: 'donGia',
+      header: 'Đơn giá máy',
+      align: 'right',
+      render: (row) => (
+        <span className="font-mono text-gray-600">
+          {formatCurrency(row.donGia)}/h
+        </span>
+      )
+    },
+    {
       key: 'chiPhiChayMay',
-      header: 'CP chạy',
+      header: 'CP chạy máy',
       align: 'right',
       render: (row) => <span className="text-blue-600">{formatCurrency(row.chiPhiChayMay)}</span>,
     },

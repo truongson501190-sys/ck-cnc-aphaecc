@@ -470,7 +470,7 @@ export default function ProductionReportPage() {
             const khach_hang = row['Tên dự án'] || '';
             const banVeSo = row['Bản Vẽ Số'] || '';
             const chiTietSo = row['Chi Tiết Số'] || '';
-            const tenChiTiet = chiTietSo;
+            const tenChiTiet = row['Tên chi tiết'] || chiTietSo;
             const noiDungGiaCong = row['Nội dung Gia Công'] || '';
             const soLuongHoanThanh = Number(row['SL HT'] || 0);
             const vatLieu = row['Vật Liệu'] || '';
@@ -577,8 +577,8 @@ export default function ProductionReportPage() {
       'Tên dự án': 'Dự án A',
       'Bản Vẽ Số': 'BV-001',
       'Chi Tiết Số': 'CT-001',
+      'Tên chi tiết': 'Chi tiết mặt bích',
       'Nội dung Gia Công': 'Gia công thô',
-      'Kích thước': '100x200x50',
       'SL HT': 100,
       'Vật Liệu': 'Thép SS400',
       'NC Số': 'NC001',
