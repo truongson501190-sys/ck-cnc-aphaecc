@@ -1209,13 +1209,7 @@ export default function ProductionReportPage() {
                     </div>
                   </div>
                 )}
-
-                {/* Chi phí */}
-                <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                  <div><p className="text-sm text-gray-500">Chi phí máy</p><p className="font-semibold text-blue-600">{formatCurrency(selectedLog.cpMay)}</p></div>
-                  <div><p className="text-sm text-gray-500">Chi phí dao cụ</p><p className="font-semibold text-orange-600">{formatCurrency(selectedLog.cpDaoCu)}</p></div>
-                </div>
-
+          
                 {/* Footer */}
                 <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
                   <div className="flex items-center gap-2">
