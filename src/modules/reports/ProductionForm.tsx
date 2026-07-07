@@ -102,7 +102,11 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
   // FORM STATE
   // ======================
   const [formData, setFormData] = useState<any>(() => {
+    console.log('📝 ProductionForm - initialData:', initialData);
+    console.log('📝 ProductionForm - getUserName():', getUserName());
     if (initialData) {
+      console.log('📝 ProductionForm - initialData.nguoiVanHanh:', initialData.nguoiVanHanh);
+      console.log('📝 ProductionForm - initialData.nguoiKiemTra:', initialData.nguoiKiemTra);
       return {
         ngayThang: initialData.ngayThang || initialData.ngay || new Date().toISOString().split('T')[0],
         maySanXuat: initialData.maySanXuat || initialData.may || '',
@@ -338,13 +342,13 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
   }, [loadAllMasterData]);
 
   useEffect(() => {
-    if (getUserName()) {
+    if (getUserName() && !initialData) { // Only set nguoiVanHanh for NEW logs, not when editing
       setFormData((prev: any) => ({
         ...prev,
         nguoiVanHanh: getUserName() || prev.nguoiVanHanh,
       }));
     }
-  }, [user, getUserName]);
+  }, [user, getUserName, initialData]);
 
   const getInspectorsByRole = useCallback(() => {
     try {
@@ -485,10 +489,12 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
         thanhTien: (tool.slSuDung || 0) * (tool.donGia || 0),
       }));
 
+      console.log('📤 ProductionForm handleSubmit - formData:', formData);
       const submitData: any = {
         ...formData,
         toolEntries: updatedToolEntries,
-        nguoiVanHanh: getUserName() || formData.nguoiVanHanh,
+        // Use formData.nguoiVanHanh if user has entered it, otherwise use current user
+        nguoiVanHanh: formData.nguoiVanHanh || (initialData ? initialData.nguoiVanHanh : getUserName()),
         status: initialData?.status || 'pending',
         chiPhiGa: setupAmount,
         chiPhiChayMay: runAmount,
@@ -496,6 +502,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
         gioGa: totalSetupHours,
         gioChay: totalRunHours,
       };
+      console.log('📤 ProductionForm handleSubmit - submitData:', submitData);
 
       onSubmit(submitData);
 

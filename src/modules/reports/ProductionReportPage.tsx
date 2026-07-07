@@ -171,33 +171,76 @@ export default function ProductionReportPage() {
 
   // Tải dữ liệu với phân quyền
   const loadLogs = async () => {
-    if (!permissions.canView) return;
+    console.log('🚀 Entering loadLogs');
+    console.log('🚀 permissions.canView:', permissions.canView);
+    if (!permissions.canView) {
+      console.log('🚀 Exiting early: no view permissions');
+      return;
+    }
     setIsLoading(true);
     try {
-      console.log('📥 Loading production logs...');
-      let query = supabase.from('production_reports').select('*');
-
-      if (isAdmin || isQuanLyXuong) {
-        // Admin và Quản lý xưởng: xem tất cả
-        console.log('✅ Loading ALL logs (Admin/Quản lý xưởng)');
-      } else if (isNguoiKiemTra) {
-        // Sử dụng ilike để tìm kiếm không phân biệt chữ hoa chữ thường và bỏ qua khoảng trắng
-        query = query.ilike('nguoiKiemTra', `%${userName}%`);
-        console.log(`🔍 Loading logs for inspector: ${userName}`);
-      } else if (isNguoiVanHanh) {
-        query = query.ilike('nguoiVanHanh', `%${userName}%`);
-        console.log(`🔍 Loading logs for operator: ${userName}`);
-      } else {
-        query = query.or(`nguoiVanHanh.ilike.%${userName}%,nguoiKiemTra.ilike.%${userName}%`);
-        console.log(`🔍 Loading logs for user: ${userName}`);
+      console.log('📥 Loading production logs from DB...');
+      console.log('🔍 Permissions:', permissions);
+      console.log('🔍 User Info:', { user, userName, isAdmin, isQuanLyXuong, isNguoiVanHanh, isNguoiKiemTra });
+      
+      const { data: allLogs, error: allError } = await supabase
+        .from('production_reports')
+        .select('*')
+        .order('ngayThang', { ascending: false });
+      
+      if (allError) {
+        console.error('❌ Error fetching logs:', allError);
+        throw allError;
       }
-
-      const { data, error } = await query.order('ngayThang', { ascending: false });
-      if (error) throw error;
-      console.log('📥 Logs loaded:', data);
-      setLogs(data as ProductionLog[]);
+      
+      console.log('📊 ALL logs loaded from DB:', allLogs?.length);
+      console.log('📊 First 3 logs full data:', JSON.stringify(allLogs?.slice(0, 3), null, 2));
+      
+      let filteredLogs = allLogs;
+      if (!isAdmin && !isQuanLyXuong) {
+        console.log('🔍 Applying non-Admin/non-QuanLyXuong filter...');
+        filteredLogs = allLogs.filter(log => {
+          const logNguoiVanHanh = (log.nguoiVanHanh || '').trim().toLowerCase();
+          const logNguoiKiemTra = (log.nguoiKiemTra || '').trim().toLowerCase();
+          const currentUserName = userName.toLowerCase();
+          
+          console.log('🔍 Checking log:', {
+            id: log.id,
+            logNguoiVanHanh,
+            logNguoiKiemTra,
+            currentUserName,
+            isNguoiVanHanh,
+            isNguoiKiemTra
+          });
+          
+          let result = false;
+          if (isNguoiKiemTra) {
+            result = logNguoiKiemTra.includes(currentUserName);
+            console.log('🔍 Inspector check result:', {
+              logNguoiKiemTra,
+              currentUserName,
+              includes: logNguoiKiemTra.includes(currentUserName),
+              result
+            });
+          } else if (isNguoiVanHanh) {
+            result = logNguoiVanHanh.includes(currentUserName);
+            console.log('🔍 Operator check result:', {
+              logNguoiVanHanh,
+              currentUserName,
+              includes: logNguoiVanHanh.includes(currentUserName),
+              result
+            });
+          } else {
+            result = logNguoiVanHanh.includes(currentUserName) || logNguoiKiemTra.includes(currentUserName);
+          }
+          return result;
+        });
+      }
+      
+      console.log('✅ Final filtered logs count:', filteredLogs?.length);
+      setLogs(filteredLogs as ProductionLog[]);
     } catch (error) {
-      console.error('❌ Error loading logs:', error);
+      console.error('❌ Error in loadLogs:', error);
       toast.error('Không thể tải dữ liệu');
     } finally {
       setIsLoading(false);
@@ -205,6 +248,7 @@ export default function ProductionReportPage() {
   };
 
   useEffect(() => {
+    console.log('🚀 useEffect calling loadLogs, permissions.canView:', permissions.canView);
     if (permissions.canView) {
       loadLogs();
     }
@@ -322,11 +366,17 @@ export default function ProductionReportPage() {
   };
 
   const handleEditLog = async (formData: any) => {
+    console.log('🔧 handleEditLog - formData:', formData);
+    console.log('🔧 handleEditLog - selectedLog:', selectedLog);
     if (!permissions.canEdit) {
       toast.error('Bạn không có quyền sửa nhật ký');
       return;
     }
     if (!selectedLog) return;
+    if (selectedLog.status === 'approved' && !isAdmin) {
+      toast.error('Không thể sửa nhật ký đã duyệt');
+      return;
+    }
     const updatedLog: any = {
       ngayThang: formData.ngayThang,
       maySanXuat: formData.maySanXuat,
@@ -349,6 +399,7 @@ export default function ProductionReportPage() {
       nguoiKiemTra: (formData.nguoiKiemTra || selectedLog.nguoiKiemTra || '').trim(),
       updatedAt: new Date().toISOString(),
     };
+    console.log('🔧 handleEditLog - updatedLog:', updatedLog);
     try {
       const { error } = await supabase
         .from('production_reports')
