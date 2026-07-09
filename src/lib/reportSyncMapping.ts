@@ -1,43 +1,74 @@
 import type { RawRecord } from '@/types/common';
 
+export function buildProductionReportDbPayload(item: RawRecord): RawRecord {
+  return {
+    id: item.id,
+    ngayThang: item.ngayThang ?? item.ngay_thang,
+    maySanXuat: item.maySanXuat ?? item.may_san_xuat,
+    duAn: item.duAn ?? item.du_an,
+    khach_hang: item.khach_hang ?? item.khachHang,
+    banVeSo: item.banVeSo ?? item.ban_ve_so,
+    chiTietSo: item.chiTietSo ?? item.chi_tiet_so,
+    tenChiTiet: item.tenChiTiet ?? item.ten_chi_tiet,
+    noiDungGiaCong: item.noiDungGiaCong ?? item.noi_dung_gia_cong,
+    soLuongHoanThanh: item.soLuongHoanThanh ?? item.so_luong_hoan_thanh ?? 0,
+    vatLieu: item.vatLieu ?? item.vat_lieu,
+    nguyenCongSo: item.nguyenCongSo ?? item.nguyen_cong_so,
+    toolEntries: item.toolEntries ?? item.tool_entries ?? [],
+    work_time_entries: item.work_time_entries ?? item.workTimeEntries ?? [],
+    setup_time_entries: item.setup_time_entries ?? item.setupTimeEntries ?? [],
+    ca: item.ca ?? '',
+    cpMay: item.cpMay ?? item.cp_may ?? 0,
+    cpDaoCu: item.cpDaoCu ?? item.cp_dao_cu ?? 0,
+    nguoiVanHanh: item.nguoiVanHanh ?? item.nguoi_van_hanh,
+    nguoiKiemTra: item.nguoiKiemTra ?? item.nguoi_kiem_tra,
+    tgTrenCa: item.tgTrenCa ?? item.tg_tren_ca,
+    status: item.status ?? 'pending',
+    createdAt: item.createdAt ?? item.created_at,
+    updatedAt: item.updatedAt ?? item.updated_at,
+  };
+}
+
+export function buildProductionReportStatusUpdatePayload(status: string, updatedAt = new Date().toISOString()): RawRecord {
+  return {
+    status,
+    updatedAt,
+  };
+}
+
+export function parseImportedToolEntries(row: Record<string, any>) {
+  const rawNames = row['Tên dao'] ?? row['Tên Dao'] ?? row['tenDao'] ?? '';
+  const names = String(rawNames)
+    .split(/[,;|/]/)
+    .map(value => value.trim())
+    .filter(Boolean);
+
+  const slCap = Number(row['SL cấp'] ?? row['SL cap'] ?? 0) || 0;
+  const slSuDung = Number(row['sử dụng'] ?? row['su dung'] ?? row['SL sử dụng'] ?? 0) || 0;
+  const hong = Number(row['Hỏng'] ?? row['Hong'] ?? 0) || 0;
+  const donVi = String(row['ĐV'] ?? row['Đơn vị'] ?? row['Don vi'] ?? 'cái');
+  const donGia = Number(String(row['Đơn giá'] ?? row['Don gia'] ?? row['Đơn giá (VND)'] ?? 0).replace(/[^0-9]/g, '')) || 0;
+  const thanhTien = Number(String(row['Thành tiền'] ?? row['Thanh tien'] ?? row['Thành tiền (VND)'] ?? 0).replace(/[^0-9]/g, '')) || 0;
+
+  if (names.length === 0) {
+    return [];
+  }
+
+  return names.map((name, index) => ({
+    tenDao: name,
+    slCap: index === 0 ? slCap : 0,
+    slSuDung: index === 0 ? slSuDung : 0,
+    hong: index === 0 ? hong : 0,
+    donVi,
+    donGia: index === 0 ? donGia : 0,
+    thanhTien: index === 0 ? thanhTien : 0,
+  }));
+}
+
 /** Map báo cáo local (camelCase) → cột Supabase (snake_case). Giữ `id` làm PK. */
 export function mapReportToDb(table: string, item: RawRecord): RawRecord | null {
   if (table === 'production_reports') {
-    return {
-      id: item.id,
-      ngay_thang: item.ngayThang ?? item.ngay_thang,
-      may_san_xuat: item.maySanXuat ?? item.may_san_xuat,
-      du_an: item.duAn ?? item.du_an,
-      khach_hang: item.khachHang ?? item.khach_hang,
-      ban_ve_so: item.banVeSo ?? item.ban_ve_so,
-      chi_tiet_so: item.chiTietSo ?? item.chi_tiet_so,
-      ten_chi_tiet: item.tenChiTiet ?? item.ten_chi_tiet,
-      noi_dung_gia_cong: item.noiDungGiaCong ?? item.noi_dung_gia_cong,
-      so_luong_hoan_thanh: item.soLuongHoanThanh ?? item.so_luong_hoan_thanh ?? 0,
-      vat_lieu: item.vatLieu ?? item.vat_lieu,
-      nguyen_cong_so: item.nguyenCongSo ?? item.nguyen_cong_so,
-      tool_entries: item.toolEntries ?? item.tool_entries ?? [],
-      work_time_entries: item.workTimeEntries ?? item.work_time_entries ?? [],
-      setup_time_entries: item.setupTimeEntries ?? item.setup_time_entries ?? [],
-      ca: item.ca ?? '',
-      cp_may: item.cpMay ?? item.cp_may ?? 0,
-      cp_dao_cu: item.cpDaoCu ?? item.cp_dao_cu ?? 0,
-      nguoi_van_hanh: item.nguoiVanHanh ?? item.nguoi_van_hanh,
-      nguoi_kiem_tra: item.nguoiKiemTra ?? item.nguoi_kiem_tra,
-      tg_tren_ca: item.tgTrenCa ?? item.tg_tren_ca,
-      tg_ga_phoi: item.tgGaPhoi ?? item.tg_ga_phoi,
-      gio_ga: item.gioGa ?? item.gio_ga,
-      gio_chay: item.gioChay ?? item.gio_chay,
-      chi_phi_ga: item.chiPhiGa ?? item.chi_phi_ga,
-      chi_phi_chay_may: item.chiPhiChayMay ?? item.chi_phi_chay_may,
-      chi_phi_dao: item.chiPhiDao ?? item.chi_phi_dao,
-      status: item.status ?? 'pending',
-      created_at: item.createdAt ?? item.created_at,
-      updated_at: item.updatedAt ?? item.updated_at,
-      is_locked: item.isLocked ?? item.is_locked,
-      locked_by: item.lockedBy ?? item.locked_by,
-      locked_at: item.lockedAt ?? item.locked_at,
-    };
+    return buildProductionReportDbPayload(item);
   }
 
   if (table === 'maintenance_reports') {
@@ -83,38 +114,38 @@ export function mapReportFromDb(table: string, item: RawRecord): RawRecord {
   if (table === 'production_reports') {
     return {
       id: item.id,
-      ngayThang: item.ngay_thang ?? item.ngayThang,
-      maySanXuat: item.may_san_xuat ?? item.maySanXuat,
-      duAn: item.du_an ?? item.duAn,
-      khachHang: item.khach_hang ?? item.khachHang,
-      banVeSo: item.ban_ve_so ?? item.banVeSo,
-      chiTietSo: item.chi_tiet_so ?? item.chiTietSo,
-      tenChiTiet: item.ten_chi_tiet ?? item.tenChiTiet,
-      noiDungGiaCong: item.noi_dung_gia_cong ?? item.noiDungGiaCong,
-      soLuongHoanThanh: item.so_luong_hoan_thanh ?? item.soLuongHoanThanh,
-      vatLieu: item.vat_lieu ?? item.vatLieu,
-      nguyenCongSo: item.nguyen_cong_so ?? item.nguyenCongSo,
-      toolEntries: item.tool_entries ?? item.toolEntries ?? [],
-      workTimeEntries: item.work_time_entries ?? item.workTimeEntries ?? [],
-      setupTimeEntries: item.setup_time_entries ?? item.setupTimeEntries ?? [],
+      ngayThang: item.ngayThang ?? item.ngay_thang,
+      maySanXuat: item.maySanXuat ?? item.may_san_xuat,
+      duAn: item.duAn ?? item.du_an,
+      khach_hang: item.khach_hang ?? item.khachHang,
+      banVeSo: item.banVeSo ?? item.ban_ve_so,
+      chiTietSo: item.chiTietSo ?? item.chi_tiet_so,
+      tenChiTiet: item.tenChiTiet ?? item.ten_chi_tiet,
+      noiDungGiaCong: item.noiDungGiaCong ?? item.noi_dung_gia_cong,
+      soLuongHoanThanh: item.soLuongHoanThanh ?? item.so_luong_hoan_thanh,
+      vatLieu: item.vatLieu ?? item.vat_lieu,
+      nguyenCongSo: item.nguyenCongSo ?? item.nguyen_cong_so,
+      toolEntries: item.toolEntries ?? item.tool_entries ?? [],
+      work_time_entries: item.work_time_entries ?? item.workTimeEntries ?? [],
+      setup_time_entries: item.setup_time_entries ?? item.setupTimeEntries ?? [],
       ca: item.ca ?? '',
-      cpMay: item.cp_may ?? item.cpMay,
-      cpDaoCu: item.cp_dao_cu ?? item.cpDaoCu,
-      nguoiVanHanh: item.nguoi_van_hanh ?? item.nguoiVanHanh,
-      nguoiKiemTra: item.nguoi_kiem_tra ?? item.nguoiKiemTra,
-      tgTrenCa: item.tg_tren_ca ?? item.tgTrenCa,
-      tgGaPhoi: item.tg_ga_phoi ?? item.tgGaPhoi,
-      gioGa: item.gio_ga ?? item.gioGa,
-      gioChay: item.gio_chay ?? item.gioChay,
-      chiPhiGa: item.chi_phi_ga ?? item.chiPhiGa,
-      chiPhiChayMay: item.chi_phi_chay_may ?? item.chiPhiChayMay,
-      chiPhiDao: item.chi_phi_dao ?? item.chiPhiDao,
+      cpMay: item.cpMay ?? item.cp_may,
+      cpDaoCu: item.cpDaoCu ?? item.cp_dao_cu,
+      nguoiVanHanh: item.nguoiVanHanh ?? item.nguoi_van_hanh,
+      nguoiKiemTra: item.nguoiKiemTra ?? item.nguoi_kiem_tra,
+      tgTrenCa: item.tgTrenCa ?? item.tg_tren_ca,
+      tgGaPhoi: item.tgGaPhoi ?? item.tg_ga_phoi,
+      gioGa: item.gioGa ?? item.gio_ga,
+      gioChay: item.gioChay ?? item.gio_chay,
+      chiPhiGa: item.chiPhiGa ?? item.chi_phi_ga,
+      chiPhiChayMay: item.chiPhiChayMay ?? item.chi_phi_chay_may,
+      chiPhiDao: item.chiPhiDao ?? item.chi_phi_dao,
       status: item.status,
-      createdAt: item.created_at ?? item.createdAt,
-      updatedAt: item.updated_at ?? item.updatedAt,
-      isLocked: item.is_locked ?? item.isLocked,
-      lockedBy: item.locked_by ?? item.lockedBy,
-      lockedAt: item.locked_at ?? item.lockedAt,
+      createdAt: item.createdAt ?? item.created_at,
+      updatedAt: item.updatedAt ?? item.updated_at,
+      isLocked: item.isLocked ?? item.is_locked,
+      lockedBy: item.lockedBy ?? item.locked_by,
+      lockedAt: item.lockedAt ?? item.locked_at,
     };
   }
 

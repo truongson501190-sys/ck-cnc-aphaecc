@@ -52,10 +52,25 @@ function calculateHours(interval: TimeInterval): number {
     return 0;
   }
 
-  const start = new Date(`2000-01-01T${interval.startTime}`);
-  const end = new Date(`2000-01-01T${interval.endTime}`);
+  // Đảm bảo thời gian ở định dạng HH:mm trước khi tính
+  const formatTimeForCalc = (time: string) => {
+    time = String(time).trim();
+    if (/^(\d{1,2}):(\d{2})$/.test(time)) {
+      let [h, m] = time.split(':').map(Number);
+      h = Math.max(0, Math.min(23, h));
+      m = Math.max(0, Math.min(59, m));
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    }
+    return time;
+  };
 
-  // xử lý qua đêm
+  const formattedStart = formatTimeForCalc(interval.startTime);
+  const formattedEnd = formatTimeForCalc(interval.endTime);
+
+  const start = new Date(`2000-01-01T${formattedStart}`);
+  const end = new Date(`2000-01-01T${formattedEnd}`);
+
+  // xử lý qua đêm (nếu thời gian kết thúc nhỏ hơn thời gian bắt đầu)
   if (end < start) {
     end.setDate(end.getDate() + 1);
   }
@@ -150,6 +165,7 @@ const TimeSection: React.FC<TimeSectionProps> = ({
 
                   <Input
                     type="time"
+                    lang="vi-VN"
                     value={interval.startTime}
                     onChange={(e) =>
                       onUpdate(
@@ -166,6 +182,7 @@ const TimeSection: React.FC<TimeSectionProps> = ({
 
                   <Input
                     type="time"
+                    lang="vi-VN"
                     value={interval.endTime}
                     onChange={(e) =>
                       onUpdate(

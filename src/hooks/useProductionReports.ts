@@ -1,6 +1,7 @@
 // src/hooks/useProductionReports.ts
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/supabase';
+import { mapReportFromDb } from '@/lib/reportSyncMapping';
 
 export interface ProductionReport {
   id: string;
@@ -41,7 +42,9 @@ export function useProductionReports() {
         .order('ngayThang', { ascending: false });
 
       if (supabaseError) throw supabaseError;
-      setReports(data || []);
+      const mappedReports = (data || []).map((item) => mapReportFromDb('production_reports', item) as ProductionReport);
+      console.log('🔍 Dữ liệu thô từ Supabase (useProductionReports):', data);
+      setReports(mappedReports);
     } catch (err) {
       console.error('Error loading production reports:', err);
       setError('Không thể tải dữ liệu báo cáo sản xuất');

@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/DateInput';
@@ -107,6 +107,16 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
     if (initialData) {
       console.log('📝 ProductionForm - initialData.nguoiVanHanh:', initialData.nguoiVanHanh);
       console.log('📝 ProductionForm - initialData.nguoiKiemTra:', initialData.nguoiKiemTra);
+      
+      // Get hours from snake_case first
+      const setupHours = initialData.gio_ga || initialData.gioGa || 0;
+      const runHours = initialData.gio_chay || initialData.gioChay || 0;
+      
+      // Get costs from snake_case first
+      const setupCost = initialData.chi_phi_ga || initialData.chiPhiGa || 0;
+      const runCost = initialData.chi_phi_chay_may || initialData.chiPhiChayMay || initialData.cpMay || 0;
+      const toolCost = initialData.chi_phi_dao || initialData.chiPhiDao || initialData.cpDaoCu || 0;
+      
       return {
         ngayThang: initialData.ngayThang || initialData.ngay || new Date().toISOString().split('T')[0],
         maySanXuat: initialData.maySanXuat || initialData.may || '',
@@ -125,14 +135,17 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
         workTimeEntries: initialData.workTimeEntries?.length ? 
           initialData.workTimeEntries : 
           (initialData.work_time_entries?.length ? initialData.work_time_entries : 
-            (initialData.gioChay ? [{ soGio: initialData.gioChay, thoiGianBatDau: initialData.tgChay_BatDau || '', thoiGianKetThuc: initialData.tgChay_KetThuc || '' }] : [])),
+            (runHours > 0 ? [{ soGio: runHours, thoiGianBatDau: initialData.tgChay_BatDau || '', thoiGianKetThuc: initialData.tgChay_KetThuc || '' }] : [])),
         setupTimeEntries: initialData.setupTimeEntries?.length ? 
           initialData.setupTimeEntries : 
           (initialData.setup_time_entries?.length ? initialData.setup_time_entries : 
-            (initialData.gioGa ? [{ soGio: initialData.gioGa, thoiGianBatDau: initialData.tgGia_BatDau || '', thoiGianKetThuc: initialData.tgGia_KetThuc || '' }] : [])),
+            (setupHours > 0 ? [{ soGio: setupHours, thoiGianBatDau: initialData.tgGia_BatDau || '', thoiGianKetThuc: initialData.tgGia_KetThuc || '' }] : [])),
         ca: initialData.ca || '',
-        cpMay: initialData.cpMay || initialData.chiPhiChayMay || 0,
-        cpDaoCu: initialData.cpDaoCu || initialData.chiPhiDao || 0,
+        cpMay: runCost,
+        chiPhiChayMay: runCost,
+        cpDaoCu: toolCost,
+        chiPhiDao: toolCost,
+        chiPhiGa: setupCost,
         nguoiVanHanh: initialData.nguoiVanHanh || getUserName(),
         nguoiKiemTra: initialData.nguoiKiemTra || '',
         tgTrenCa: initialData.tgTrenCa || '',

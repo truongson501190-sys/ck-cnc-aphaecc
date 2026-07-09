@@ -18,6 +18,9 @@ import ProductionForm from './ProductionForm';
 import { supabase } from '@/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
+import { buildProductionReportDbPayload, buildProductionReportStatusUpdatePayload, mapReportFromDb, parseImportedToolEntries } from '@/lib/reportSyncMapping';
+
+
 
 // ====================== TYPES ======================
 interface ToolEntry {
@@ -45,27 +48,42 @@ interface ProductionLog {
   nguyenCongSo: string;
   toolEntries: ToolEntry[];
   ca: string;
-  cpMay: number;
-  cpDaoCu: number;
+  cpMay?: number;
+  cpDaoCu?: number;
   nguoiVanHanh: string;
   nguoiKiemTra: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   updatedAt?: string;
+  updated_at?: string;
   setup_time_entries?: Array<{ start?: string; end?: string; hours?: number }>;
   work_time_entries?: Array<{ start?: string; end?: string; hours?: number }>;
   setupTimeEntries?: Array<{ thoiGianBatDau?: string; thoiGianKetThuc?: string; soGio?: number }>;
   workTimeEntries?: Array<{ thoiGianBatDau?: string; thoiGianKetThuc?: string; soGio?: number }>;
   tgGia_BatDau?: string;
+  tgGiaBatDau?: string;
   tgGia_KetThuc?: string;
+  tgGiaKetThuc?: string;
   soGioGia?: number;
   gioGa?: number;
+  gio_ga?: number;
   tgChay_BatDau?: string;
+  tgChayBatDau?: string;
   tgChay_KetThuc?: string;
+  tgChayKetThuc?: string;
   soGioChay?: number;
   gioChay?: number;
+  gio_chay?: number;
   tgGaPhoi?: string;
   tgTrenCa?: string;
+  
+  // Cost fields
+  chiPhiGa?: number;
+  chi_phi_ga?: number;
+  chiPhiChayMay?: number;
+  chi_phi_chay_may?: number;
+  chiPhiDao?: number;
+  chi_phi_dao?: number;
 }
 
 // ====================== HÀM TIỆN ÍCH ======================
@@ -102,7 +120,7 @@ const parseExcelDate = (value: any): string => {
   return str;
 };
 
-const formatCurrency = (value: number) => {
+const formatCurrency = (value?: number) => {
   if (!value) return '0 đ';
   return value.toLocaleString('vi-VN') + ' đ';
 };
@@ -193,15 +211,17 @@ export default function ProductionReportPage() {
         throw allError;
       }
       
-      console.log('📊 ALL logs loaded from DB:', allLogs?.length);
-      console.log('📊 First 3 logs full data:', JSON.stringify(allLogs?.slice(0, 3), null, 2));
-      
-      let filteredLogs = allLogs;
-      if (!isAdmin && !isQuanLyXuong) {
-        console.log('🔍 Applying non-Admin/non-QuanLyXuong filter...');
-        filteredLogs = allLogs.filter(log => {
-          const logNguoiVanHanh = (log.nguoiVanHanh || '').trim().toLowerCase();
-          const logNguoiKiemTra = (log.nguoiKiemTra || '').trim().toLowerCase();
+      const mappedDbLogs = (allLogs || []).map((item) => mapReportFromDb('production_reports', item) as ProductionLog);
+
+      console.log('📊 ALL logs loaded from DB:', mappedDbLogs.length);
+      console.log('📊 First 3 logs full data:', JSON.stringify(mappedDbLogs.slice(0, 3), null, 2));
+    
+    let filteredLogs = mappedDbLogs;
+    if (!isAdmin && !isQuanLyXuong) {
+      console.log('🔍 Applying non-Admin/non-QuanLyXuong filter...');
+      filteredLogs = filteredLogs.filter(log => {
+          const logNguoiVanHanh = (String(log.nguoiVanHanh || '')).trim().toLowerCase();
+          const logNguoiKiemTra = (String(log.nguoiKiemTra || '')).trim().toLowerCase();
           const currentUserName = userName.toLowerCase();
           
           console.log('🔍 Checking log:', {
@@ -275,7 +295,7 @@ export default function ProductionReportPage() {
     try {
       const { error } = await supabase
         .from('production_reports')
-        .update({ status: newStatus, updatedAt: new Date().toISOString() })
+        .update(buildProductionReportStatusUpdatePayload(newStatus))
         .in('id', pendingTargets);
       if (error) throw error;
       toast.success(`Đã ${newStatus === 'approved' ? 'duyệt' : 'từ chối'} ${pendingTargets.length} nhật ký`);
@@ -302,7 +322,7 @@ export default function ProductionReportPage() {
     try {
       const { error } = await supabase
         .from('production_reports')
-        .update({ status: 'approved', updatedAt: new Date().toISOString() })
+        .update(buildProductionReportStatusUpdatePayload('approved'))
         .eq('id', id);
       if (error) throw error;
       toast.success('Đã duyệt nhật ký');
@@ -327,6 +347,11 @@ export default function ProductionReportPage() {
       toast.error('Bạn không có quyền thêm nhật ký');
       return;
     }
+    
+    // Compute total hours
+    const totalSetupHours = formData.setupTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioGa || 0;
+    const totalRunHours = formData.workTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioChay || 0;
+
     const newLog: any = {
       id: crypto.randomUUID(),
       ngayThang: formData.ngayThang,
@@ -341,19 +366,26 @@ export default function ProductionReportPage() {
       vatLieu: formData.vatLieu,
       nguyenCongSo: formData.nguyenCongSo,
       toolEntries: formData.toolEntries || [],
+      workTimeEntries: formData.workTimeEntries,
       work_time_entries: formData.workTimeEntries,
+      setupTimeEntries: formData.setupTimeEntries,
       setup_time_entries: formData.setupTimeEntries,
       ca: formData.ca,
       cpMay: formData.chiPhiChayMay || 0,
+      chiPhiChayMay: formData.chiPhiChayMay || 0,
       cpDaoCu: formData.chiPhiDao || 0,
+      chiPhiDao: formData.chiPhiDao || 0,
+      chiPhiGa: formData.chiPhiGa || 0,
+      gioGa: totalSetupHours,
+      gioChay: totalRunHours,
       nguoiVanHanh: (formData.nguoiVanHanh || user?.fullName || user?.name || '').trim(),
       nguoiKiemTra: (formData.nguoiKiemTra || '').trim(),
       status: 'pending',
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     try {
-      const { error } = await supabase.from('production_reports').insert(newLog);
+      const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(newLog));
       if (error) throw error;
       toast.success('Thêm nhật ký thành công');
       setIsAddDialogOpen(false);
@@ -377,6 +409,11 @@ export default function ProductionReportPage() {
       toast.error('Không thể sửa nhật ký đã duyệt');
       return;
     }
+    
+    // Compute total hours
+    const totalSetupHours = formData.setupTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioGa || 0;
+    const totalRunHours = formData.workTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioChay || 0;
+
     const updatedLog: any = {
       ngayThang: formData.ngayThang,
       maySanXuat: formData.maySanXuat,
@@ -390,20 +427,27 @@ export default function ProductionReportPage() {
       vatLieu: formData.vatLieu,
       nguyenCongSo: formData.nguyenCongSo,
       toolEntries: formData.toolEntries || [],
+      workTimeEntries: formData.workTimeEntries,
       work_time_entries: formData.workTimeEntries,
+      setupTimeEntries: formData.setupTimeEntries,
       setup_time_entries: formData.setupTimeEntries,
       ca: formData.ca,
-      cpMay: formData.cpMay || 0,
-      cpDaoCu: formData.cpDaoCu || 0,
+      cpMay: formData.chiPhiChayMay || formData.cpMay || 0,
+      chiPhiChayMay: formData.chiPhiChayMay || formData.cpMay || 0,
+      cpDaoCu: formData.chiPhiDao || formData.cpDaoCu || 0,
+      chiPhiDao: formData.chiPhiDao || formData.cpDaoCu || 0,
+      chiPhiGa: formData.chiPhiGa || 0,
+      gioGa: totalSetupHours,
+      gioChay: totalRunHours,
       nguoiVanHanh: (formData.nguoiVanHanh || selectedLog.nguoiVanHanh || '').trim(),
       nguoiKiemTra: (formData.nguoiKiemTra || selectedLog.nguoiKiemTra || '').trim(),
-      updatedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
     };
     console.log('🔧 handleEditLog - updatedLog:', updatedLog);
     try {
       const { error } = await supabase
         .from('production_reports')
-        .update(updatedLog)
+        .update(buildProductionReportDbPayload({ ...updatedLog, id: selectedLog.id }))
         .eq('id', selectedLog.id);
       if (error) throw error;
       toast.success('Cập nhật nhật ký thành công');
@@ -437,6 +481,40 @@ export default function ProductionReportPage() {
     }
   };
 
+  const handleBatchDelete = async () => {
+    if (!isAdmin) {
+      toast.error('Chỉ Admin mới có quyền xóa nhật ký');
+      return;
+    }
+    const targetIds = Array.from(selectedIds);
+    if (targetIds.length === 0) {
+      toast.warning('Vui lòng chọn ít nhất một nhật ký');
+      return;
+    }
+    if (!confirm(`Bạn có chắc chắn muốn xóa ${targetIds.length} nhật ký đã chọn?`)) return;
+    setIsDeleting(true);
+    try {
+      // Xóa từng phần tử riêng lẻ để đảm bảo đáng tin cậy
+      let deletedCount = 0;
+      for (const id of targetIds) {
+        const { error } = await supabase
+          .from('production_reports')
+          .delete()
+          .eq('id', id);
+        if (!error) deletedCount++;
+      }
+      toast.success(`Xóa thành công ${deletedCount} nhật ký`);
+      setSelectedIds(new Set());
+      setSelectAll(false);
+      await loadLogs();
+    } catch (error) {
+      console.error('Batch delete error:', error);
+      toast.error('Có lỗi xảy ra khi xóa hàng loạt');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   // ====================== IMPORT EXCEL ======================
   const handleImportExcel = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!permissions.canAdd) {
@@ -458,6 +536,7 @@ export default function ProductionReportPage() {
         const json = XLSX.utils.sheet_to_json<any>(sheet);
 
         let addedCount = 0;
+        let errorCount = 0;
 
         for (let i = 0; i < json.length; i++) {
           const row = json[i];
@@ -465,38 +544,102 @@ export default function ProductionReportPage() {
             let ngayThangRaw = row['Ngày'] || '';
             const ngayThang = parseExcelDate(ngayThangRaw);
 
-            const maySanXuat = row['Máy Sản Xuất'] || '';
-            const duAn = row['Dự án'] || '';
+            // Chỉ cần 2 trường bắt buộc để insert
+            const maySanXuat = row['Máy Sản Xuất'] || 'Chưa nhập';
+            const duAn = row['Dự án'] || row['Mã dự án'] || 'Chưa nhập';
+            
             const khach_hang = row['Tên dự án'] || '';
             const banVeSo = row['Bản Vẽ Số'] || '';
             const chiTietSo = row['Chi Tiết Số'] || '';
-            const tenChiTiet = row['Tên chi tiết'] || chiTietSo;
+            const tenChiTiet = row['Tên chi tiết'] || row['Kích thước'] || chiTietSo; // hỗ trợ cả cột cũ
             const noiDungGiaCong = row['Nội dung Gia Công'] || '';
             const soLuongHoanThanh = Number(row['SL HT'] || 0);
             const vatLieu = row['Vật Liệu'] || '';
             const nguyenCongSo = row['NC Số'] || '';
             const ca = row['CA'] || '';
-            const nguoiVanHanh = row['Người vận hành (MSNV)'] || user?.fullName || user?.name || '';
+            const nguoiVanHanh = row['Người vận hành'] || row['Người vận hành (MSNV)'] || user?.fullName || user?.name || '';
             const nguoiKiemTra = row['Người kiểm tra'] || '';
 
             const cpMay = Number(String(row['Chi phí chạy máy (VND)'] || 0).replace(/[^0-9]/g, ''));
             const cpDaoCu = Number(String(row['Chi phí dao cụ (VND)'] || 0).replace(/[^0-9]/g, ''));
+            const toolEntries = parseImportedToolEntries(row);
 
-            const toolEntries = [];
-            if (row['Tên dao']) {
-              toolEntries.push({
-                tenDao: row['Tên dao'],
-                slCap: Number(row['SL cấp'] || 0),
-                slSuDung: Number(row['sử dụng'] || 0),
-                hong: Number(row['Hỏng'] || 0),
-                donVi: row['ĐV'] || 'cái',
-                donGia: cpDaoCu / (Number(row['sử dụng'] || 1) || 1),
-                thanhTien: cpDaoCu,
-              });
+            // Xử lý thời gian gá (lưu vào mảng setup_time_entries theo đúng schema)
+            const setup_time_entries: any[] = [];
+            const tgBdGaVal = row['TG BD gá'] || row['TG BĐ gá'] || row['Giờ bắt đầu gá'] || '';
+            const tgKtGaVal = row['TG KT gá'] || row['TG KT gá'] || row['Giờ kết thúc gá'] || '';
+            let gioGa = 0;
+            let tgGia_BatDau = '';
+            let tgGia_KetThuc = '';
+            if (tgBdGaVal && tgKtGaVal) {
+              const start = formatTime24h(tgBdGaVal);
+              const end = formatTime24h(tgKtGaVal);
+              
+              if (start && end) {
+                // Tính số giờ luôn để tiện
+                let hours = 0;
+                try {
+                  const startDate = new Date(`2000-01-01T${start}`);
+                  let endDate = new Date(`2000-01-01T${end}`);
+                  if (endDate < startDate) {
+                    endDate.setDate(endDate.getDate() + 1);
+                  }
+                  hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
+                } catch (e) {
+                  hours = 0;
+                }
+                
+                setup_time_entries.push({
+                  start,
+                  end,
+                  hours
+                });
+                gioGa = hours;
+                tgGia_BatDau = start;
+                tgGia_KetThuc = end;
+              }
+            }
+            
+            // Xử lý thời gian chạy (lưu vào mảng work_time_entries theo đúng schema)
+            const work_time_entries: any[] = [];
+            const tgBdChayVal = row['TG BD chạy'] || row['TG BĐ chạy'] || row['Giờ bắt đầu chạy'] || '';
+            const tgKtChayVal = row['TG KT chạy'] || row['TG KT chạy'] || row['Giờ kết thúc chạy'] || '';
+            let gioChay = 0;
+            let tgChay_BatDau = '';
+            let tgChay_KetThuc = '';
+            if (tgBdChayVal && tgKtChayVal) {
+              const start = formatTime24h(tgBdChayVal);
+              const end = formatTime24h(tgKtChayVal);
+              
+              if (start && end) {
+                // Tính số giờ luôn để tiện
+                let hours = 0;
+                try {
+                  const startDate = new Date(`2000-01-01T${start}`);
+                  let endDate = new Date(`2000-01-01T${end}`);
+                  if (endDate < startDate) {
+                    endDate.setDate(endDate.getDate() + 1);
+                  }
+                  hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
+                } catch (e) {
+                  hours = 0;
+                }
+                
+                work_time_entries.push({
+                  start,
+                  end,
+                  hours
+                });
+                gioChay = hours;
+                tgChay_BatDau = start;
+                tgChay_KetThuc = end;
+              }
             }
 
-            if (duAn && ngayThang) {
-              const { error } = await supabase.from('production_reports').insert({
+            // Chỉ cần ngày tháng để insert
+            if (ngayThang) {
+              // Tạo dữ liệu camelCase
+              const insertData: any = {
                 id: crypto.randomUUID(),
                 ngayThang,
                 maySanXuat,
@@ -509,28 +652,53 @@ export default function ProductionReportPage() {
                 soLuongHoanThanh,
                 vatLieu,
                 nguyenCongSo,
-                toolEntries,
                 ca,
                 cpMay,
                 cpDaoCu,
+                toolEntries,
+                workTimeEntries: work_time_entries.length > 0 ? work_time_entries : [],
+                work_time_entries: work_time_entries.length > 0 ? work_time_entries : [],
+                setupTimeEntries: setup_time_entries.length > 0 ? setup_time_entries : [],
+                setup_time_entries: setup_time_entries.length > 0 ? setup_time_entries : [],
                 nguoiVanHanh,
                 nguoiKiemTra,
+                gioGa,
+                gioChay,
+                chiPhiGa: 0,
+                chiPhiChayMay: cpMay,
+                chiPhiDao: cpDaoCu,
                 status: 'pending',
                 createdAt: new Date().toISOString(),
                 updatedAt: new Date().toISOString()
-              });
-              addedCount++;
+              };
+              
+              console.log('Dữ liệu dòng', i + 2, ':', insertData);
+              
+              // Insert và bỏ qua lỗi nếu có
+              const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(insertData));
+              
+              if (error) {
+                console.error('Lỗi dòng', i + 2, ':', error);
+                errorCount++;
+              } else {
+                addedCount++;
+              }
             }
           } catch (err) {
             console.error(`Dòng ${i + 2}: Lỗi xử lý:`, err);
+            errorCount++;
           }
         }
 
         if (addedCount > 0) {
-          toast.success(`Import thành công ${addedCount} nhật ký`);
+          let message = `Import thành công ${addedCount} nhật ký`;
+          if (errorCount > 0) {
+            message += ` (${errorCount} dòng bị lỗi)`;
+          }
+          toast.success(message);
           await loadLogs();
         } else {
-          toast.error('Không có dữ liệu hợp lệ');
+          toast.error('Không có dữ liệu hợp lệ được import');
         }
       } catch (error) {
         console.error('Import error:', error);
@@ -623,12 +791,257 @@ export default function ProductionReportPage() {
     });
   }, [logs, searchTerm, statusFilter, dateFilterStart, dateFilterEnd]);
 
+  // Hàm tính giờ từ start và end
+  const calculateHoursFromTime = (start: string, end: string) => {
+    if (!start || !end) return 0;
+    try {
+      const startDate = new Date(`2000-01-01T${start}`);
+      let endDate = new Date(`2000-01-01T${end}`);
+      if (endDate < startDate) {
+        endDate.setDate(endDate.getDate() + 1);
+      }
+      const diffMs = endDate.getTime() - startDate.getTime();
+      return Math.max(0, diffMs / (1000 * 60 * 60));
+    } catch (e) {
+      return 0;
+    }
+  };
+  
+  // Hàm tính tổng giờ cho một log
+  const calculateTotalHoursForLog = (log: ProductionLog, type: 'setup' | 'work'): number => {
+    let total = 0;
+    
+    console.log(`🔍 calculateTotalHoursForLog type=${type}, log=`, log);
+    
+    // Thử lấy từ các trường số trước
+    if (type === 'setup') {
+      if (log.gioGa && typeof log.gioGa === 'number') {
+        console.log('🔍 Lấy từ gioGa:', log.gioGa);
+        return log.gioGa;
+      }
+      if (log.soGioGia && typeof log.soGioGia === 'number') {
+        console.log('🔍 Lấy từ soGioGia:', log.soGioGia);
+        return log.soGioGia;
+      }
+      
+      // Thử tính từ các trường thời gian đơn lẻ
+      if (log.tgGia_BatDau || log.tgGia_KetThuc || log.tgGiaBatDau || log.tgGiaKetThuc) {
+        const start = formatTime24h(log.tgGia_BatDau || log.tgGiaBatDau || '');
+        const end = formatTime24h(log.tgGia_KetThuc || log.tgGiaKetThuc || '');
+        console.log('🔍 Tính từ tgGia:', { start, end });
+        if (start && end) {
+          const hours = calculateHoursFromTime(start, end);
+          console.log('🔍 Kết quả từ tgGia:', hours);
+          return hours;
+        }
+      }
+    } else {
+      if (log.gioChay && typeof log.gioChay === 'number') {
+        console.log('🔍 Lấy từ gioChay:', log.gioChay);
+        return log.gioChay;
+      }
+      if (log.soGioChay && typeof log.soGioChay === 'number') {
+        console.log('🔍 Lấy từ soGioChay:', log.soGioChay);
+        return log.soGioChay;
+      }
+      
+      // Thử tính từ các trường thời gian đơn lẻ
+      if (log.tgChay_BatDau || log.tgChay_KetThuc || log.tgChayBatDau || log.tgChayKetThuc) {
+        const start = formatTime24h(log.tgChay_BatDau || log.tgChayBatDau || '');
+        const end = formatTime24h(log.tgChay_KetThuc || log.tgChayKetThuc || '');
+        console.log('🔍 Tính từ tgChay:', { start, end });
+        if (start && end) {
+          const hours = calculateHoursFromTime(start, end);
+          console.log('🔍 Kết quả từ tgChay:', hours);
+          return hours;
+        }
+      }
+    }
+    
+    // Lấy list entry phù hợp
+    let entryList: any[] = [];
+    if (type === 'setup') {
+      const rawList = log.setupTimeEntries || log.setup_time_entries || [];
+      // Đảm bảo là array
+      entryList = Array.isArray(rawList) ? rawList : (rawList ? [rawList] : []);
+    } else {
+      const rawList = log.workTimeEntries || log.work_time_entries || [];
+      // Đảm bảo là array
+      entryList = Array.isArray(rawList) ? rawList : (rawList ? [rawList] : []);
+    }
+    
+    console.log(`🔍 entryList (${type}) =`, entryList);
+    
+    // Duyệt qua từng entry
+    for (const item of entryList) {
+      let hours = 0;
+      
+      console.log(`🔍 Processing entry (${type}):`, item);
+      
+      // Thử lấy field giờ đã tính trước
+      hours = item?.soGio || item?.hours || 0;
+      
+      console.log(`🔍 Hours from pre-calculated fields:`, hours);
+      
+      // Nếu chưa có giờ, tính từ start và end
+      if (!hours) {
+        let start = item?.thoiGianBatDau || item?.start || '';
+        let end = item?.thoiGianKetThuc || item?.end || '';
+        
+        console.log(`🔍 Calculating from start/end: start=${start}, end=${end}`);
+        
+        if (start && end) {
+          try {
+            const startTime = formatTime24h(start);
+            const endTime = formatTime24h(end);
+            
+            console.log(`🔍 After formatTime24h: startTime=${startTime}, endTime=${endTime}`);
+            
+            const startDate = new Date(`2000-01-01T${startTime}`);
+            let endDate = new Date(`2000-01-01T${endTime}`);
+            
+            if (endDate < startDate) {
+              endDate.setDate(endDate.getDate() + 1);
+            }
+            
+            const diffMs = endDate.getTime() - startDate.getTime();
+            hours = Math.max(0, diffMs / (1000 * 60 * 60));
+            
+            console.log(`🔍 Calculated hours:`, hours);
+          } catch (e) {
+            console.error(`🔍 Error calculating hours:`, e);
+            hours = 0;
+          }
+        }
+      }
+      
+      if (typeof hours === 'string') {
+        hours = parseFloat(hours) || 0;
+      }
+      
+      total += (typeof hours === 'number' ? hours : 0);
+    }
+    
+    console.log(`🔍 Final total for log (${type}) =`, total);
+    return total;
+  };
+  
   const stats = useMemo(() => ({
     total: logs.length,
     approved: logs.filter(l => l.status === 'approved').length,
     pending: logs.filter(l => l.status === 'pending').length,
     rejected: logs.filter(l => l.status === 'rejected').length,
   }), [logs]);
+  
+  // Tổng hợp sản xuất cho filteredLogs
+  const productionSummary = useMemo(() => {
+    let totalSetupHours = 0;
+    let totalWorkHours = 0;
+    
+    console.log('🔍 Debug productionSummary: filteredLogs =', filteredLogs);
+    
+    filteredLogs.forEach((log, index) => {
+      const setupHours = calculateTotalHoursForLog(log, 'setup');
+      const workHours = calculateTotalHoursForLog(log, 'work');
+      
+      console.log(`🔍 Log index ${index}: setupHours = ${setupHours}, workHours = ${workHours}`, {
+        setupTimeEntries: log.setupTimeEntries,
+        setup_time_entries: log.setup_time_entries,
+        workTimeEntries: log.workTimeEntries,
+        work_time_entries: log.work_time_entries,
+        gioGa: log.gioGa,
+        gioChay: log.gioChay
+      });
+      
+      totalSetupHours += setupHours;
+      totalWorkHours += workHours;
+    });
+    
+    console.log('🔍 Final totals: totalSetupHours =', totalSetupHours, 'totalWorkHours =', totalWorkHours);
+    
+    return {
+      totalSetupHours,
+      totalWorkHours
+    };
+  }, [filteredLogs]);
+
+  // Đảm bảo thời gian luôn hiển thị ở định dạng 24h HH:mm
+  const formatTime24h = (timeVal: any) => {
+    if (timeVal === null || timeVal === undefined) return '';
+    
+    // Trường hợp 1: là số (định dạng thời gian của Excel)
+    if (typeof timeVal === 'number') {
+      // Excel lưu thời gian dưới dạng phần của ngày (0 = 00:00, 0.5 = 12:00)
+      const totalMinutes = timeVal * 24 * 60;
+      let hours = Math.floor(totalMinutes / 60);
+      let minutes = Math.round(totalMinutes % 60);
+      
+      // Xử lý trường hợp làm tròn làm cho minutes = 60
+      if (minutes === 60) {
+        minutes = 0;
+        hours += 1;
+      }
+      
+      hours = hours % 24; // Đảm bảo giờ trong vòng 0-23
+      
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+    
+    const timeStr = String(timeVal).trim();
+    if (!timeStr) return '';
+    
+    // Trường hợp 2: đã là định dạng HH:mm
+    if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)) {
+      return timeStr;
+    }
+    
+    // Trường hợp 3: định dạng H:mm (vd: 7:00, 9:30)
+    const hhmmMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+    if (hhmmMatch) {
+      let hours = parseInt(hhmmMatch[1]);
+      let minutes = parseInt(hhmmMatch[2]);
+      
+      hours = Math.max(0, Math.min(23, hours));
+      minutes = Math.max(0, Math.min(59, minutes));
+      
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+    
+    // Trường hợp 4: định dạng có AM/PM
+    const ampmMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm|AM|PM)?$/);
+    if (ampmMatch) {
+      let hours = parseInt(ampmMatch[1]);
+      let minutes = ampmMatch[2] ? parseInt(ampmMatch[2]) : 0;
+      const period = ampmMatch[3]?.toLowerCase();
+      
+      if (period === 'pm' && hours !== 12) {
+        hours += 12;
+      } else if (period === 'am' && hours === 12) {
+        hours = 0;
+      }
+      
+      hours = Math.max(0, Math.min(23, hours));
+      minutes = Math.max(0, Math.min(59, minutes));
+      
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+    
+    // Thử parse như số Excel nếu là chuỗi số
+    if (/^\d+\.?\d*$/.test(timeStr)) {
+      const num = parseFloat(timeStr);
+      const totalMinutes = num * 24 * 60;
+      let hours = Math.floor(totalMinutes / 60);
+      let minutes = Math.round(totalMinutes % 60);
+      if (minutes === 60) {
+        minutes = 0;
+        hours += 1;
+      }
+      hours = hours % 24;
+      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+    }
+    
+    return timeStr;
+  };
 
   const getStatusBadge = (status?: string) => {
     switch (status) {
@@ -659,7 +1072,11 @@ export default function ProductionReportPage() {
     if (selectAll) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(filteredLogs.filter(l => l.status === 'pending').map(l => l.id)));
+      if (isAdmin) {
+        setSelectedIds(new Set(filteredLogs.map(l => l.id)));
+      } else {
+        setSelectedIds(new Set(filteredLogs.filter(l => l.status === 'pending').map(l => l.id)));
+      }
     }
     setSelectAll(!selectAll);
   };
@@ -761,6 +1178,36 @@ export default function ProductionReportPage() {
           <Card><CardContent className="pt-6"><div className="text-center"><p className="text-sm font-medium text-gray-600">Chờ duyệt</p><p className="text-3xl font-bold text-yellow-600 mt-2">{stats.pending}</p></div></CardContent></Card>
           <Card><CardContent className="pt-6"><div className="text-center"><p className="text-sm font-medium text-gray-600">Từ chối</p><p className="text-3xl font-bold text-red-600 mt-2">{stats.rejected}</p></div></CardContent></Card>
         </div>
+        
+        {/* Tổng hợp sản xuất */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Card className="border-blue-200 border-2">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <span className="text-lg">🔧</span>
+                  <p className="text-sm font-medium text-gray-600">Tổng giờ gá</p>
+                </div>
+                <p className="text-3xl font-bold text-blue-700 mt-2">
+                  {productionSummary.totalSetupHours > 0 ? productionSummary.totalSetupHours.toFixed(2) : '0.00'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-green-200 border-2">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="flex items-center justify-center gap-2 mb-1">
+                  <span className="text-lg">⚙️</span>
+                  <p className="text-sm font-medium text-gray-600">Tổng giờ chạy</p>
+                </div>
+                <p className="text-3xl font-bold text-green-700 mt-2">
+                  {productionSummary.totalWorkHours > 0 ? productionSummary.totalWorkHours.toFixed(2) : '0.00'}
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
 
         {/* Filter */}
         <Card>
@@ -825,35 +1272,61 @@ export default function ProductionReportPage() {
           
           <CardContent className="p-0">
             {/* Batch action bar */}
-            {permissions.canApprove && logs.some(l => l.status === 'pending') && (
+            {(permissions.canApprove && logs.some(l => l.status === 'pending') || isAdmin) && (
               <div className="flex items-center gap-4 px-6 py-3 bg-amber-50 border-b border-amber-200 flex-wrap">
                 <div className="flex items-center gap-2">
                   <span className="text-sm text-gray-700">
-                    Chọn tất cả {filteredLogs.filter(l => l.status === 'pending').length} đang chờ
+                    {isAdmin 
+                      ? `Chọn để xóa (tổng ${filteredLogs.length})` 
+                      : `Chọn tất cả ${filteredLogs.filter(l => l.status === 'pending').length} đang chờ`}
                   </span>
                   {selectedIds.size > 0 && (
                     <span className="text-xs text-blue-600 ml-2">Đã chọn {selectedIds.size}</span>
                   )}
                 </div>
                 <div className="flex gap-2 ml-auto">
-                  <Button
-                    size="sm"
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white"
-                    onClick={() => handleBatchApprove('approved')}
-                    disabled={isProcessing || selectedIds.size === 0}
-                  >
-                    <CheckSquare className="h-4 w-4 mr-2" />
-                    Duyệt tất cả
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => handleBatchApprove('rejected')}
-                    disabled={isProcessing || selectedIds.size === 0}
-                  >
-                    <XSquare className="h-4 w-4 mr-2" />
-                    Từ chối tất cả
-                  </Button>
+                  {permissions.canApprove && logs.some(l => l.status === 'pending') && (
+                    <>
+                      <Button
+                        size="sm"
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                        onClick={() => handleBatchApprove('approved')}
+                        disabled={isProcessing || selectedIds.size === 0}
+                      >
+                        <CheckSquare className="h-4 w-4 mr-2" />
+                        Duyệt tất cả
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleBatchApprove('rejected')}
+                        disabled={isProcessing || selectedIds.size === 0}
+                      >
+                        <XSquare className="h-4 w-4 mr-2" />
+                        Từ chối tất cả
+                      </Button>
+                    </>
+                  )}
+                  {isAdmin && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={handleBatchDelete}
+                      disabled={isDeleting || selectedIds.size === 0}
+                    >
+                      {isDeleting ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Đang xóa...
+                        </>
+                      ) : (
+                        <>
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Xóa tất cả đã chọn
+                        </>
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
@@ -862,7 +1335,7 @@ export default function ProductionReportPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-gray-50 border-b-2 border-gray-200">
-                    {permissions.canApprove && (
+                    {(permissions.canApprove || isAdmin) && (
                       <TableHead className="w-10">
                         <input
                           type="checkbox"
@@ -912,14 +1385,14 @@ export default function ProductionReportPage() {
                             setIsViewDialogOpen(true);
                           }}
                         >
-                          {permissions.canApprove && (
+                          {(permissions.canApprove || isAdmin) && (
                             <TableCell onClick={(e) => e.stopPropagation()}>
                               <input
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleSelectItem(log.id)}
                                 className="h-4 w-4 transform scale-50 rounded-sm border-slate-900 data-[state=checked]:bg-blue-600"
-                                disabled={log.status !== 'pending'}
+                                disabled={!isAdmin && log.status !== 'pending'}
                               />
                             </TableCell>
                           )}
@@ -1072,8 +1545,8 @@ export default function ProductionReportPage() {
                                 if (typeof hours === 'string') hours = parseFloat(hours) || 0;
                                 return (
                                   <tr key={index} className="border-b border-blue-100 last:border-b-0 hover:bg-blue-50/50">
-                                    <td className="py-1.5 px-2 text-gray-700">{start || '---'}</td>
-                                    <td className="py-1.5 px-2 text-gray-700">{end || '---'}</td>
+                                    <td className="py-1.5 px-2 text-gray-700">{formatTime24h(start)}</td>
+                                    <td className="py-1.5 px-2 text-gray-700">{formatTime24h(end)}</td>
                                     <td className="py-1.5 px-2 text-right font-medium text-blue-700">{hours ? hours.toFixed(2) : '---'}</td>
                                   </tr>
                                 );
@@ -1150,8 +1623,8 @@ export default function ProductionReportPage() {
                                 if (typeof hours === 'string') hours = parseFloat(hours) || 0;
                                 return (
                                   <tr key={index} className="border-b border-green-100 last:border-b-0 hover:bg-green-50/50">
-                                    <td className="py-1.5 px-2 text-gray-700">{start || '---'}</td>
-                                    <td className="py-1.5 px-2 text-gray-700">{end || '---'}</td>
+                                    <td className="py-1.5 px-2 text-gray-700">{formatTime24h(start)}</td>
+                                    <td className="py-1.5 px-2 text-gray-700">{formatTime24h(end)}</td>
                                     <td className="py-1.5 px-2 text-right font-medium text-green-700">{hours ? hours.toFixed(2) : '---'}</td>
                                   </tr>
                                 );
