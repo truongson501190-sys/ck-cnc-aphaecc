@@ -1,3 +1,4 @@
+// src/modules/reports/ProductionReportPage.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -19,8 +20,6 @@ import { supabase } from '@/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 import { buildProductionReportDbPayload, buildProductionReportStatusUpdatePayload, mapReportFromDb, parseImportedToolEntries } from '@/lib/reportSyncMapping';
-
-
 
 // ====================== TYPES ======================
 interface ToolEntry {
@@ -76,8 +75,6 @@ interface ProductionLog {
   gio_chay?: number;
   tgGaPhoi?: string;
   tgTrenCa?: string;
-  
-  // Cost fields
   chiPhiGa?: number;
   chi_phi_ga?: number;
   chiPhiChayMay?: number;
@@ -174,82 +171,40 @@ export default function ProductionReportPage() {
   const isNguoiVanHanh = checkRole(user, ['nguoi_van_hanh', 'user'], ['người vận hành', 'vận hành']);
   const isNguoiKiemTra = checkRole(user, ['to_truong', 'to_pho', 'nhom_truong'], ['tổ trưởng', 'tổ phó', 'nhóm trưởng']);
   const userName = (user?.fullName || user?.name || user?.ho_ten || '').trim();
-  
-  // Debug log
-  console.log('🔍 ProductionReportPage User Info:', {
-    user,
-    isAdmin,
-    isQuanLyXuong,
-    isNguoiVanHanh,
-    isNguoiKiemTra,
-    userName,
-    userRole: user?.role,
-    userChucVu: user?.chuc_vu
-  });
 
   // Tải dữ liệu với phân quyền
   const loadLogs = async () => {
-    console.log('🚀 Entering loadLogs');
-    console.log('🚀 permissions.canView:', permissions.canView);
-    if (!permissions.canView) {
-      console.log('🚀 Exiting early: no view permissions');
-      return;
-    }
+    if (!permissions.canView) return;
+    
     setIsLoading(true);
     try {
-      console.log('📥 Loading production logs from DB...');
-      console.log('🔍 Permissions:', permissions);
-      console.log('🔍 User Info:', { user, userName, isAdmin, isQuanLyXuong, isNguoiVanHanh, isNguoiKiemTra });
-      
       const { data: allLogs, error: allError } = await supabase
         .from('production_reports')
         .select('*')
         .order('ngayThang', { ascending: false });
       
-      if (allError) {
-        console.error('❌ Error fetching logs:', allError);
-        throw allError;
-      }
+      if (allError) throw allError;
       
-      const mappedDbLogs = (allLogs || []).map((item) => mapReportFromDb('production_reports', item) as ProductionLog);
-
-      console.log('📊 ALL logs loaded from DB:', mappedDbLogs.length);
-      console.log('📊 First 3 logs full data:', JSON.stringify(mappedDbLogs.slice(0, 3), null, 2));
-    
-    let filteredLogs = mappedDbLogs;
-    if (!isAdmin && !isQuanLyXuong) {
-      console.log('🔍 Applying non-Admin/non-QuanLyXuong filter...');
-      filteredLogs = filteredLogs.filter(log => {
+      // Sửa lỗi TypeScript: ép kiểu qua 'as any' trước
+      const mappedDbLogs = (allLogs || []).map((item) => {
+        const mapped = mapReportFromDb('production_reports', item);
+        return mapped as any as ProductionLog;
+      });
+      
+      let filteredLogs = mappedDbLogs;
+      
+      // Lọc theo quyền
+      if (!isAdmin && !isQuanLyXuong) {
+        filteredLogs = filteredLogs.filter(log => {
           const logNguoiVanHanh = (String(log.nguoiVanHanh || '')).trim().toLowerCase();
           const logNguoiKiemTra = (String(log.nguoiKiemTra || '')).trim().toLowerCase();
           const currentUserName = userName.toLowerCase();
           
-          console.log('🔍 Checking log:', {
-            id: log.id,
-            logNguoiVanHanh,
-            logNguoiKiemTra,
-            currentUserName,
-            isNguoiVanHanh,
-            isNguoiKiemTra
-          });
-          
           let result = false;
           if (isNguoiKiemTra) {
             result = logNguoiKiemTra.includes(currentUserName);
-            console.log('🔍 Inspector check result:', {
-              logNguoiKiemTra,
-              currentUserName,
-              includes: logNguoiKiemTra.includes(currentUserName),
-              result
-            });
           } else if (isNguoiVanHanh) {
             result = logNguoiVanHanh.includes(currentUserName);
-            console.log('🔍 Operator check result:', {
-              logNguoiVanHanh,
-              currentUserName,
-              includes: logNguoiVanHanh.includes(currentUserName),
-              result
-            });
           } else {
             result = logNguoiVanHanh.includes(currentUserName) || logNguoiKiemTra.includes(currentUserName);
           }
@@ -257,8 +212,7 @@ export default function ProductionReportPage() {
         });
       }
       
-      console.log('✅ Final filtered logs count:', filteredLogs?.length);
-      setLogs(filteredLogs as ProductionLog[]);
+      setLogs(filteredLogs);
     } catch (error) {
       console.error('❌ Error in loadLogs:', error);
       toast.error('Không thể tải dữ liệu');
@@ -268,7 +222,6 @@ export default function ProductionReportPage() {
   };
 
   useEffect(() => {
-    console.log('🚀 useEffect calling loadLogs, permissions.canView:', permissions.canView);
     if (permissions.canView) {
       loadLogs();
     }
@@ -348,7 +301,6 @@ export default function ProductionReportPage() {
       return;
     }
     
-    // Compute total hours
     const totalSetupHours = formData.setupTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioGa || 0;
     const totalRunHours = formData.workTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioChay || 0;
 
@@ -397,53 +349,63 @@ export default function ProductionReportPage() {
     }
   };
 
+  // ====================== SỬA HÀM handleEditLog ======================
   const handleEditLog = async (formData: any) => {
     console.log('🔧 handleEditLog - formData:', formData);
     console.log('🔧 handleEditLog - selectedLog:', selectedLog);
+    
     if (!permissions.canEdit) {
       toast.error('Bạn không có quyền sửa nhật ký');
       return;
     }
-    if (!selectedLog) return;
+    if (!selectedLog) {
+      toast.error('Không tìm thấy nhật ký để sửa');
+      return;
+    }
     if (selectedLog.status === 'approved' && !isAdmin) {
       toast.error('Không thể sửa nhật ký đã duyệt');
       return;
     }
     
-    // Compute total hours
+    // Lấy giá trị duAn từ formData hoặc selectedLog
+    const duAnValue = formData.duAn || selectedLog.duAn || '';
+    console.log('🔍 duAnValue:', duAnValue);
+    
     const totalSetupHours = formData.setupTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioGa || 0;
     const totalRunHours = formData.workTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioChay || 0;
 
     const updatedLog: any = {
-      ngayThang: formData.ngayThang,
-      maySanXuat: formData.maySanXuat,
-      duAn: formData.duAn,
-      khach_hang: formData.tenDuAn,
-      banVeSo: formData.banVeSo,
-      chiTietSo: formData.nguyenCongSo,
-      tenChiTiet: formData.tenChiTiet,
-      noiDungGiaCong: formData.noiDungGiaCong,
-      soLuongHoanThanh: formData.soLuongHoanThanh,
-      vatLieu: formData.vatLieu,
-      nguyenCongSo: formData.nguyenCongSo,
-      toolEntries: formData.toolEntries || [],
-      workTimeEntries: formData.workTimeEntries,
-      work_time_entries: formData.workTimeEntries,
-      setupTimeEntries: formData.setupTimeEntries,
-      setup_time_entries: formData.setupTimeEntries,
-      ca: formData.ca,
-      cpMay: formData.chiPhiChayMay || formData.cpMay || 0,
-      chiPhiChayMay: formData.chiPhiChayMay || formData.cpMay || 0,
-      cpDaoCu: formData.chiPhiDao || formData.cpDaoCu || 0,
-      chiPhiDao: formData.chiPhiDao || formData.cpDaoCu || 0,
-      chiPhiGa: formData.chiPhiGa || 0,
-      gioGa: totalSetupHours,
-      gioChay: totalRunHours,
+      ngayThang: formData.ngayThang || selectedLog.ngayThang,
+      maySanXuat: formData.maySanXuat || selectedLog.maySanXuat,
+      duAn: duAnValue, // ← QUAN TRỌNG: đảm bảo duAn được truyền
+      khach_hang: formData.tenDuAn || selectedLog.khach_hang || '',
+      banVeSo: formData.banVeSo || selectedLog.banVeSo || '',
+      chiTietSo: formData.nguyenCongSo || selectedLog.chiTietSo || '',
+      tenChiTiet: formData.tenChiTiet || selectedLog.tenChiTiet || '',
+      noiDungGiaCong: formData.noiDungGiaCong || selectedLog.noiDungGiaCong || '',
+      soLuongHoanThanh: formData.soLuongHoanThanh || selectedLog.soLuongHoanThanh || 0,
+      vatLieu: formData.vatLieu || selectedLog.vatLieu || '',
+      nguyenCongSo: formData.nguyenCongSo || selectedLog.nguyenCongSo || '',
+      toolEntries: formData.toolEntries || selectedLog.toolEntries || [],
+      workTimeEntries: formData.workTimeEntries || selectedLog.workTimeEntries || [],
+      work_time_entries: formData.workTimeEntries || selectedLog.workTimeEntries || [],
+      setupTimeEntries: formData.setupTimeEntries || selectedLog.setupTimeEntries || [],
+      setup_time_entries: formData.setupTimeEntries || selectedLog.setupTimeEntries || [],
+      ca: formData.ca || selectedLog.ca || '',
+      cpMay: formData.chiPhiChayMay || formData.cpMay || selectedLog.cpMay || 0,
+      chiPhiChayMay: formData.chiPhiChayMay || formData.cpMay || selectedLog.chiPhiChayMay || 0,
+      cpDaoCu: formData.chiPhiDao || formData.cpDaoCu || selectedLog.cpDaoCu || 0,
+      chiPhiDao: formData.chiPhiDao || formData.cpDaoCu || selectedLog.chiPhiDao || 0,
+      chiPhiGa: formData.chiPhiGa || selectedLog.chiPhiGa || 0,
+      gioGa: totalSetupHours || selectedLog.gioGa || 0,
+      gioChay: totalRunHours || selectedLog.gioChay || 0,
       nguoiVanHanh: (formData.nguoiVanHanh || selectedLog.nguoiVanHanh || '').trim(),
       nguoiKiemTra: (formData.nguoiKiemTra || selectedLog.nguoiKiemTra || '').trim(),
       updatedAt: new Date().toISOString()
     };
+    
     console.log('🔧 handleEditLog - updatedLog:', updatedLog);
+    
     try {
       const { error } = await supabase
         .from('production_reports')
@@ -494,13 +456,9 @@ export default function ProductionReportPage() {
     if (!confirm(`Bạn có chắc chắn muốn xóa ${targetIds.length} nhật ký đã chọn?`)) return;
     setIsDeleting(true);
     try {
-      // Xóa từng phần tử riêng lẻ để đảm bảo đáng tin cậy
       let deletedCount = 0;
       for (const id of targetIds) {
-        const { error } = await supabase
-          .from('production_reports')
-          .delete()
-          .eq('id', id);
+        const { error } = await supabase.from('production_reports').delete().eq('id', id);
         if (!error) deletedCount++;
       }
       toast.success(`Xóa thành công ${deletedCount} nhật ký`);
@@ -544,14 +502,13 @@ export default function ProductionReportPage() {
             let ngayThangRaw = row['Ngày'] || '';
             const ngayThang = parseExcelDate(ngayThangRaw);
 
-            // Chỉ cần 2 trường bắt buộc để insert
             const maySanXuat = row['Máy Sản Xuất'] || 'Chưa nhập';
             const duAn = row['Dự án'] || row['Mã dự án'] || 'Chưa nhập';
             
             const khach_hang = row['Tên dự án'] || '';
             const banVeSo = row['Bản Vẽ Số'] || '';
             const chiTietSo = row['Chi Tiết Số'] || '';
-            const tenChiTiet = row['Tên chi tiết'] || row['Kích thước'] || chiTietSo; // hỗ trợ cả cột cũ
+            const tenChiTiet = row['Tên chi tiết'] || row['Kích thước'] || chiTietSo;
             const noiDungGiaCong = row['Nội dung Gia Công'] || '';
             const soLuongHoanThanh = Number(row['SL HT'] || 0);
             const vatLieu = row['Vật Liệu'] || '';
@@ -564,7 +521,7 @@ export default function ProductionReportPage() {
             const cpDaoCu = Number(String(row['Chi phí dao cụ (VND)'] || 0).replace(/[^0-9]/g, ''));
             const toolEntries = parseImportedToolEntries(row);
 
-            // Xử lý thời gian gá (lưu vào mảng setup_time_entries theo đúng schema)
+            // Xử lý thời gian gá
             const setup_time_entries: any[] = [];
             const tgBdGaVal = row['TG BD gá'] || row['TG BĐ gá'] || row['Giờ bắt đầu gá'] || '';
             const tgKtGaVal = row['TG KT gá'] || row['TG KT gá'] || row['Giờ kết thúc gá'] || '';
@@ -576,7 +533,6 @@ export default function ProductionReportPage() {
               const end = formatTime24h(tgKtGaVal);
               
               if (start && end) {
-                // Tính số giờ luôn để tiện
                 let hours = 0;
                 try {
                   const startDate = new Date(`2000-01-01T${start}`);
@@ -589,18 +545,14 @@ export default function ProductionReportPage() {
                   hours = 0;
                 }
                 
-                setup_time_entries.push({
-                  start,
-                  end,
-                  hours
-                });
+                setup_time_entries.push({ start, end, hours });
                 gioGa = hours;
                 tgGia_BatDau = start;
                 tgGia_KetThuc = end;
               }
             }
             
-            // Xử lý thời gian chạy (lưu vào mảng work_time_entries theo đúng schema)
+            // Xử lý thời gian chạy
             const work_time_entries: any[] = [];
             const tgBdChayVal = row['TG BD chạy'] || row['TG BĐ chạy'] || row['Giờ bắt đầu chạy'] || '';
             const tgKtChayVal = row['TG KT chạy'] || row['TG KT chạy'] || row['Giờ kết thúc chạy'] || '';
@@ -612,7 +564,6 @@ export default function ProductionReportPage() {
               const end = formatTime24h(tgKtChayVal);
               
               if (start && end) {
-                // Tính số giờ luôn để tiện
                 let hours = 0;
                 try {
                   const startDate = new Date(`2000-01-01T${start}`);
@@ -625,20 +576,14 @@ export default function ProductionReportPage() {
                   hours = 0;
                 }
                 
-                work_time_entries.push({
-                  start,
-                  end,
-                  hours
-                });
+                work_time_entries.push({ start, end, hours });
                 gioChay = hours;
                 tgChay_BatDau = start;
                 tgChay_KetThuc = end;
               }
             }
 
-            // Chỉ cần ngày tháng để insert
             if (ngayThang) {
-              // Tạo dữ liệu camelCase
               const insertData: any = {
                 id: crypto.randomUUID(),
                 ngayThang,
@@ -672,9 +617,6 @@ export default function ProductionReportPage() {
                 updatedAt: new Date().toISOString()
               };
               
-              console.log('Dữ liệu dòng', i + 2, ':', insertData);
-              
-              // Insert và bỏ qua lỗi nếu có
               const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(insertData));
               
               if (error) {
@@ -811,105 +753,57 @@ export default function ProductionReportPage() {
   const calculateTotalHoursForLog = (log: ProductionLog, type: 'setup' | 'work'): number => {
     let total = 0;
     
-    console.log(`🔍 calculateTotalHoursForLog type=${type}, log=`, log);
-    
-    // Thử lấy từ các trường số trước
     if (type === 'setup') {
-      if (log.gioGa && typeof log.gioGa === 'number') {
-        console.log('🔍 Lấy từ gioGa:', log.gioGa);
-        return log.gioGa;
-      }
-      if (log.soGioGia && typeof log.soGioGia === 'number') {
-        console.log('🔍 Lấy từ soGioGia:', log.soGioGia);
-        return log.soGioGia;
-      }
+      if (log.gioGa && typeof log.gioGa === 'number') return log.gioGa;
+      if (log.soGioGia && typeof log.soGioGia === 'number') return log.soGioGia;
       
-      // Thử tính từ các trường thời gian đơn lẻ
       if (log.tgGia_BatDau || log.tgGia_KetThuc || log.tgGiaBatDau || log.tgGiaKetThuc) {
         const start = formatTime24h(log.tgGia_BatDau || log.tgGiaBatDau || '');
         const end = formatTime24h(log.tgGia_KetThuc || log.tgGiaKetThuc || '');
-        console.log('🔍 Tính từ tgGia:', { start, end });
         if (start && end) {
-          const hours = calculateHoursFromTime(start, end);
-          console.log('🔍 Kết quả từ tgGia:', hours);
-          return hours;
+          return calculateHoursFromTime(start, end);
         }
       }
     } else {
-      if (log.gioChay && typeof log.gioChay === 'number') {
-        console.log('🔍 Lấy từ gioChay:', log.gioChay);
-        return log.gioChay;
-      }
-      if (log.soGioChay && typeof log.soGioChay === 'number') {
-        console.log('🔍 Lấy từ soGioChay:', log.soGioChay);
-        return log.soGioChay;
-      }
+      if (log.gioChay && typeof log.gioChay === 'number') return log.gioChay;
+      if (log.soGioChay && typeof log.soGioChay === 'number') return log.soGioChay;
       
-      // Thử tính từ các trường thời gian đơn lẻ
       if (log.tgChay_BatDau || log.tgChay_KetThuc || log.tgChayBatDau || log.tgChayKetThuc) {
         const start = formatTime24h(log.tgChay_BatDau || log.tgChayBatDau || '');
         const end = formatTime24h(log.tgChay_KetThuc || log.tgChayKetThuc || '');
-        console.log('🔍 Tính từ tgChay:', { start, end });
         if (start && end) {
-          const hours = calculateHoursFromTime(start, end);
-          console.log('🔍 Kết quả từ tgChay:', hours);
-          return hours;
+          return calculateHoursFromTime(start, end);
         }
       }
     }
     
-    // Lấy list entry phù hợp
     let entryList: any[] = [];
     if (type === 'setup') {
       const rawList = log.setupTimeEntries || log.setup_time_entries || [];
-      // Đảm bảo là array
       entryList = Array.isArray(rawList) ? rawList : (rawList ? [rawList] : []);
     } else {
       const rawList = log.workTimeEntries || log.work_time_entries || [];
-      // Đảm bảo là array
       entryList = Array.isArray(rawList) ? rawList : (rawList ? [rawList] : []);
     }
     
-    console.log(`🔍 entryList (${type}) =`, entryList);
-    
-    // Duyệt qua từng entry
     for (const item of entryList) {
-      let hours = 0;
+      let hours = item?.soGio || item?.hours || 0;
       
-      console.log(`🔍 Processing entry (${type}):`, item);
-      
-      // Thử lấy field giờ đã tính trước
-      hours = item?.soGio || item?.hours || 0;
-      
-      console.log(`🔍 Hours from pre-calculated fields:`, hours);
-      
-      // Nếu chưa có giờ, tính từ start và end
       if (!hours) {
         let start = item?.thoiGianBatDau || item?.start || '';
         let end = item?.thoiGianKetThuc || item?.end || '';
-        
-        console.log(`🔍 Calculating from start/end: start=${start}, end=${end}`);
         
         if (start && end) {
           try {
             const startTime = formatTime24h(start);
             const endTime = formatTime24h(end);
-            
-            console.log(`🔍 After formatTime24h: startTime=${startTime}, endTime=${endTime}`);
-            
             const startDate = new Date(`2000-01-01T${startTime}`);
             let endDate = new Date(`2000-01-01T${endTime}`);
-            
             if (endDate < startDate) {
               endDate.setDate(endDate.getDate() + 1);
             }
-            
-            const diffMs = endDate.getTime() - startDate.getTime();
-            hours = Math.max(0, diffMs / (1000 * 60 * 60));
-            
-            console.log(`🔍 Calculated hours:`, hours);
+            hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
           } catch (e) {
-            console.error(`🔍 Error calculating hours:`, e);
             hours = 0;
           }
         }
@@ -922,7 +816,6 @@ export default function ProductionReportPage() {
       total += (typeof hours === 'number' ? hours : 0);
     }
     
-    console.log(`🔍 Final total for log (${type}) =`, total);
     return total;
   };
   
@@ -933,100 +826,62 @@ export default function ProductionReportPage() {
     rejected: logs.filter(l => l.status === 'rejected').length,
   }), [logs]);
   
-  // Tổng hợp sản xuất cho filteredLogs
   const productionSummary = useMemo(() => {
     let totalSetupHours = 0;
     let totalWorkHours = 0;
     
-    console.log('🔍 Debug productionSummary: filteredLogs =', filteredLogs);
-    
-    filteredLogs.forEach((log, index) => {
-      const setupHours = calculateTotalHoursForLog(log, 'setup');
-      const workHours = calculateTotalHoursForLog(log, 'work');
-      
-      console.log(`🔍 Log index ${index}: setupHours = ${setupHours}, workHours = ${workHours}`, {
-        setupTimeEntries: log.setupTimeEntries,
-        setup_time_entries: log.setup_time_entries,
-        workTimeEntries: log.workTimeEntries,
-        work_time_entries: log.work_time_entries,
-        gioGa: log.gioGa,
-        gioChay: log.gioChay
-      });
-      
-      totalSetupHours += setupHours;
-      totalWorkHours += workHours;
+    filteredLogs.forEach((log) => {
+      totalSetupHours += calculateTotalHoursForLog(log, 'setup');
+      totalWorkHours += calculateTotalHoursForLog(log, 'work');
     });
     
-    console.log('🔍 Final totals: totalSetupHours =', totalSetupHours, 'totalWorkHours =', totalWorkHours);
-    
-    return {
-      totalSetupHours,
-      totalWorkHours
-    };
+    return { totalSetupHours, totalWorkHours };
   }, [filteredLogs]);
 
   // Đảm bảo thời gian luôn hiển thị ở định dạng 24h HH:mm
   const formatTime24h = (timeVal: any) => {
     if (timeVal === null || timeVal === undefined) return '';
     
-    // Trường hợp 1: là số (định dạng thời gian của Excel)
     if (typeof timeVal === 'number') {
-      // Excel lưu thời gian dưới dạng phần của ngày (0 = 00:00, 0.5 = 12:00)
       const totalMinutes = timeVal * 24 * 60;
       let hours = Math.floor(totalMinutes / 60);
       let minutes = Math.round(totalMinutes % 60);
-      
-      // Xử lý trường hợp làm tròn làm cho minutes = 60
       if (minutes === 60) {
         minutes = 0;
         hours += 1;
       }
-      
-      hours = hours % 24; // Đảm bảo giờ trong vòng 0-23
-      
+      hours = hours % 24;
       return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
     }
     
     const timeStr = String(timeVal).trim();
     if (!timeStr) return '';
     
-    // Trường hợp 2: đã là định dạng HH:mm
     if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)) {
       return timeStr;
     }
     
-    // Trường hợp 3: định dạng H:mm (vd: 7:00, 9:30)
     const hhmmMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
     if (hhmmMatch) {
       let hours = parseInt(hhmmMatch[1]);
       let minutes = parseInt(hhmmMatch[2]);
-      
       hours = Math.max(0, Math.min(23, hours));
       minutes = Math.max(0, Math.min(59, minutes));
-      
       return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
     }
     
-    // Trường hợp 4: định dạng có AM/PM
     const ampmMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm|AM|PM)?$/);
     if (ampmMatch) {
       let hours = parseInt(ampmMatch[1]);
       let minutes = ampmMatch[2] ? parseInt(ampmMatch[2]) : 0;
       const period = ampmMatch[3]?.toLowerCase();
-      
-      if (period === 'pm' && hours !== 12) {
-        hours += 12;
-      } else if (period === 'am' && hours === 12) {
-        hours = 0;
-      }
-      
+      if (period === 'pm' && hours !== 12) hours += 12;
+      else if (period === 'am' && hours === 12) hours = 0;
       hours = Math.max(0, Math.min(23, hours));
       minutes = Math.max(0, Math.min(59, minutes));
-      
       return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
     }
     
-    // Thử parse như số Excel nếu là chuỗi số
     if (/^\d+\.?\d*$/.test(timeStr)) {
       const num = parseFloat(timeStr);
       const totalMinutes = num * 24 * 60;
@@ -1089,6 +944,7 @@ export default function ProductionReportPage() {
       </div>
     );
   }
+  
   if (!permissions.canView) {
     return (
       <div className="flex flex-col items-center justify-center h-64">
@@ -1507,9 +1363,7 @@ export default function ProductionReportPage() {
                       }
                       if (!Array.isArray(setupList)) setupList = [setupList];
                       const validSetupList = setupList.filter((item: any) => {
-                        // @ts-ignore - Bỏ qua lỗi type
                         const start = item?.thoiGianBatDau || item?.start || '';
-                        // @ts-ignore
                         const end = item?.thoiGianKetThuc || item?.end || '';
                         let hours = item?.soGio || item?.hours || 0;
                         if (typeof hours === 'string') hours = parseFloat(hours) || 0;
@@ -1537,9 +1391,7 @@ export default function ProductionReportPage() {
                             </thead>
                             <tbody>
                               {validSetupList.map((item: any, index: number) => {
-                                // @ts-ignore
                                 const start = item?.thoiGianBatDau || item?.start || '';
-                                // @ts-ignore
                                 const end = item?.thoiGianKetThuc || item?.end || '';
                                 let hours = item?.soGio || item?.hours || 0;
                                 if (typeof hours === 'string') hours = parseFloat(hours) || 0;
@@ -1585,9 +1437,7 @@ export default function ProductionReportPage() {
                       }
                       if (!Array.isArray(workList)) workList = [workList];
                       const validWorkList = workList.filter((item: any) => {
-                        // @ts-ignore
                         const start = item?.thoiGianBatDau || item?.start || '';
-                        // @ts-ignore
                         const end = item?.thoiGianKetThuc || item?.end || '';
                         let hours = item?.soGio || item?.hours || 0;
                         if (typeof hours === 'string') hours = parseFloat(hours) || 0;
@@ -1615,9 +1465,7 @@ export default function ProductionReportPage() {
                             </thead>
                             <tbody>
                               {validWorkList.map((item: any, index: number) => {
-                                // @ts-ignore
                                 const start = item?.thoiGianBatDau || item?.start || '';
-                                // @ts-ignore
                                 const end = item?.thoiGianKetThuc || item?.end || '';
                                 let hours = item?.soGio || item?.hours || 0;
                                 if (typeof hours === 'string') hours = parseFloat(hours) || 0;
@@ -1696,16 +1544,27 @@ export default function ProductionReportPage() {
           </DialogContent>
         </Dialog>
 
-        {/* Edit Dialog */}
-        <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        {/* ====================== SỬA EDIT DIALOG ====================== */}
+        <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+          setIsEditDialogOpen(open);
+          if (!open) setSelectedLog(null);
+        }}>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader><DialogTitle>Chỉnh sửa nhật ký sản xuất</DialogTitle></DialogHeader>
             {selectedLog && permissions.canEdit && (
               <ProductionForm 
                 key={`edit-${selectedLog.id}`} 
-                initialData={selectedLog} 
+                initialData={{
+                  ...selectedLog,
+                  // Đảm bảo duAn được truyền đúng
+                  duAn: selectedLog.duAn || '',
+                  maDuAn: selectedLog.duAn || '',
+                }} 
                 onSubmit={handleEditLog} 
-                onCancel={() => setIsEditDialogOpen(false)} 
+                onCancel={() => {
+                  setIsEditDialogOpen(false);
+                  setSelectedLog(null);
+                }} 
               />
             )}
           </DialogContent>

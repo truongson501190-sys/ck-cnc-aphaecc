@@ -1,253 +1,238 @@
 // src/modules/warehouse/pages/TransactionHistory.tsx
-import { useEffect, useMemo, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Search } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, Search, FileSpreadsheet, RefreshCw } from 'lucide-react'; // Thêm RefreshCw vào import
 import { toast } from 'sonner';
-import { loadArrayFromStorage } from '@/lib/localStorage';
-import type { TransactionHistoryEntry } from '@/types/warehouse';
+import * as XLSX from 'xlsx';
 
-const STORAGE_KEY = 'transactionHistory';
-const PAGE_SIZE = 10;
-
-const defaultData: TransactionHistoryEntry[] = [
-  {
-    id: 'th-1',
-    reference: 'NK20250115001',
-    itemCode: 'SP-001',
-    itemName: 'Chi tiết CNC A',
-    type: 'import',
-    quantity: 100,
-    unit: 'cái',
-    warehouseTo: 'Kho 1',
-    project: 'Dự án X',
-    status: 'completed',
-    transactionDate: '2025-01-15',
-    createdBy: 'Nguyễn Văn A',
-    notes: '',
-  },
-  {
-    id: 'th-2',
-    reference: 'XK20250116001',
-    itemCode: 'SP-001',
-    itemName: 'Chi tiết CNC A',
-    type: 'export',
-    quantity: -20,
-    unit: 'cái',
-    warehouseFrom: 'Kho 1',
-    project: 'Dự án X',
-    machine: 'Máy CNC 1',
-    status: 'completed',
-    transactionDate: '2025-01-16',
-    createdBy: 'Trần Thị B',
-    notes: 'Xuất phục vụ gia công',
-  },
-  {
-    id: 'th-3',
-    reference: 'CK20250117001',
-    itemCode: 'SP-002',
-    itemName: 'Vật tư gia công B',
-    type: 'transfer',
-    quantity: 30,
-    unit: 'kg',
-    warehouseFrom: 'Kho 2',
-    warehouseTo: 'Kho 1',
-    status: 'completed',
-    transactionDate: '2025-01-17',
-    createdBy: 'Lê Văn C',
-    notes: '',
-  },
-  {
-    id: 'th-4',
-    reference: 'DM20250118001',
-    itemCode: 'DAU-01',
-    itemName: 'Dầu cắt',
-    type: 'oil_export',
-    quantity: -5,
-    unit: 'lít',
-    warehouseFrom: 'Kho 2',
-    machine: 'Máy CNC 2',
-    status: 'completed',
-    transactionDate: '2025-01-18',
-    createdBy: 'Phạm Thị D',
-    notes: 'Tra dầu cho máy',
-  },
-];
+const STORAGE_KEYS = {
+  imports: 'warehouseImports',
+  exports: 'warehouseExports',
+  transfers: 'warehouseTransfers',
+  consumables: 'consumableExports',
+};
 
 export function TransactionHistory() {
   const navigate = useNavigate();
-  const [entries, setEntries] = useState<TransactionHistoryEntry[]>([]);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [filtered, setFiltered] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [page, setPage] = useState(1);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const saved = loadArrayFromStorage<TransactionHistoryEntry>(STORAGE_KEY);
-    setEntries(saved.length ? saved : defaultData);
-  }, []);
+  const loadTransactions = () => {
+    setIsLoading(true);
+    try {
+      const imports = JSON.parse(localStorage.getItem(STORAGE_KEYS.imports) || '[]');
+      const exports = JSON.parse(localStorage.getItem(STORAGE_KEYS.exports) || '[]');
+      const transfers = JSON.parse(localStorage.getItem(STORAGE_KEYS.transfers) || '[]');
+      const consumables = JSON.parse(localStorage.getItem(STORAGE_KEYS.consumables) || '[]');
 
-  const filtered = useMemo(() => {
-    return entries.filter((entry) => {
-      const matchesSearch =
-        !searchTerm ||
-        entry.reference.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        entry.itemName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (entry.project && entry.project.toLowerCase().includes(searchTerm.toLowerCase()));
-      const matchesType = typeFilter === 'all' || entry.type === typeFilter;
-      const matchesStatus = statusFilter === 'all' || entry.status === statusFilter;
-      return matchesSearch && matchesType && matchesStatus;
-    });
-  }, [entries, searchTerm, typeFilter, statusFilter]);
+      const importTx = imports.map((item: any) => ({ ...item, type: 'Nhập kho', icon: '📥' }));
+      const exportTx = exports.map((item: any) => ({ ...item, type: 'Xuất kho', icon: '📤' }));
+      const transferTx = transfers.map((item: any) => ({ ...item, type: 'Chuyển kho', icon: '🔄' }));
+      const consumableTx = consumables.map((item: any) => ({ ...item, type: 'Xuất vật tư', icon: '🔧' }));
 
-  const pageCount = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+      const all = [...importTx, ...exportTx, ...transferTx, ...consumableTx];
+      
+      all.sort((a, b) => {
+        const dateA = new Date(a.createdAt || a.ngayXuat || a.ngayChuyen || 0);
+        const dateB = new Date(b.createdAt || b.ngayXuat || b.ngayChuyen || 0);
+        return dateB.getTime() - dateA.getTime();
+      });
 
-  const getTypeLabel = (type: TransactionHistoryEntry['type']) => {
-    switch (type) {
-      case 'import': return 'Nhập kho';
-      case 'export': return 'Xuất kho';
-      case 'transfer': return 'Chuyển kho';
-      case 'oil_export': return 'Xuất dầu';
-      default: return type;
+      setTransactions(all);
+      setFiltered(all);
+      
+    } catch (error) {
+      console.error('Error loading transactions:', error);
+      toast.error('Lỗi tải dữ liệu giao dịch');
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const getStatusBadge = (status: TransactionHistoryEntry['status']) => {
-    switch (status) {
-      case 'completed':
-        return <Badge className="bg-green-100 text-green-800">Hoàn thành</Badge>;
-      case 'draft':
-        return <Badge variant="outline">Nháp</Badge>;
-      case 'cancelled':
-        return <Badge className="bg-red-100 text-red-800">Hủy bỏ</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
+  useEffect(() => {
+    loadTransactions();
+  }, []);
+
+  useEffect(() => {
+    let result = transactions;
+    
+    if (searchTerm) {
+      const term = searchTerm.toLowerCase();
+      result = result.filter(t => 
+        (t.soPhieu || '').toLowerCase().includes(term) ||
+        (t.duAn || '').toLowerCase().includes(term) ||
+        (t.khoXuat || '').toLowerCase().includes(term) ||
+        (t.khoNhap || '').toLowerCase().includes(term) ||
+        (t.nguoiNhan || '').toLowerCase().includes(term)
+      );
     }
+    
+    if (typeFilter !== 'all') {
+      result = result.filter(t => t.type === typeFilter);
+    }
+    
+    setFiltered(result);
+  }, [searchTerm, typeFilter, transactions]);
+
+  const getStatusBadge = (status: string, type: string) => {
+    const statusMap: { [key: string]: { label: string; color: string } } = {
+      pending: { label: 'Chờ duyệt', color: 'bg-yellow-100 text-yellow-800' },
+      approved: { label: 'Đã duyệt', color: 'bg-blue-100 text-blue-800' },
+      transferred: { label: 'Đã chuyển', color: 'bg-indigo-100 text-indigo-800' },
+      received: { label: 'Đã nhận', color: 'bg-green-100 text-green-800' },
+      rejected: { label: 'Từ chối', color: 'bg-red-100 text-red-800' },
+    };
+    
+    const info = statusMap[status] || { label: status || 'Không xác định', color: 'bg-gray-100 text-gray-800' };
+    return <Badge className={info.color}>{info.label}</Badge>;
+  };
+
+  const exportExcel = () => {
+    if (filtered.length === 0) {
+      toast.error('Không có dữ liệu để xuất');
+      return;
+    }
+
+    const data = filtered.map((t, index) => ({
+      'STT': index + 1,
+      'Số phiếu': t.soPhieu || '',
+      'Loại': t.type || '',
+      'Ngày': t.ngayXuat || t.ngayChuyen || t.createdAt || '',
+      'Dự án': t.duAn || '',
+      'Kho xuất': t.khoXuat || '',
+      'Kho nhập': t.khoNhap || '',
+      'Người thực hiện': t.nguoiThucHien || t.nguoiXuat || '',
+      'Người nhận': t.nguoiNhan || '',
+      'Trạng thái': t.status || '',
+      'Tổng tiền': t.tongTien || t.totalValue || 0,
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'LichSuGiaoDich');
+    XLSX.writeFile(wb, `LichSuGiaoDich_${new Date().toLocaleDateString('vi-VN')}.xlsx`);
+    toast.success('Xuất Excel thành công');
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="outline" size="icon" onClick={() => navigate('/')} className="border-gray-300 hover:bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 md:p-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => navigate("/")}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
-              <h1 className="text-3xl font-bold text-slate-900">Lịch sử giao dịch</h1>
-              <p className="text-sm text-slate-600 mt-2">Danh sách tất cả các giao dịch xuất, nhập, chuyển kho, xuất dầu.</p>
+              <h1 className="text-2xl font-bold text-gray-800">Lịch sử giao dịch</h1>
+              <p className="text-gray-600 text-sm">
+                Tổng hợp từ <strong>Nhập kho, Xuất kho, Chuyển kho, Xuất vật tư</strong>
+              </p>
             </div>
           </div>
-          <Badge variant="secondary">{entries.length} giao dịch</Badge>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={exportExcel}>
+              <FileSpreadsheet className="w-4 h-4 mr-2" /> Xuất Excel
+            </Button>
+            <Button variant="outline" onClick={loadTransactions}>
+              <RefreshCw className="w-4 h-4 mr-2" /> Làm mới
+            </Button>
+          </div>
         </div>
 
         <Card>
-          <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <CardTitle>Danh sách giao dịch</CardTitle>
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  placeholder="Tìm số chứng từ, mã hàng, tên hàng, dự án"
-                  className="pl-10 min-w-[260px]"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
+          <CardHeader>
+            <CardTitle>Bộ lọc</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex flex-wrap gap-4">
+              <div className="flex-1 min-w-[200px]">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <Input
+                    placeholder="Tìm kiếm theo số phiếu, dự án, kho..."
+                    className="pl-10"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                </div>
               </div>
               <Select value={typeFilter} onValueChange={setTypeFilter}>
-                <SelectTrigger className="min-w-[140px]">
-                  <SelectValue placeholder="Loại giao dịch" />
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Tất cả loại" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tất cả loại</SelectItem>
-                  <SelectItem value="import">Nhập kho</SelectItem>
-                  <SelectItem value="export">Xuất kho</SelectItem>
-                  <SelectItem value="transfer">Chuyển kho</SelectItem>
-                  <SelectItem value="oil_export">Xuất dầu</SelectItem>
+                  <SelectItem value="Nhập kho">📥 Nhập kho</SelectItem>
+                  <SelectItem value="Xuất kho">📤 Xuất kho</SelectItem>
+                  <SelectItem value="Chuyển kho">🔄 Chuyển kho</SelectItem>
+                  <SelectItem value="Xuất vật tư">🔧 Xuất vật tư</SelectItem>
                 </SelectContent>
               </Select>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="min-w-[140px]">
-                  <SelectValue placeholder="Trạng thái" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả trạng thái</SelectItem>
-                  <SelectItem value="completed">Hoàn thành</SelectItem>
-                  <SelectItem value="draft">Nháp</SelectItem>
-                  <SelectItem value="cancelled">Hủy bỏ</SelectItem>
-                </SelectContent>
-              </Select>
+              <Badge variant="secondary" className="text-sm px-3 py-2">
+                {filtered.length} giao dịch
+              </Badge>
             </div>
-          </CardHeader>
-          <CardContent>
+          </CardContent>
+        </Card>
+
+        <Card className="mt-6">
+          <CardContent className="p-0">
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Ngày GD</TableHead>
-                    <TableHead>Chứng từ</TableHead>
+                    <TableHead>STT</TableHead>
+                    <TableHead>Số phiếu</TableHead>
                     <TableHead>Loại</TableHead>
-                    <TableHead>Mã hàng</TableHead>
-                    <TableHead>Tên hàng</TableHead>
-                    <TableHead>SL</TableHead>
-                    <TableHead>ĐVT</TableHead>
-                    <TableHead>Kho</TableHead>
-                    <TableHead>Đối tác / Máy</TableHead>
+                    <TableHead>Ngày</TableHead>
+                    <TableHead>Dự án</TableHead>
+                    <TableHead>Kho xuất</TableHead>
+                    <TableHead>Kho nhập</TableHead>
+                    <TableHead>Người thực hiện</TableHead>
                     <TableHead>Trạng thái</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {pageItems.length === 0 ? (
+                  {isLoading ? (
                     <TableRow>
-                      <TableCell colSpan={10} className="text-center py-10 text-slate-500">
-                        Không có giao dịch nào.
+                      <TableCell colSpan={9} className="text-center py-8">Đang tải...</TableCell>
+                    </TableRow>
+                  ) : filtered.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-8 text-gray-500">
+                        Không có giao dịch nào
                       </TableCell>
                     </TableRow>
                   ) : (
-                    pageItems.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>{entry.transactionDate}</TableCell>
-                        <TableCell className="font-mono text-xs">{entry.reference}</TableCell>
-                        <TableCell>{getTypeLabel(entry.type)}</TableCell>
-                        <TableCell>{entry.itemCode}</TableCell>
-                        <TableCell>{entry.itemName}</TableCell>
-                        <TableCell className={entry.quantity < 0 ? 'text-red-600' : 'text-green-600'}>
-                          {entry.quantity > 0 ? `+${entry.quantity}` : entry.quantity}
-                        </TableCell>
-                        <TableCell>{entry.unit}</TableCell>
+                    filtered.map((t, index) => (
+                      <TableRow key={`${t.soPhieu}-${index}`} className="hover:bg-gray-50">
+                        <TableCell>{index + 1}</TableCell>
+                        <TableCell className="font-medium">{t.soPhieu}</TableCell>
                         <TableCell>
-                          {entry.warehouseFrom && entry.warehouseTo
-                            ? `${entry.warehouseFrom} → ${entry.warehouseTo}`
-                            : entry.warehouseTo || entry.warehouseFrom || '-'}
+                          <span className="flex items-center gap-1">
+                            {t.icon} {t.type}
+                          </span>
                         </TableCell>
-                        <TableCell>{entry.project || entry.machine || '-'}</TableCell>
-                        <TableCell>{getStatusBadge(entry.status)}</TableCell>
+                        <TableCell>{t.ngayXuat || t.ngayChuyen || t.createdAt?.split('T')[0] || ''}</TableCell>
+                        <TableCell>{t.duAn || '---'}</TableCell>
+                        <TableCell>{t.khoXuat || '---'}</TableCell>
+                        <TableCell>{t.khoNhap || '---'}</TableCell>
+                        <TableCell>{t.nguoiThucHien || t.nguoiXuat || '---'}</TableCell>
+                        <TableCell>{getStatusBadge(t.status, t.type)}</TableCell>
                       </TableRow>
                     ))
                   )}
                 </TableBody>
               </Table>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-600">
-              <div>Hiển thị {pageItems.length} / {filtered.length} giao dịch</div>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" disabled={page === 1} onClick={() => setPage((prev) => Math.max(prev - 1, 1))}>
-                  Trước
-                </Button>
-                <span>{page} / {pageCount}</span>
-                <Button variant="outline" size="sm" disabled={page === pageCount} onClick={() => setPage((prev) => Math.min(prev + 1, pageCount))}>
-                  Sau
-                </Button>
-              </div>
             </div>
           </CardContent>
         </Card>

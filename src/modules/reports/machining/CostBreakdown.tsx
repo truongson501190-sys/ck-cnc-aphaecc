@@ -519,106 +519,88 @@ export function CostBreakdown() {
 
   // ==================== XỬ LÝ DỮ LIỆU CHÍNH ====================
   
-  // src/modules/reports/machining/CostBreakdown.tsx
-
-// ==================== XỬ LÝ DỮ LIỆU CHÍNH ====================
-  
-const rawData = useMemo(() => {
-  // Bước 1: Group theo ngày + máy để tính Ca máy
-  const dayMachineGroups: Record<string, any[]> = {};
-  
-  reports.forEach((r) => {
-    const report = r as any;
-    const key = `${report.ngayThang}_${report.maySanXuat}`;
-    if (!dayMachineGroups[key]) {
-      dayMachineGroups[key] = [];
-    }
-    dayMachineGroups[key].push(report);
-  });
-
-  // Bước 2: Tính Ca máy cho từng group (dựa trên tổng giờ cả ngày)
-  const shiftMap: Record<string, string> = {};
-  Object.entries(dayMachineGroups).forEach(([key, groupReports]) => {
-    shiftMap[key] = getMachineShiftForDay(groupReports);
-  });
-
-  // Bước 3: Group chi tiết theo MÁY + DỰ ÁN + CA (KHÔNG theo người)
-  const detailGroups: Record<string, any> = {};
-  
-  reports.forEach((r) => {
-    const report = r as any;
-    const dayKey = `${report.ngayThang}_${report.maySanXuat}`;
-    const caMay = shiftMap[dayKey] || '8h/1Ca';
+  const rawData = useMemo(() => {
+    // Bước 1: Group theo ngày + máy để tính Ca máy
+    const dayMachineGroups: Record<string, any[]> = {};
     
-    // Key: ngày + máy + dự án + ca
-    const detailKey = `${report.ngayThang}_${report.maySanXuat}_${report.duAn}_${report.ca}`;
-    
-    if (!detailGroups[detailKey]) {
-      detailGroups[detailKey] = {
-        id: report.id,
-        ngay: formatDate(report.ngayThang),
-        may: report.maySanXuat || '---',
-        ca: report.ca || 'Ngày',
-        caMay: caMay,
-        maDuAn: report.duAn || '---',
-        soLuong: 0,
-        totalSetupHours: 0,
-        totalWorkHours: 0,
-        nguoiVanHanh: [],
-        reports: [],
-      };
-    }
-    
-    // Cộng dồn
-    detailGroups[detailKey].soLuong += (report.soLuongHoanThanh || 0);
-    detailGroups[detailKey].totalSetupHours += getTotalSetupHours(report);
-    detailGroups[detailKey].totalWorkHours += getTotalWorkHours(report);
-    
-    // Thêm người vận hành (nếu chưa có)
-    if (report.nguoiVanHanh) {
-      const nv = report.nguoiVanHanh.trim();
-      if (nv && !detailGroups[detailKey].nguoiVanHanh.includes(nv)) {
-        detailGroups[detailKey].nguoiVanHanh.push(nv);
+    reports.forEach((r) => {
+      const report = r as any;
+      const key = `${report.ngayThang}_${report.maySanXuat}`;
+      if (!dayMachineGroups[key]) {
+        dayMachineGroups[key] = [];
       }
-    }
-    
-    detailGroups[detailKey].reports.push(report);
-  });
-
-  // Bước 4: Chuyển thành array và SẮP XẾP
-  const result: any[] = [];
-  Object.values(detailGroups).forEach((group) => {
-    const nguoiVanHanh = group.nguoiVanHanh.join(', ') || 'Chưa có';
-    
-    result.push({
-      ...group,
-      nguoiVanHanh: nguoiVanHanh,
-      donGia: 0,
-      chiPhiChayMay: 0,
-      chiPhiGa: 0,
-      chiPhiDao: 0,
-      tongChiPhi: 0,
-      totalHours: group.totalSetupHours + group.totalWorkHours,
+      dayMachineGroups[key].push(report);
     });
-  });
 
-  // ========== SẮP XẾP THEO NGÀY (MỚI NHẤT LÊN ĐẦU) + MÁY (A→Z) ==========
-  result.sort((a, b) => {
-    // 1. Sắp xếp theo ngày (giảm dần - mới nhất lên đầu)
-    // Chuyển định dạng DD/MM/YYYY thành Date để so sánh
-    const dateA = new Date(a.ngay.split('/').reverse().join('/'));
-    const dateB = new Date(b.ngay.split('/').reverse().join('/'));
+    // Bước 2: Tính Ca máy cho từng group (dựa trên tổng giờ cả ngày)
+    const shiftMap: Record<string, string> = {};
+    Object.entries(dayMachineGroups).forEach(([key, groupReports]) => {
+      shiftMap[key] = getMachineShiftForDay(groupReports);
+    });
+
+    // Bước 3: Group chi tiết theo MÁY + DỰ ÁN + CA (KHÔNG theo người)
+    const detailGroups: Record<string, any> = {};
     
-    if (dateA > dateB) return -1;  // Ngày mới hơn lên trước
-    if (dateA < dateB) return 1;   // Ngày cũ hơn xuống sau
+    reports.forEach((r) => {
+      const report = r as any;
+      const dayKey = `${report.ngayThang}_${report.maySanXuat}`;
+      const caMay = shiftMap[dayKey] || '8h/1Ca';
+      
+      // Key: ngày + máy + dự án + ca
+      const detailKey = `${report.ngayThang}_${report.maySanXuat}_${report.duAn}_${report.ca}`;
+      
+      if (!detailGroups[detailKey]) {
+        detailGroups[detailKey] = {
+          id: report.id,
+          ngay: formatDate(report.ngayThang),
+          may: report.maySanXuat || '---',
+          ca: report.ca || 'Ngày',
+          caMay: caMay,
+          maDuAn: report.duAn || '---',
+          soLuong: 0,
+          totalSetupHours: 0,
+          totalWorkHours: 0,
+          nguoiVanHanh: [],
+          reports: [],
+        };
+      }
+      
+      // Cộng dồn
+      detailGroups[detailKey].soLuong += (report.soLuongHoanThanh || 0);
+      detailGroups[detailKey].totalSetupHours += getTotalSetupHours(report);
+      detailGroups[detailKey].totalWorkHours += getTotalWorkHours(report);
+      
+      // Thêm người vận hành (nếu chưa có)
+      if (report.nguoiVanHanh) {
+        const nv = report.nguoiVanHanh.trim();
+        if (nv && !detailGroups[detailKey].nguoiVanHanh.includes(nv)) {
+          detailGroups[detailKey].nguoiVanHanh.push(nv);
+        }
+      }
+      
+      detailGroups[detailKey].reports.push(report);
+    });
+
+    // Bước 4: Chuyển thành array
+    const result: any[] = [];
+    Object.values(detailGroups).forEach((group) => {
+      const nguoiVanHanh = group.nguoiVanHanh.join(', ') || 'Chưa có';
+      
+      result.push({
+        ...group,
+        nguoiVanHanh: nguoiVanHanh,
+        donGia: 0,
+        chiPhiChayMay: 0,
+        chiPhiGa: 0,
+        chiPhiDao: 0,
+        tongChiPhi: 0,
+        totalHours: group.totalSetupHours + group.totalWorkHours,
+      });
+    });
     
-    // 2. Nếu cùng ngày, sắp xếp theo tên máy (A → Z)
-    return a.may.localeCompare(b.may);
-  });
-  
-  console.log(`📊 Số dòng sau khi gộp: ${result.length}`);
-  return result;
-}, [reports]);
+    console.log(`📊 Số dòng sau khi gộp: ${result.length}`);
+    return result;
+  }, [reports]);
 
   // ==================== CẬP NHẬT GIÁ ====================
   
