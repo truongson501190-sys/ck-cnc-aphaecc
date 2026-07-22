@@ -2,14 +2,13 @@
 import * as React from 'react';
 const { createContext, useState, useCallback, useEffect } = React;
 type ReactNode = React.ReactNode;
-import type { User } from '../types/user';
-import { type UserPermissions } from '../types/user';
+import type { User, UserPermissions } from '../types/user';
 import { hasPermissionFlag } from '../lib/permissions';
 import { verifyPassword } from '../lib/passwordUtils';
 import { EmployeeService, type Employee } from '../services/employeeService';
 import { PermissionService } from '../services/permissionService';
 
-// Map Employee to User type
+// Map Employee to User
 function mapEmployeeToUser(emp: Employee, permissions: UserPermissions): User {
   return {
     msnv: emp.msnv,
@@ -20,6 +19,11 @@ function mapEmployeeToUser(emp: Employee, permissions: UserPermissions): User {
     ho_ten: emp.ho_ten,
     phong_ban: emp.phong_ban ?? undefined,
     chuc_vu: emp.chuc_vu ?? undefined,
+    username: emp.ho_ten,
+    email: emp.email || undefined,
+    avatar: (emp as any).avatar || (emp as any).profile_image || undefined,
+    profileImage: (emp as any).profile_image || (emp as any).avatar || undefined,
+    profile_image: (emp as any).profile_image || (emp as any).avatar || undefined,
     permissions
   };
 }
@@ -34,6 +38,9 @@ interface AuthContextType {
   updateProfile: (updatedUser: Partial<User>) => void;
   hasPermission: (module: string, level: 'view' | 'edit') => boolean;
   refreshUser: () => Promise<void>;
+  getUserAvatar: () => string;
+  getUserDisplayName: () => string;
+  getUserInitial: () => string;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -47,9 +54,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // ✅ SỬA: Load user permissions from Supabase
+  // Load user permissions from Supabase
   const loadPermissions = useCallback(async (msnv: string): Promise<UserPermissions> => {
-    // PermissionService.getByMsnv() đã trả về UserPermissions đúng format
     const perms = await PermissionService.getByMsnv(msnv);
     console.log('📥 loadPermissions:', { msnv, perms: JSON.stringify(perms, null, 2) });
     return perms;
@@ -64,7 +70,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const perms = await loadPermissions(user.msnv);
         const userData = mapEmployeeToUser(emp, perms);
         setUser(userData);
-        // Update session cache
         const storage = localStorage.getItem('rememberedUser') ? localStorage : sessionStorage;
         storage.setItem('sessionUser', JSON.stringify(userData));
       }
@@ -82,7 +87,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         if (storedSession) {
           const parsed = JSON.parse(storedSession);
-          // Refresh data from Supabase
           const emp = await EmployeeService.getByMsnv(parsed.msnv);
           if (emp && emp.status === 'active') {
             const perms = await loadPermissions(parsed.msnv);
@@ -90,7 +94,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
             setUser(userData);
             console.log('✅ User loaded:', userData.msnv);
           } else {
-            // Invalid session, clear storage
             localStorage.removeItem('sessionUser');
             sessionStorage.removeItem('sessionUser');
           }
@@ -127,7 +130,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(userData);
         const storage = rememberMe ? localStorage : sessionStorage;
 
-        // Remember me only stores MSNV
         if (rememberMe) {
           localStorage.setItem('rememberedUser', msnv);
         } else {
@@ -149,7 +151,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
     localStorage.removeItem('sessionUser');
     sessionStorage.removeItem('sessionUser');
-    // Keep rememberedUser for next login convenience
     console.log('🚪 Logout');
   }, []);
 
@@ -171,9 +172,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       return false;
     }
     const modulePermissions = user.permissions[module];
-    const result = hasPermissionFlag(modulePermissions, level);
+    const result = hasPermissionFlag(modulePermissions as any, level);
     console.log(`🔍 hasPermission(${module}, ${level}):`, JSON.stringify({ modulePermissions }, null, 2), 'result:', result);
     return result;
+  }, [user]);
+
+  // Helper functions
+  const getUserAvatar = useCallback((): string => {
+    if (!user) return '';
+    return user.avatar || user.profileImage || user.profile_image || '';
+  }, [user]);
+
+  const getUserDisplayName = useCallback((): string => {
+    if (!user) return 'User';
+    return user.fullName || user.ho_ten || user.username || 'User';
+  }, [user]);
+
+  const getUserInitial = useCallback((): string => {
+    if (!user) return 'U';
+    const name = user.fullName || user.ho_ten || user.username || 'User';
+    return name.charAt(0).toUpperCase();
   }, [user]);
 
   const value: AuthContextType = {
@@ -185,6 +203,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     updateProfile,
     hasPermission,
     refreshUser,
+    getUserAvatar,
+    getUserDisplayName,
+    getUserInitial,
   };
 
   if (loading) {

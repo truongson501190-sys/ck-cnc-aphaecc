@@ -1,4 +1,4 @@
-// src/modules/reports/ProductionReportPage.tsx
+// src/pages/ProductionReportPage.tsx
 import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as XLSX from 'xlsx';
@@ -8,7 +8,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { 
   Plus, Filter, X, ArrowLeft, Upload, Download, Edit, Eye, Trash2, FileSpreadsheet, Search, 
@@ -83,8 +82,74 @@ interface ProductionLog {
   chi_phi_dao?: number;
 }
 
+// ====================== COMPONENT MODAL CUSTOM ======================
+interface CustomModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: React.ReactNode;
+  children: React.ReactNode;
+  maxWidth?: string;
+  className?: string;
+}
+
+const CustomModal: React.FC<CustomModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  title, 
+  children, 
+  maxWidth = 'max-w-4xl',
+  className = ''
+}) => {
+  if (!isOpen) return null;
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+
+  return (
+    <div 
+      role="dialog"
+      aria-modal="true"
+      tabIndex={-1}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4"
+      onClick={handleBackdropClick}
+      onKeyDown={(e) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      }}
+    >
+      <div className={`bg-white rounded-lg shadow-2xl ${maxWidth} w-full max-h-[90vh] overflow-hidden ${className}`}>
+        {/* Header */}
+        <div className="sticky top-0 z-10 bg-white border-b px-6 py-4 flex items-center justify-between">
+          <div className="flex-1">
+            {typeof title === 'string' ? (
+              <h2 className="text-xl font-semibold">{title}</h2>
+            ) : (
+              title
+            )}
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0 ml-4"
+          >
+            <X className="w-5 h-5 text-gray-500" />
+          </button>
+        </div>
+        
+        {/* Content */}
+        <div className="px-6 py-4 overflow-y-auto max-h-[calc(90vh-80px)]">
+          {children}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // ====================== HÀM TIỆN ÍCH ======================
-const formatDate = (value: any) => {
+const formatDate = (value: any): string => {
   if (!value) return '';
   if (typeof value === 'number') {
     const excelDate = XLSX.SSF.parse_date_code(value);
@@ -117,9 +182,277 @@ const parseExcelDate = (value: any): string => {
   return str;
 };
 
-const formatCurrency = (value?: number) => {
+const formatCurrency = (value?: number): string => {
   if (!value) return '0 đ';
   return value.toLocaleString('vi-VN') + ' đ';
+};
+
+const formatTime24h = (timeVal: any): string => {
+  if (timeVal === null || timeVal === undefined) return '';
+  
+  if (typeof timeVal === 'number') {
+    const totalMinutes = timeVal * 24 * 60;
+    let hours = Math.floor(totalMinutes / 60);
+    let minutes = Math.round(totalMinutes % 60);
+    if (minutes === 60) {
+      minutes = 0;
+      hours += 1;
+    }
+    hours %= 24;
+    return formatTimeParts(hours, minutes);
+  }
+  
+  const timeStr = String(timeVal).trim();
+  if (!timeStr) return '';
+  
+  if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)) {
+    return timeStr;
+  }
+
+  const parsedTime = parseClockTime(timeStr);
+  if (parsedTime) {
+    return formatTimeParts(parsedTime.hours, parsedTime.minutes);
+  }
+
+  const numericTime = parseNumericTime(timeStr);
+  if (numericTime) {
+    return formatTimeParts(numericTime.hours, numericTime.minutes);
+  }
+  
+  return timeStr;
+};
+
+const getStatusLabel = (status?: string): string => {
+  switch (status) {
+    case 'approved':
+      return 'Đã duyệt';
+    case 'rejected':
+      return 'Từ chối';
+    case 'pending':
+    default:
+      return 'Chờ duyệt';
+  }
+};
+
+const getStatusBadge = (status?: string): React.ReactNode => {
+  switch (status) {
+    case 'approved': return <Badge className="bg-green-600">Đã duyệt</Badge>;
+    case 'pending': return <Badge variant="secondary">Chờ duyệt</Badge>;
+    case 'rejected': return <Badge variant="destructive">Từ chối</Badge>;
+    default: return <Badge variant="outline">Không xác định</Badge>;
+  }
+};
+
+const formatTimeParts = (hours: number, minutes: number): string => {
+  const safeHours = Math.max(0, Math.min(23, hours));
+  const safeMinutes = Math.max(0, Math.min(59, minutes));
+  return `${String(safeHours).padStart(2, '0')}:${String(safeMinutes).padStart(2, '0')}`;
+};
+
+const parseClockTime = (timeStr: string): { hours: number; minutes: number } | null => {
+  const hhmmMatch = /^(\d{1,2}):(\d{2})$/.exec(timeStr);
+  if (hhmmMatch) {
+    return {
+      hours: Number.parseInt(hhmmMatch[1], 10),
+      minutes: Number.parseInt(hhmmMatch[2], 10),
+    };
+  }
+
+  const ampmMatch = /^(\d{1,2})(?::(\d{2}))?\s*(am|pm)$/i.exec(timeStr);
+  if (ampmMatch) {
+    let hours = Number.parseInt(ampmMatch[1], 10);
+    const minutes = ampmMatch[2] ? Number.parseInt(ampmMatch[2], 10) : 0;
+    const period = ampmMatch[3]?.toLowerCase();
+
+    if (period === 'pm' && hours !== 12) hours += 12;
+    else if (period === 'am' && hours === 12) hours = 0;
+
+    return { hours, minutes };
+  }
+
+  return null;
+};
+
+const parseNumericTime = (timeStr: string): { hours: number; minutes: number } | null => {
+  if (!/^\d+(?:\.\d+)?$/.test(timeStr)) return null;
+
+  const num = Number.parseFloat(timeStr);
+  const totalMinutes = num * 24 * 60;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = Math.round(totalMinutes % 60);
+
+  return { hours, minutes };
+};
+
+const getLegacyHoursValue = (value: unknown): number | null => {
+  if (typeof value === 'number') {
+    return value > 0 ? value : null;
+  }
+
+  if (typeof value === 'string') {
+    const parsed = Number.parseFloat(value);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+  }
+
+  return null;
+};
+
+const getEntryHours = (item: any): number => {
+  let hours = item?.soGio || item?.hours || 0;
+
+  if (!hours) {
+    const start = item?.thoiGianBatDau || item?.start || '';
+    const end = item?.thoiGianKetThuc || item?.end || '';
+
+    if (start && end) {
+      try {
+        const startTime = formatTime24h(start);
+        const endTime = formatTime24h(end);
+        hours = calculateHoursFromTime(startTime, endTime);
+      } catch {
+        hours = 0;
+      }
+    }
+  }
+
+  if (typeof hours === 'string') {
+    hours = Number.parseFloat(hours) || 0;
+  }
+
+  return typeof hours === 'number' ? hours : 0;
+};
+
+const getEntryList = (log: ProductionLog, type: 'setup' | 'work'): any[] => {
+  const rawList = type === 'setup'
+    ? (log.setupTimeEntries || log.setup_time_entries || [])
+    : (log.workTimeEntries || log.work_time_entries || []);
+
+  if (Array.isArray(rawList)) {
+    return rawList;
+  }
+
+  return rawList ? [rawList] : [];
+};
+
+const getLegacyHoursForLog = (log: ProductionLog, type: 'setup' | 'work'): number | null => {
+  if (type === 'setup') {
+    const explicitHours = getLegacyHoursValue(log.gioGa ?? log.soGioGia);
+    if (explicitHours !== null) return explicitHours;
+
+    const start = formatTime24h(log.tgGia_BatDau || log.tgGiaBatDau || '');
+    const end = formatTime24h(log.tgGia_KetThuc || log.tgGiaKetThuc || '');
+    if (start && end) {
+      return calculateHoursFromTime(start, end);
+    }
+
+    return null;
+  }
+
+  const explicitHours = getLegacyHoursValue(log.gioChay ?? log.soGioChay);
+  if (explicitHours !== null) return explicitHours;
+
+  const start = formatTime24h(log.tgChay_BatDau || log.tgChayBatDau || '');
+  const end = formatTime24h(log.tgChay_KetThuc || log.tgChayKetThuc || '');
+  if (start && end) {
+    return calculateHoursFromTime(start, end);
+  }
+
+  return null;
+};
+
+const calculateHoursFromTime = (start: string, end: string): number => {
+  if (!start || !end) return 0;
+  try {
+    const startDate = new Date(`2000-01-01T${start}`);
+    let endDate = new Date(`2000-01-01T${end}`);
+    if (endDate < startDate) {
+      endDate.setDate(endDate.getDate() + 1);
+    }
+    const diffMs = endDate.getTime() - startDate.getTime();
+    return Math.max(0, diffMs / (1000 * 60 * 60));
+  } catch {
+    return 0;
+  }
+};
+
+const buildTimeEntries = (row: Record<string, any>, startKeys: string[], endKeys: string[]) => {
+  const startKey = startKeys.find((key) => Boolean(row[key]));
+  const endKey = endKeys.find((key) => Boolean(row[key]));
+
+  if (!startKey || !endKey) {
+    return { entries: [] as Array<{ start: string; end: string; hours: number }>, totalHours: 0 };
+  }
+
+  const start = formatTime24h(row[startKey]);
+  const end = formatTime24h(row[endKey]);
+  if (!start || !end) {
+    return { entries: [] as Array<{ start: string; end: string; hours: number }>, totalHours: 0 };
+  }
+
+  const hours = calculateHoursFromTime(start, end);
+  return {
+    entries: [{ start, end, hours }],
+    totalHours: hours,
+  };
+};
+
+const buildImportedLogPayload = (row: Record<string, any>, currentUserName: string) => {
+  const ngayThangRaw = row['Ngày'] || '';
+  const ngayThang = parseExcelDate(ngayThangRaw);
+  if (!ngayThang) return null;
+
+  const maySanXuat = row['Máy Sản Xuất'] || 'Chưa nhập';
+  const duAn = row['Dự án'] || row['Mã dự án'] || 'Chưa nhập';
+  const khach_hang = row['Tên dự án'] || '';
+  const banVeSo = row['Bản Vẽ Số'] || '';
+  const chiTietSo = row['Chi Tiết Số'] || '';
+  const tenChiTiet = row['Tên chi tiết'] || row['Kích thước'] || chiTietSo;
+  const noiDungGiaCong = row['Nội dung Gia Công'] || '';
+  const soLuongHoanThanh = Number(row['SL HT'] || 0);
+  const vatLieu = row['Vật Liệu'] || '';
+  const nguyenCongSo = row['NC Số'] || '';
+  const ca = row['CA'] || '';
+  const nguoiVanHanh = row['Người vận hành'] || row['Người vận hành (MSNV)'] || currentUserName;
+  const nguoiKiemTra = row['Người kiểm tra'] || '';
+  const cpMay = Number(String(row['Chi phí chạy máy (VND)'] || 0).replace(/\D/g, ''));
+  const cpDaoCu = Number(String(row['Chi phí dao cụ (VND)'] || 0).replace(/\D/g, ''));
+  const toolEntries = parseImportedToolEntries(row);
+
+  const setupTime = buildTimeEntries(row, ['TG BD gá', 'TG BĐ gá', 'Giờ bắt đầu gá'], ['TG KT gá', 'Giờ kết thúc gá']);
+  const workTime = buildTimeEntries(row, ['TG BD chạy', 'TG BĐ chạy', 'Giờ bắt đầu chạy'], ['TG KT chạy', 'Giờ kết thúc chạy']);
+
+  return {
+    id: crypto.randomUUID(),
+    ngayThang,
+    maySanXuat,
+    duAn,
+    khach_hang,
+    banVeSo,
+    chiTietSo,
+    tenChiTiet,
+    noiDungGiaCong,
+    soLuongHoanThanh,
+    vatLieu,
+    nguyenCongSo,
+    ca,
+    cpMay,
+    cpDaoCu,
+    toolEntries,
+    workTimeEntries: workTime.entries,
+    work_time_entries: workTime.entries,
+    setupTimeEntries: setupTime.entries,
+    setup_time_entries: setupTime.entries,
+    nguoiVanHanh,
+    nguoiKiemTra,
+    gioGa: setupTime.totalHours,
+    gioChay: workTime.totalHours,
+    chiPhiGa: 0,
+    chiPhiChayMay: cpMay,
+    chiPhiDao: cpDaoCu,
+    status: 'pending' as const,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
 };
 
 // ====================== COMPONENT CHÍNH ======================
@@ -156,12 +489,11 @@ export default function ProductionReportPage() {
   };
   const isCheckingPermission = false;
 
-  // Kiểm tra quyền của user
   const checkRole = (userCheck: typeof user, roles: string[], vietnameseNames: string[]): boolean => {
     if (!userCheck) return false;
     const roleLower = (userCheck.role || '').toLowerCase().trim();
     const chucVuLower = (userCheck.chuc_vu || '').toLowerCase().trim();
-    const roleMatch = roles.some(role => roleLower === role);
+    const roleMatch = roles.includes(roleLower);
     const chucVuMatch = vietnameseNames.some(name => chucVuLower.includes(name));
     return roleMatch || chucVuMatch;
   };
@@ -172,7 +504,6 @@ export default function ProductionReportPage() {
   const isNguoiKiemTra = checkRole(user, ['to_truong', 'to_pho', 'nhom_truong'], ['tổ trưởng', 'tổ phó', 'nhóm trưởng']);
   const userName = (user?.fullName || user?.name || user?.ho_ten || '').trim();
 
-  // Tải dữ liệu với phân quyền
   const loadLogs = async () => {
     if (!permissions.canView) return;
     
@@ -185,7 +516,6 @@ export default function ProductionReportPage() {
       
       if (allError) throw allError;
       
-      // Sửa lỗi TypeScript: ép kiểu qua 'as any' trước
       const mappedDbLogs = (allLogs || []).map((item) => {
         const mapped = mapReportFromDb('production_reports', item);
         return mapped as any as ProductionLog;
@@ -193,22 +523,19 @@ export default function ProductionReportPage() {
       
       let filteredLogs = mappedDbLogs;
       
-      // Lọc theo quyền
       if (!isAdmin && !isQuanLyXuong) {
         filteredLogs = filteredLogs.filter(log => {
           const logNguoiVanHanh = (String(log.nguoiVanHanh || '')).trim().toLowerCase();
           const logNguoiKiemTra = (String(log.nguoiKiemTra || '')).trim().toLowerCase();
           const currentUserName = userName.toLowerCase();
           
-          let result = false;
           if (isNguoiKiemTra) {
-            result = logNguoiKiemTra.includes(currentUserName);
-          } else if (isNguoiVanHanh) {
-            result = logNguoiVanHanh.includes(currentUserName);
-          } else {
-            result = logNguoiVanHanh.includes(currentUserName) || logNguoiKiemTra.includes(currentUserName);
+            return logNguoiKiemTra.includes(currentUserName);
           }
-          return result;
+          if (isNguoiVanHanh) {
+            return logNguoiVanHanh.includes(currentUserName);
+          }
+          return logNguoiVanHanh.includes(currentUserName) || logNguoiKiemTra.includes(currentUserName);
         });
       }
       
@@ -227,7 +554,6 @@ export default function ProductionReportPage() {
     }
   }, [permissions.canView, user]);
 
-  // Hàm duyệt hàng loạt
   const handleBatchApprove = async (newStatus: 'approved' | 'rejected') => {
     const targetIds = selectAll ? new Set(logs.map(l => l.id)) : selectedIds;
     if (targetIds.size === 0) {
@@ -263,7 +589,6 @@ export default function ProductionReportPage() {
     }
   };
 
-  // Hàm duyệt từng dòng
   const handleApproveLog = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     const log = logs.find(l => l.id === id);
@@ -286,7 +611,7 @@ export default function ProductionReportPage() {
     }
   };
 
-  const canApprove = (log: ProductionLog) => {
+  const canApprove = (log: ProductionLog): boolean => {
     const currentUserName = (user?.fullName || user?.name || user?.ho_ten || '').trim().toLowerCase();
     const logNguoiKiemTra = (log.nguoiKiemTra || '').trim().toLowerCase();
     if (isAdmin || isQuanLyXuong) return true;
@@ -349,11 +674,7 @@ export default function ProductionReportPage() {
     }
   };
 
-  // ====================== SỬA HÀM handleEditLog ======================
   const handleEditLog = async (formData: any) => {
-    console.log('🔧 handleEditLog - formData:', formData);
-    console.log('🔧 handleEditLog - selectedLog:', selectedLog);
-    
     if (!permissions.canEdit) {
       toast.error('Bạn không có quyền sửa nhật ký');
       return;
@@ -367,9 +688,7 @@ export default function ProductionReportPage() {
       return;
     }
     
-    // Lấy giá trị duAn từ formData hoặc selectedLog
     const duAnValue = formData.duAn || selectedLog.duAn || '';
-    console.log('🔍 duAnValue:', duAnValue);
     
     const totalSetupHours = formData.setupTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioGa || 0;
     const totalRunHours = formData.workTimeEntries?.reduce((sum: number, item: any) => sum + Number(item.soGio || item.hours || 0), 0) || formData.gioChay || 0;
@@ -377,7 +696,7 @@ export default function ProductionReportPage() {
     const updatedLog: any = {
       ngayThang: formData.ngayThang || selectedLog.ngayThang,
       maySanXuat: formData.maySanXuat || selectedLog.maySanXuat,
-      duAn: duAnValue, // ← QUAN TRỌNG: đảm bảo duAn được truyền
+      duAn: duAnValue,
       khach_hang: formData.tenDuAn || selectedLog.khach_hang || '',
       banVeSo: formData.banVeSo || selectedLog.banVeSo || '',
       chiTietSo: formData.nguyenCongSo || selectedLog.chiTietSo || '',
@@ -404,8 +723,6 @@ export default function ProductionReportPage() {
       updatedAt: new Date().toISOString()
     };
     
-    console.log('🔧 handleEditLog - updatedLog:', updatedLog);
-    
     try {
       const { error } = await supabase
         .from('production_reports')
@@ -428,7 +745,7 @@ export default function ProductionReportPage() {
       toast.error('Chỉ Admin mới có quyền xóa nhật ký');
       return;
     }
-    if (!confirm('Bạn có chắc chắn muốn xóa nhật ký này?')) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xóa nhật ký này?')) return;
     setIsDeleting(true);
     try {
       const { error } = await supabase.from('production_reports').delete().eq('id', id);
@@ -453,7 +770,7 @@ export default function ProductionReportPage() {
       toast.warning('Vui lòng chọn ít nhất một nhật ký');
       return;
     }
-    if (!confirm(`Bạn có chắc chắn muốn xóa ${targetIds.length} nhật ký đã chọn?`)) return;
+    if (!window.confirm(`Bạn có chắc chắn muốn xóa ${targetIds.length} nhật ký đã chọn?`)) return;
     setIsDeleting(true);
     try {
       let deletedCount = 0;
@@ -483,174 +800,54 @@ export default function ProductionReportPage() {
     if (!file) return;
 
     setIsImporting(true);
-    const reader = new FileReader();
 
-    reader.onload = async (evt) => {
-      try {
-        const data = evt.target?.result as ArrayBuffer;
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const sheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json<any>(sheet);
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json<any>(sheet);
 
-        let addedCount = 0;
-        let errorCount = 0;
+      let addedCount = 0;
+      let errorCount = 0;
 
-        for (let i = 0; i < json.length; i++) {
-          const row = json[i];
-          try {
-            let ngayThangRaw = row['Ngày'] || '';
-            const ngayThang = parseExcelDate(ngayThangRaw);
+      for (let i = 0; i < json.length; i++) {
+        const row = json[i];
+        try {
+          const insertData = buildImportedLogPayload(row, user?.fullName || user?.name || '');
+          if (!insertData) continue;
 
-            const maySanXuat = row['Máy Sản Xuất'] || 'Chưa nhập';
-            const duAn = row['Dự án'] || row['Mã dự án'] || 'Chưa nhập';
-            
-            const khach_hang = row['Tên dự án'] || '';
-            const banVeSo = row['Bản Vẽ Số'] || '';
-            const chiTietSo = row['Chi Tiết Số'] || '';
-            const tenChiTiet = row['Tên chi tiết'] || row['Kích thước'] || chiTietSo;
-            const noiDungGiaCong = row['Nội dung Gia Công'] || '';
-            const soLuongHoanThanh = Number(row['SL HT'] || 0);
-            const vatLieu = row['Vật Liệu'] || '';
-            const nguyenCongSo = row['NC Số'] || '';
-            const ca = row['CA'] || '';
-            const nguoiVanHanh = row['Người vận hành'] || row['Người vận hành (MSNV)'] || user?.fullName || user?.name || '';
-            const nguoiKiemTra = row['Người kiểm tra'] || '';
+          const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(insertData));
 
-            const cpMay = Number(String(row['Chi phí chạy máy (VND)'] || 0).replace(/[^0-9]/g, ''));
-            const cpDaoCu = Number(String(row['Chi phí dao cụ (VND)'] || 0).replace(/[^0-9]/g, ''));
-            const toolEntries = parseImportedToolEntries(row);
-
-            // Xử lý thời gian gá
-            const setup_time_entries: any[] = [];
-            const tgBdGaVal = row['TG BD gá'] || row['TG BĐ gá'] || row['Giờ bắt đầu gá'] || '';
-            const tgKtGaVal = row['TG KT gá'] || row['TG KT gá'] || row['Giờ kết thúc gá'] || '';
-            let gioGa = 0;
-            let tgGia_BatDau = '';
-            let tgGia_KetThuc = '';
-            if (tgBdGaVal && tgKtGaVal) {
-              const start = formatTime24h(tgBdGaVal);
-              const end = formatTime24h(tgKtGaVal);
-              
-              if (start && end) {
-                let hours = 0;
-                try {
-                  const startDate = new Date(`2000-01-01T${start}`);
-                  let endDate = new Date(`2000-01-01T${end}`);
-                  if (endDate < startDate) {
-                    endDate.setDate(endDate.getDate() + 1);
-                  }
-                  hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
-                } catch (e) {
-                  hours = 0;
-                }
-                
-                setup_time_entries.push({ start, end, hours });
-                gioGa = hours;
-                tgGia_BatDau = start;
-                tgGia_KetThuc = end;
-              }
-            }
-            
-            // Xử lý thời gian chạy
-            const work_time_entries: any[] = [];
-            const tgBdChayVal = row['TG BD chạy'] || row['TG BĐ chạy'] || row['Giờ bắt đầu chạy'] || '';
-            const tgKtChayVal = row['TG KT chạy'] || row['TG KT chạy'] || row['Giờ kết thúc chạy'] || '';
-            let gioChay = 0;
-            let tgChay_BatDau = '';
-            let tgChay_KetThuc = '';
-            if (tgBdChayVal && tgKtChayVal) {
-              const start = formatTime24h(tgBdChayVal);
-              const end = formatTime24h(tgKtChayVal);
-              
-              if (start && end) {
-                let hours = 0;
-                try {
-                  const startDate = new Date(`2000-01-01T${start}`);
-                  let endDate = new Date(`2000-01-01T${end}`);
-                  if (endDate < startDate) {
-                    endDate.setDate(endDate.getDate() + 1);
-                  }
-                  hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
-                } catch (e) {
-                  hours = 0;
-                }
-                
-                work_time_entries.push({ start, end, hours });
-                gioChay = hours;
-                tgChay_BatDau = start;
-                tgChay_KetThuc = end;
-              }
-            }
-
-            if (ngayThang) {
-              const insertData: any = {
-                id: crypto.randomUUID(),
-                ngayThang,
-                maySanXuat,
-                duAn,
-                khach_hang,
-                banVeSo,
-                chiTietSo,
-                tenChiTiet,
-                noiDungGiaCong,
-                soLuongHoanThanh,
-                vatLieu,
-                nguyenCongSo,
-                ca,
-                cpMay,
-                cpDaoCu,
-                toolEntries,
-                workTimeEntries: work_time_entries.length > 0 ? work_time_entries : [],
-                work_time_entries: work_time_entries.length > 0 ? work_time_entries : [],
-                setupTimeEntries: setup_time_entries.length > 0 ? setup_time_entries : [],
-                setup_time_entries: setup_time_entries.length > 0 ? setup_time_entries : [],
-                nguoiVanHanh,
-                nguoiKiemTra,
-                gioGa,
-                gioChay,
-                chiPhiGa: 0,
-                chiPhiChayMay: cpMay,
-                chiPhiDao: cpDaoCu,
-                status: 'pending',
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-              };
-              
-              const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(insertData));
-              
-              if (error) {
-                console.error('Lỗi dòng', i + 2, ':', error);
-                errorCount++;
-              } else {
-                addedCount++;
-              }
-            }
-          } catch (err) {
-            console.error(`Dòng ${i + 2}: Lỗi xử lý:`, err);
+          if (error) {
+            console.error('Lỗi dòng', i + 2, ':', error);
             errorCount++;
+          } else {
+            addedCount++;
           }
+        } catch (err) {
+          console.error(`Dòng ${i + 2}: Lỗi xử lý:`, err);
+          errorCount++;
         }
-
-        if (addedCount > 0) {
-          let message = `Import thành công ${addedCount} nhật ký`;
-          if (errorCount > 0) {
-            message += ` (${errorCount} dòng bị lỗi)`;
-          }
-          toast.success(message);
-          await loadLogs();
-        } else {
-          toast.error('Không có dữ liệu hợp lệ được import');
-        }
-      } catch (error) {
-        console.error('Import error:', error);
-        toast.error('Lỗi xử lý file Excel');
-      } finally {
-        setIsImporting(false);
-        event.target.value = '';
       }
-    };
-    reader.readAsArrayBuffer(file);
+
+      if (addedCount > 0) {
+        let message = `Import thành công ${addedCount} nhật ký`;
+        if (errorCount > 0) {
+          message += ` (${errorCount} dòng bị lỗi)`;
+        }
+        toast.success(message);
+        await loadLogs();
+      } else {
+        toast.error('Không có dữ liệu hợp lệ được import');
+      }
+    } catch (error) {
+      console.error('Import error:', error);
+      toast.error('Lỗi xử lý file Excel');
+    } finally {
+      setIsImporting(false);
+      event.target.value = '';
+    }
   };
 
   // ====================== EXPORT EXCEL ======================
@@ -669,7 +866,7 @@ export default function ProductionReportPage() {
       'Người kiểm tra': log.nguoiKiemTra,
       'Tên dao': log.toolEntries?.map(t => t.tenDao).join(', ') || '',
       'Chi phí dao': formatCurrency(log.cpDaoCu),
-      'Trạng thái': log.status === 'approved' ? 'Đã duyệt' : log.status === 'rejected' ? 'Từ chối' : 'Chờ duyệt',
+      'Trạng thái': getStatusLabel(log.status),
     }));
     const ws = XLSX.utils.json_to_sheet(exportData);
     const wb = XLSX.utils.book_new();
@@ -733,90 +930,13 @@ export default function ProductionReportPage() {
     });
   }, [logs, searchTerm, statusFilter, dateFilterStart, dateFilterEnd]);
 
-  // Hàm tính giờ từ start và end
-  const calculateHoursFromTime = (start: string, end: string) => {
-    if (!start || !end) return 0;
-    try {
-      const startDate = new Date(`2000-01-01T${start}`);
-      let endDate = new Date(`2000-01-01T${end}`);
-      if (endDate < startDate) {
-        endDate.setDate(endDate.getDate() + 1);
-      }
-      const diffMs = endDate.getTime() - startDate.getTime();
-      return Math.max(0, diffMs / (1000 * 60 * 60));
-    } catch (e) {
-      return 0;
-    }
-  };
-  
-  // Hàm tính tổng giờ cho một log
   const calculateTotalHoursForLog = (log: ProductionLog, type: 'setup' | 'work'): number => {
-    let total = 0;
-    
-    if (type === 'setup') {
-      if (log.gioGa && typeof log.gioGa === 'number') return log.gioGa;
-      if (log.soGioGia && typeof log.soGioGia === 'number') return log.soGioGia;
-      
-      if (log.tgGia_BatDau || log.tgGia_KetThuc || log.tgGiaBatDau || log.tgGiaKetThuc) {
-        const start = formatTime24h(log.tgGia_BatDau || log.tgGiaBatDau || '');
-        const end = formatTime24h(log.tgGia_KetThuc || log.tgGiaKetThuc || '');
-        if (start && end) {
-          return calculateHoursFromTime(start, end);
-        }
-      }
-    } else {
-      if (log.gioChay && typeof log.gioChay === 'number') return log.gioChay;
-      if (log.soGioChay && typeof log.soGioChay === 'number') return log.soGioChay;
-      
-      if (log.tgChay_BatDau || log.tgChay_KetThuc || log.tgChayBatDau || log.tgChayKetThuc) {
-        const start = formatTime24h(log.tgChay_BatDau || log.tgChayBatDau || '');
-        const end = formatTime24h(log.tgChay_KetThuc || log.tgChayKetThuc || '');
-        if (start && end) {
-          return calculateHoursFromTime(start, end);
-        }
-      }
+    const legacyHours = getLegacyHoursForLog(log, type);
+    if (legacyHours !== null) {
+      return legacyHours;
     }
-    
-    let entryList: any[] = [];
-    if (type === 'setup') {
-      const rawList = log.setupTimeEntries || log.setup_time_entries || [];
-      entryList = Array.isArray(rawList) ? rawList : (rawList ? [rawList] : []);
-    } else {
-      const rawList = log.workTimeEntries || log.work_time_entries || [];
-      entryList = Array.isArray(rawList) ? rawList : (rawList ? [rawList] : []);
-    }
-    
-    for (const item of entryList) {
-      let hours = item?.soGio || item?.hours || 0;
-      
-      if (!hours) {
-        let start = item?.thoiGianBatDau || item?.start || '';
-        let end = item?.thoiGianKetThuc || item?.end || '';
-        
-        if (start && end) {
-          try {
-            const startTime = formatTime24h(start);
-            const endTime = formatTime24h(end);
-            const startDate = new Date(`2000-01-01T${startTime}`);
-            let endDate = new Date(`2000-01-01T${endTime}`);
-            if (endDate < startDate) {
-              endDate.setDate(endDate.getDate() + 1);
-            }
-            hours = Math.max(0, (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60));
-          } catch (e) {
-            hours = 0;
-          }
-        }
-      }
-      
-      if (typeof hours === 'string') {
-        hours = parseFloat(hours) || 0;
-      }
-      
-      total += (typeof hours === 'number' ? hours : 0);
-    }
-    
-    return total;
+
+    return getEntryList(log, type).reduce((total, item) => total + getEntryHours(item), 0);
   };
   
   const stats = useMemo(() => ({
@@ -838,75 +958,6 @@ export default function ProductionReportPage() {
     return { totalSetupHours, totalWorkHours };
   }, [filteredLogs]);
 
-  // Đảm bảo thời gian luôn hiển thị ở định dạng 24h HH:mm
-  const formatTime24h = (timeVal: any) => {
-    if (timeVal === null || timeVal === undefined) return '';
-    
-    if (typeof timeVal === 'number') {
-      const totalMinutes = timeVal * 24 * 60;
-      let hours = Math.floor(totalMinutes / 60);
-      let minutes = Math.round(totalMinutes % 60);
-      if (minutes === 60) {
-        minutes = 0;
-        hours += 1;
-      }
-      hours = hours % 24;
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    }
-    
-    const timeStr = String(timeVal).trim();
-    if (!timeStr) return '';
-    
-    if (/^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)) {
-      return timeStr;
-    }
-    
-    const hhmmMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
-    if (hhmmMatch) {
-      let hours = parseInt(hhmmMatch[1]);
-      let minutes = parseInt(hhmmMatch[2]);
-      hours = Math.max(0, Math.min(23, hours));
-      minutes = Math.max(0, Math.min(59, minutes));
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    }
-    
-    const ampmMatch = timeStr.match(/^(\d{1,2}):?(\d{2})?\s*(am|pm|AM|PM)?$/);
-    if (ampmMatch) {
-      let hours = parseInt(ampmMatch[1]);
-      let minutes = ampmMatch[2] ? parseInt(ampmMatch[2]) : 0;
-      const period = ampmMatch[3]?.toLowerCase();
-      if (period === 'pm' && hours !== 12) hours += 12;
-      else if (period === 'am' && hours === 12) hours = 0;
-      hours = Math.max(0, Math.min(23, hours));
-      minutes = Math.max(0, Math.min(59, minutes));
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    }
-    
-    if (/^\d+\.?\d*$/.test(timeStr)) {
-      const num = parseFloat(timeStr);
-      const totalMinutes = num * 24 * 60;
-      let hours = Math.floor(totalMinutes / 60);
-      let minutes = Math.round(totalMinutes % 60);
-      if (minutes === 60) {
-        minutes = 0;
-        hours += 1;
-      }
-      hours = hours % 24;
-      return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-    }
-    
-    return timeStr;
-  };
-
-  const getStatusBadge = (status?: string) => {
-    switch (status) {
-      case 'approved': return <Badge className="bg-green-600">Đã duyệt</Badge>;
-      case 'pending': return <Badge variant="secondary">Chờ duyệt</Badge>;
-      case 'rejected': return <Badge variant="destructive">Từ chối</Badge>;
-      default: return <Badge variant="outline">Không xác định</Badge>;
-    }
-  };
-
   const clearFilters = () => {
     setSearchTerm('');
     setStatusFilter('all');
@@ -926,12 +977,10 @@ export default function ProductionReportPage() {
   const toggleSelectAll = () => {
     if (selectAll) {
       setSelectedIds(new Set());
+    } else if (isAdmin) {
+      setSelectedIds(new Set(filteredLogs.map(l => l.id)));
     } else {
-      if (isAdmin) {
-        setSelectedIds(new Set(filteredLogs.map(l => l.id)));
-      } else {
-        setSelectedIds(new Set(filteredLogs.filter(l => l.status === 'pending').map(l => l.id)));
-      }
+      setSelectedIds(new Set(filteredLogs.filter(l => l.status === 'pending').map(l => l.id)));
     }
     setSelectAll(!selectAll);
   };
@@ -987,18 +1036,13 @@ export default function ProductionReportPage() {
         <div className="flex flex-wrap gap-3 justify-between">
           <div className="flex flex-wrap gap-3">
             {permissions.canAdd && (
-              <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button className="bg-blue-600 hover:bg-blue-700">
-                    <Plus className="w-4 h-4 mr-2" />
-                    Thêm tay
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                  <DialogHeader><DialogTitle>Thêm nhật ký sản xuất mới</DialogTitle></DialogHeader>
-                  <ProductionForm key={formKey} onSubmit={handleAddLog} onCancel={() => setIsAddDialogOpen(false)} />
-                </DialogContent>
-              </Dialog>
+              <Button 
+                className="bg-blue-600 hover:bg-blue-700"
+                onClick={() => setIsAddDialogOpen(true)}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Thêm tay
+              </Button>
             )}
 
             {permissions.canAdd && (
@@ -1020,6 +1064,7 @@ export default function ProductionReportPage() {
               <Download className="w-4 h-4 mr-2" />
               Export Excel
             </Button>
+
           </div>
 
           <Badge variant="secondary" className="h-10 px-4 text-sm">
@@ -1035,7 +1080,7 @@ export default function ProductionReportPage() {
           <Card><CardContent className="pt-6"><div className="text-center"><p className="text-sm font-medium text-gray-600">Từ chối</p><p className="text-3xl font-bold text-red-600 mt-2">{stats.rejected}</p></div></CardContent></Card>
         </div>
         
-        {/* Tổng hợp sản xuất */}
+        {/* Production Summary */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Card className="border-blue-200 border-2">
             <CardContent className="pt-6">
@@ -1225,7 +1270,7 @@ export default function ProductionReportPage() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredLogs.map((log, index) => {
+                    filteredLogs.map((log) => {
                       const canEdit = (log.status !== 'approved' || isAdmin) && permissions.canEdit;
                       const canDelete = isAdmin;
                       const showApprove = log.status === 'pending' && (permissions.canApprove || canApprove(log));
@@ -1235,7 +1280,7 @@ export default function ProductionReportPage() {
                       return (
                         <TableRow 
                           key={log.id}
-                          className={`hover:bg-blue-50/50 transition-colors cursor-pointer ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/30'}`}
+                          className="hover:bg-blue-50/50 transition-colors cursor-pointer"
                           onClick={() => {
                             setSelectedLog(log);
                             setIsViewDialogOpen(true);
@@ -1262,7 +1307,7 @@ export default function ProductionReportPage() {
                           <TableCell><span className="text-sm truncate max-w-[120px] block" title={daoList}>{daoList || '---'}</span></TableCell>
                           <TableCell>{getStatusBadge(log.status)}</TableCell>
                           <TableCell className="text-right">
-                            <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
                               {showApprove && (
                                 <Button variant="ghost" size="sm" onClick={(e) => handleApproveLog(log.id, e)} className="text-green-600 hover:bg-green-100" title="Duyệt">
                                   <CheckCircle className="w-4 h-4" />
@@ -1304,271 +1349,298 @@ export default function ProductionReportPage() {
           </CardContent>
         </Card>
 
-        {/* View Dialog */}
-        <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="text-2xl font-bold flex items-center gap-3">
-                <span>📋 CHI TIẾT NHẬT KÝ SẢN XUẤT</span>
-                {selectedLog && getStatusBadge(selectedLog.status)}
-              </DialogTitle>
-            </DialogHeader>
-            
-            {selectedLog && (
-              <div className="space-y-6">
-                {/* Thông tin cơ bản */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
-                  <div><p className="text-sm text-gray-500">Ngày tháng</p><p className="font-semibold">{formatDate(selectedLog.ngayThang)}</p></div>
-                  <div><p className="text-sm text-gray-500">Máy sản xuất</p><p className="font-semibold">{selectedLog.maySanXuat}</p></div>
-                  <div><p className="text-sm text-gray-500">Ca sản xuất</p><p className="font-semibold">{selectedLog.ca || '---'}</p></div>
-                  <div><p className="text-sm text-gray-500">Mã dự án</p><p className="font-semibold text-blue-600">{selectedLog.duAn}</p></div>
-                  <div><p className="text-sm text-gray-500">Tên dự án</p><p className="font-semibold">{selectedLog.khach_hang}</p></div>
-                  <div><p className="text-sm text-gray-500">Số lượng hoàn thành</p><p className="font-semibold">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</p></div>
+        {/* ====================== CUSTOM MODALS ====================== */}
+
+        {/* 1. Modal Thêm mới */}
+        <CustomModal
+          isOpen={isAddDialogOpen}
+          onClose={() => setIsAddDialogOpen(false)}
+          title="Thêm nhật ký sản xuất mới"
+          maxWidth="max-w-4xl"
+        >
+          <ProductionForm 
+            key={formKey} 
+            onSubmit={handleAddLog} 
+            onCancel={() => setIsAddDialogOpen(false)} 
+          />
+        </CustomModal>
+
+        {/* 2. Modal Xem chi tiết */}
+        <CustomModal
+          isOpen={isViewDialogOpen}
+          onClose={() => setIsViewDialogOpen(false)}
+          title={
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold">📋 CHI TIẾT NHẬT KÝ SẢN XUẤT</span>
+              {selectedLog && getStatusBadge(selectedLog.status)}
+            </div>
+          }
+          maxWidth="max-w-4xl"
+        >
+          {selectedLog && (
+            <div className="space-y-6">
+              {/* Thông tin cơ bản */}
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+                <div>
+                  <p className="text-sm text-gray-500">Ngày tháng</p>
+                  <p className="font-semibold">{formatDate(selectedLog.ngayThang)}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Máy sản xuất</p>
+                  <p className="font-semibold">{selectedLog.maySanXuat}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Ca sản xuất</p>
+                  <p className="font-semibold">{selectedLog.ca || '---'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Mã dự án</p>
+                  <p className="font-semibold text-blue-600">{selectedLog.duAn}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Tên dự án</p>
+                  <p className="font-semibold">{selectedLog.khach_hang}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Số lượng hoàn thành</p>
+                  <p className="font-semibold">{selectedLog.soLuongHoanThanh?.toLocaleString() || 0}</p>
+                </div>
+              </div>
+
+              {/* Chi tiết gia công */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-500">Bản vẽ số</p>
+                  <p className="font-semibold">{selectedLog.banVeSo || '---'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Chi tiết số</p>
+                  <p className="font-semibold">{selectedLog.chiTietSo || '---'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Tên chi tiết</p>
+                  <p className="font-semibold">{selectedLog.tenChiTiet || '---'}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-gray-500">Nguyên công số</p>
+                  <p className="font-semibold">{selectedLog.nguyenCongSo || '---'}</p>
+                </div>
+              </div>
+
+              {/* Nội dung gia công */}
+              <div>
+                <p className="text-sm text-gray-500">Nội dung gia công</p>
+                <p className="font-semibold p-2 bg-gray-50 rounded-lg">{selectedLog.noiDungGiaCong || '---'}</p>
+              </div>
+
+              {/* Vật liệu */}
+              <div>
+                <p className="text-sm text-gray-500">Vật liệu</p>
+                <p className="font-semibold">{selectedLog.vatLieu || '---'}</p>
+              </div>
+
+              {/* Thời gian gá phôi và gia công */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                {/* Thời gian gá phôi */}
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <span className="text-lg">🔧</span> Thời gian gá phôi
+                  </h4>
+                  {(() => {
+                    const setupList = selectedLog?.setupTimeEntries || selectedLog?.setup_time_entries || [];
+                    const validSetupList = Array.isArray(setupList) ? setupList : [setupList];
+                    
+                    if (validSetupList.length === 0) {
+                      return <div className="text-center text-gray-400 text-sm py-4">Không có dữ liệu</div>;
+                    }
+
+                    const totalSetupHours = validSetupList.reduce((sum: number, item: any) => {
+                      let hours = item?.soGio || item?.hours || 0;
+                      if (typeof hours === 'string') hours = Number.parseFloat(hours) || 0;
+                      return sum + (typeof hours === 'number' ? hours : 0);
+                    }, 0);
+
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-blue-100/50">
+                              <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
+                              <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
+                              <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {validSetupList.map((item: any, index: number) => {
+                              const start = item?.thoiGianBatDau || item?.start || '';
+                              const end = item?.thoiGianKetThuc || item?.end || '';
+                              let hours = item?.soGio || item?.hours || 0;
+                              if (typeof hours === 'string') hours = Number.parseFloat(hours) || 0;
+                              return (
+                                <tr key={`setup-${index}`} className="border-b border-blue-100 last:border-b-0 hover:bg-blue-50/50">
+                                  <td className="py-1.5 px-2 text-gray-700">{formatTime24h(start)}</td>
+                                  <td className="py-1.5 px-2 text-gray-700">{formatTime24h(end)}</td>
+                                  <td className="py-1.5 px-2 text-right font-medium text-blue-700">{hours ? hours.toFixed(2) : '---'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 border-blue-300 bg-blue-50/50">
+                              <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
+                              <td className="py-2 px-2 text-right font-bold text-blue-700">{totalSetupHours ? totalSetupHours.toFixed(2) : '---'}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {/* Chi tiết gia công */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div><p className="text-sm text-gray-500">Bản vẽ số</p><p className="font-semibold">{selectedLog.banVeSo || '---'}</p></div>
-                  <div><p className="text-sm text-gray-500">Chi tiết số</p><p className="font-semibold">{selectedLog.chiTietSo || '---'}</p></div>
-                  <div><p className="text-sm text-gray-500">Tên chi tiết</p><p className="font-semibold">{selectedLog.tenChiTiet || '---'}</p></div>
-                  <div><p className="text-sm text-gray-500">Nguyên công số</p><p className="font-semibold">{selectedLog.nguyenCongSo || '---'}</p></div>
+                {/* Thời gian gia công */}
+                <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                  <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                    <span className="text-lg">⚙️</span> Thời gian gia công
+                  </h4>
+                  {(() => {
+                    const workList = selectedLog?.workTimeEntries || selectedLog?.work_time_entries || [];
+                    const validWorkList = Array.isArray(workList) ? workList : [workList];
+                    
+                    if (validWorkList.length === 0) {
+                      return <div className="text-center text-gray-400 text-sm py-4">Không có dữ liệu</div>;
+                    }
+
+                    const totalWorkHours = validWorkList.reduce((sum: number, item: any) => {
+                      let hours = item?.soGio || item?.hours || 0;
+                      if (typeof hours === 'string') hours = Number.parseFloat(hours) || 0;
+                      return sum + (typeof hours === 'number' ? hours : 0);
+                    }, 0);
+
+                    return (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-green-100/50">
+                              <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
+                              <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
+                              <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {validWorkList.map((item: any, index: number) => {
+                              const start = item?.thoiGianBatDau || item?.start || '';
+                              const end = item?.thoiGianKetThuc || item?.end || '';
+                              let hours = item?.soGio || item?.hours || 0;
+                              if (typeof hours === 'string') hours = Number.parseFloat(hours) || 0;
+                              return (
+                                <tr key={`work-${index}`} className="border-b border-green-100 last:border-b-0 hover:bg-green-50/50">
+                                  <td className="py-1.5 px-2 text-gray-700">{formatTime24h(start)}</td>
+                                  <td className="py-1.5 px-2 text-gray-700">{formatTime24h(end)}</td>
+                                  <td className="py-1.5 px-2 text-right font-medium text-green-700">{hours ? hours.toFixed(2) : '---'}</td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                          <tfoot>
+                            <tr className="border-t-2 border-green-300 bg-green-50/50">
+                              <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
+                              <td className="py-2 px-2 text-right font-bold text-green-700">{totalWorkHours ? totalWorkHours.toFixed(2) : '---'}</td>
+                            </tr>
+                          </tfoot>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </div>
+              </div>
 
-                {/* Nội dung gia công */}
-                <div><p className="text-sm text-gray-500">Nội dung gia công</p><p className="font-semibold p-2 bg-gray-50 rounded-lg">{selectedLog.noiDungGiaCong || '---'}</p></div>
-
-                {/* Vật liệu */}
-                <div><p className="text-sm text-gray-500">Vật liệu</p><p className="font-semibold">{selectedLog.vatLieu || '---'}</p></div>
-
-                {/* Thời gian gá phôi và gia công */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
-                  {/* Thời gian gá phôi */}
-                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                    <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <span className="text-lg">🔧</span> Thời gian gá phôi
-                    </h4>
-                    {(() => {
-                      let setupList = selectedLog?.setupTimeEntries || selectedLog?.setup_time_entries || [];
-                      if (setupList.length === 0) {
-                        const startField = selectedLog?.tgGia_BatDau;
-                        const endField = selectedLog?.tgGia_KetThuc;
-                        const hoursField = selectedLog?.soGioGia || selectedLog?.gioGa;
-                        if (startField || endField || hoursField) {
-                          setupList = [{
-                            thoiGianBatDau: startField || '',
-                            thoiGianKetThuc: endField || '',
-                            soGio: typeof hoursField === 'number' ? hoursField : (hoursField ? parseFloat(String(hoursField)) : 0) || 0
-                          }];
-                        }
-                      }
-                      if (!Array.isArray(setupList)) setupList = [setupList];
-                      const validSetupList = setupList.filter((item: any) => {
-                        const start = item?.thoiGianBatDau || item?.start || '';
-                        const end = item?.thoiGianKetThuc || item?.end || '';
-                        let hours = item?.soGio || item?.hours || 0;
-                        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-                        return start || end || hours;
-                      });
-                      const totalSetupHours = validSetupList.reduce((sum: number, item: any) => {
-                        let hours = item?.soGio || item?.hours || 0;
-                        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-                        return sum + (typeof hours === 'number' ? hours : 0);
-                      }, 0);
-
-                      if (validSetupList.length === 0) {
-                        return <div className="text-center text-gray-400 text-sm py-4">Không có dữ liệu</div>;
-                      }
-
-                      return (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="bg-blue-100/50">
-                                <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
-                                <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
-                                <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {validSetupList.map((item: any, index: number) => {
-                                const start = item?.thoiGianBatDau || item?.start || '';
-                                const end = item?.thoiGianKetThuc || item?.end || '';
-                                let hours = item?.soGio || item?.hours || 0;
-                                if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-                                return (
-                                  <tr key={index} className="border-b border-blue-100 last:border-b-0 hover:bg-blue-50/50">
-                                    <td className="py-1.5 px-2 text-gray-700">{formatTime24h(start)}</td>
-                                    <td className="py-1.5 px-2 text-gray-700">{formatTime24h(end)}</td>
-                                    <td className="py-1.5 px-2 text-right font-medium text-blue-700">{hours ? hours.toFixed(2) : '---'}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                            <tfoot>
-                              <tr className="border-t-2 border-blue-300 bg-blue-50/50">
-                                <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
-                                <td className="py-2 px-2 text-right font-bold text-blue-700">{totalSetupHours ? totalSetupHours.toFixed(2) : '---'}</td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Thời gian gia công */}
-                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                      <span className="text-lg">⚙️</span> Thời gian gia công
-                    </h4>
-                    {(() => {
-                      let workList = selectedLog?.workTimeEntries || selectedLog?.work_time_entries || [];
-                      if (workList.length === 0) {
-                        const startField = selectedLog?.tgChay_BatDau;
-                        const endField = selectedLog?.tgChay_KetThuc;
-                        const hoursField = selectedLog?.soGioChay || selectedLog?.gioChay;
-                        if (startField || endField || hoursField) {
-                          workList = [{
-                            thoiGianBatDau: startField || '',
-                            thoiGianKetThuc: endField || '',
-                            soGio: typeof hoursField === 'number' ? hoursField : (hoursField ? parseFloat(String(hoursField)) : 0) || 0
-                          }];
-                        }
-                      }
-                      if (!Array.isArray(workList)) workList = [workList];
-                      const validWorkList = workList.filter((item: any) => {
-                        const start = item?.thoiGianBatDau || item?.start || '';
-                        const end = item?.thoiGianKetThuc || item?.end || '';
-                        let hours = item?.soGio || item?.hours || 0;
-                        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-                        return start || end || hours;
-                      });
-                      const totalWorkHours = validWorkList.reduce((sum: number, item: any) => {
-                        let hours = item?.soGio || item?.hours || 0;
-                        if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-                        return sum + (typeof hours === 'number' ? hours : 0);
-                      }, 0);
-
-                      if (validWorkList.length === 0) {
-                        return <div className="text-center text-gray-400 text-sm py-4">Không có dữ liệu</div>;
-                      }
-
-                      return (
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm">
-                            <thead>
-                              <tr className="bg-green-100/50">
-                                <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ bắt đầu</th>
-                                <th className="text-left py-2 px-2 font-semibold text-gray-600 text-xs">Giờ kết thúc</th>
-                                <th className="text-right py-2 px-2 font-semibold text-gray-600 text-xs">Số giờ</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {validWorkList.map((item: any, index: number) => {
-                                const start = item?.thoiGianBatDau || item?.start || '';
-                                const end = item?.thoiGianKetThuc || item?.end || '';
-                                let hours = item?.soGio || item?.hours || 0;
-                                if (typeof hours === 'string') hours = parseFloat(hours) || 0;
-                                return (
-                                  <tr key={index} className="border-b border-green-100 last:border-b-0 hover:bg-green-50/50">
-                                    <td className="py-1.5 px-2 text-gray-700">{formatTime24h(start)}</td>
-                                    <td className="py-1.5 px-2 text-gray-700">{formatTime24h(end)}</td>
-                                    <td className="py-1.5 px-2 text-right font-medium text-green-700">{hours ? hours.toFixed(2) : '---'}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                            <tfoot>
-                              <tr className="border-t-2 border-green-300 bg-green-50/50">
-                                <td colSpan={2} className="py-2 px-2 font-semibold text-gray-700 text-right">Tổng:</td>
-                                <td className="py-2 px-2 text-right font-bold text-green-700">{totalWorkHours ? totalWorkHours.toFixed(2) : '---'}</td>
-                              </tr>
-                            </tfoot>
-                          </table>
-                        </div>
-                      );
-                    })()}
-                  </div>
+              {/* Nhân sự */}
+              <div className="grid grid-cols-2 gap-4 border-t pt-4">
+                <div>
+                  <p className="text-sm text-gray-500">Người vận hành</p>
+                  <p className="font-semibold">{selectedLog.nguoiVanHanh}</p>
                 </div>
-
-                {/* Nhân sự */}
-                <div className="grid grid-cols-2 gap-4 border-t pt-4">
-                  <div><p className="text-sm text-gray-500">Người vận hành</p><p className="font-semibold">{selectedLog.nguoiVanHanh}</p></div>
-                  <div><p className="text-sm text-gray-500">Người kiểm tra</p><p className="font-semibold">{selectedLog.nguoiKiemTra || '---'}</p></div>
+                <div>
+                  <p className="text-sm text-gray-500">Người kiểm tra</p>
+                  <p className="font-semibold">{selectedLog.nguoiKiemTra || '---'}</p>
                 </div>
+              </div>
 
-                {/* Bảng dao cụ */}
-                {selectedLog.toolEntries && selectedLog.toolEntries.length > 0 && (
-                  <div className="border-t pt-4">
-                    <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
-                      <span>🔩 Thông tin Dao Cụ</span>
-                      <Badge variant="outline" className="ml-2">{selectedLog.toolEntries.length} loại</Badge>
-                    </h3>
-                    <div className="overflow-x-auto border rounded-lg">
-                      <Table className="text-sm">
-                        <TableHeader>
-                          <TableRow className="bg-gray-100">
-                            <TableHead className="font-semibold">Tên Dao</TableHead>
-                            <TableHead className="text-center font-semibold">SL Cấp</TableHead>
-                            <TableHead className="text-center font-semibold">SL Sử Dụng</TableHead>
-                            <TableHead className="text-center font-semibold">SL Hỏng</TableHead>
-                            <TableHead className="text-center font-semibold">Đơn Vị</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {selectedLog.toolEntries.map((tool, idx) => (
-                            <TableRow key={idx} className="hover:bg-gray-50">
+              {/* Bảng dao cụ */}
+              {selectedLog.toolEntries && selectedLog.toolEntries.length > 0 && (
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold text-lg mb-3 flex items-center gap-2">
+                    <span>🔩 Thông tin Dao Cụ</span>
+                    <Badge variant="outline" className="ml-2">{selectedLog.toolEntries.length} loại</Badge>
+                  </h3>
+                  <div className="overflow-x-auto border rounded-lg">
+                    <Table className="text-sm">
+                      <TableHeader>
+                        <TableRow className="bg-gray-100">
+                          <TableHead className="font-semibold">Tên Dao</TableHead>
+                          <TableHead className="text-center font-semibold">SL Cấp</TableHead>
+                          <TableHead className="text-center font-semibold">SL Sử Dụng</TableHead>
+                          <TableHead className="text-center font-semibold">SL Hỏng</TableHead>
+                          <TableHead className="text-center font-semibold">Đơn Vị</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {selectedLog.toolEntries.map((tool) => {
+                          const toolKey = `${tool.tenDao || 'tool'}-${tool.slCap}-${tool.slSuDung}-${tool.hong}-${tool.donVi}`;
+                          return (
+                            <TableRow key={toolKey} className="hover:bg-gray-50">
                               <TableCell className="font-medium">{tool.tenDao}</TableCell>
                               <TableCell className="text-center">{tool.slCap}</TableCell>
                               <TableCell className="text-center">{tool.slSuDung}</TableCell>
                               <TableCell className="text-center">{tool.hong}</TableCell>
                               <TableCell className="text-center">{tool.donVi}</TableCell>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                          );
+                        })}
+                      </TableBody>
+                    </Table>
                   </div>
-                )}
-          
-                {/* Footer */}
-                <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
-                  <div className="flex items-center gap-2">
-                    <span>Trạng thái:</span>
-                    {getStatusBadge(selectedLog.status)}
-                  </div>
-                  <div>Ngày tạo: {new Date(selectedLog.createdAt).toLocaleString('vi-VN')}</div>
                 </div>
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
+              )}
 
-        {/* ====================== SỬA EDIT DIALOG ====================== */}
-        <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
-          setIsEditDialogOpen(open);
-          if (!open) setSelectedLog(null);
-        }}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader><DialogTitle>Chỉnh sửa nhật ký sản xuất</DialogTitle></DialogHeader>
-            {selectedLog && permissions.canEdit && (
-              <ProductionForm 
-                key={`edit-${selectedLog.id}`} 
-                initialData={{
-                  ...selectedLog,
-                  // Đảm bảo duAn được truyền đúng
-                  duAn: selectedLog.duAn || '',
-                  maDuAn: selectedLog.duAn || '',
-                }} 
-                onSubmit={handleEditLog} 
-                onCancel={() => {
-                  setIsEditDialogOpen(false);
-                  setSelectedLog(null);
-                }} 
-              />
-            )}
-          </DialogContent>
-        </Dialog>
+              {/* Footer */}
+              <div className="flex justify-between items-center border-t pt-4 text-sm text-gray-500">
+                <div className="flex items-center gap-2">
+                  <span>Trạng thái:</span>
+                  {getStatusBadge(selectedLog.status)}
+                </div>
+                <div>Ngày tạo: {new Date(selectedLog.createdAt).toLocaleString('vi-VN')}</div>
+              </div>
+            </div>
+          )}
+        </CustomModal>
+
+        {/* 3. Modal Sửa */}
+        <CustomModal
+          isOpen={isEditDialogOpen}
+          onClose={() => {
+            setIsEditDialogOpen(false);
+            setSelectedLog(null);
+          }}
+          title="Chỉnh sửa nhật ký sản xuất"
+          maxWidth="max-w-4xl"
+        >
+          {selectedLog && permissions.canEdit && (
+            <ProductionForm 
+              key={`edit-${selectedLog.id}`} 
+              initialData={{
+                ...selectedLog,
+                duAn: selectedLog.duAn || '',
+                maDuAn: selectedLog.duAn || '',
+              }} 
+              onSubmit={handleEditLog} 
+              onCancel={() => {
+                setIsEditDialogOpen(false);
+                setSelectedLog(null);
+              }} 
+            />
+          )}
+        </CustomModal>
 
       </div>
     </div>

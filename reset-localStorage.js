@@ -1,4 +1,4 @@
-reset-localStorage.js
+// reset-localStorage.js
 import bcrypt from 'bcryptjs';
 
 // Reset all localStorage data and create fresh data
@@ -41,11 +41,7 @@ const userRecords = [
   }
 ];
 
-import { getSupabase } from '@/lib/supabase';
-
-const supabase = getSupabase();
-
-await supabase.from('users').insert([newUser]);
+// Local Supabase initialization can be added here when the script is run in the app context.
 localStorage.setItem('userRecords', JSON.stringify(userRecords));
 
 console.log('✅ Fresh data created!');

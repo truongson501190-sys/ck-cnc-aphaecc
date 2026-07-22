@@ -1,5 +1,6 @@
-﻿import { createClient } from '@supabase/supabase-js'
-import { hashPassword } from '@/lib/passwordUtils';
+﻿// src/supabase.ts
+import { createClient } from '@supabase/supabase-js'
+// ❌ Xóa dòng import này vì không dùng: import { hashPassword } from '@/lib/passwordUtils';
 
 // @ts-ignore: import.meta.env is provided by Vite at build time
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
@@ -76,7 +77,8 @@ export const syncDataToSupabase = async (tableName: string, data: any[]) => {
       onConflictColumn = 'msnv';
     }
     
-    const { error, data: responseData } = await supabase.from(tableName).upsert(sanitizedData, {
+    // ❌ Sửa: Bỏ biến responseData không dùng
+    const { error } = await supabase.from(tableName).upsert(sanitizedData, {
       onConflict: onConflictColumn,
       ignoreDuplicates: false
     })

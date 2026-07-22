@@ -11,13 +11,12 @@ interface NewsItem {
   thumbnail?: string | null;
 }
 
-// Khai báo mockNews phòng trường hợp lỗi API không bị crash
-const mockNewsWithImages: NewsItem[] = [
+const mockNews: NewsItem[] = [
   {
     title: 'Đang tải dữ liệu tin tức mới nhất...',
     link: '#',
     pubDate: new Date().toISOString(),
-    description: 'Vui lòng đợi trong giây lát hệ thống đang kết nối dữ liệu...',
+    description: 'Vui lòng đợi trong giây lát...',
   }
 ];
 
@@ -25,6 +24,32 @@ export function DailyNews() {
   const [news, setNews] = useState<NewsItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Helper function to extract image from HTML using DOMParser (no regex)
+  const extractImageFromHtml = (html: string): string | null => {
+    if (!html) return null;
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const img = doc.querySelector('img');
+      return img?.getAttribute('src') || null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Helper function to clean HTML and get plain text (no regex)
+  const cleanHtmlText = (html: string): string => {
+    if (!html) return '';
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const text = doc.body.textContent || '';
+      return text.substring(0, 90);
+    } catch {
+      return '';
+    }
+  };
 
   useEffect(() => {
     const fetchNews = async () => {
@@ -37,36 +62,30 @@ export function DailyNews() {
         
         if (data.status === 'ok' && data.items) {
           const newsItems = data.items.slice(0, 10).map((item: any) => {
-            let thumbnail = null;
-            const imgMatch = item.description?.match(/<img.*?src=["'](.*?)["']/);
-            if (imgMatch && imgMatch[1]) {
-              thumbnail = imgMatch[1];
-            }
+            // Extract thumbnail using DOMParser instead of regex
+            const thumbnail = extractImageFromHtml(item.description) || 
+                            extractImageFromHtml(item.content) || 
+                            null;
             
-            if (!thumbnail && item.content) {
-              const contentImgMatch = item.content?.match(/<img.*?src=["'](.*?)["']/);
-              if (contentImgMatch && contentImgMatch[1]) {
-                thumbnail = contentImgMatch[1];
-              }
-            }
+            // Clean description using DOMParser instead of regex
+            const cleanDescription = cleanHtmlText(item.description);
             
             return {
               title: item.title,
               link: item.link,
               pubDate: item.pubDate,
-              description: item.description?.replace(/<[^>]*>/g, '').substring(0, 90) || '',
+              description: cleanDescription,
               thumbnail: thumbnail,
             };
           });
           setNews(newsItems);
-          setError(null);
         } else {
           throw new Error('Không thể lấy tin tức');
         }
       } catch (err) {
         console.error('Lỗi:', err);
         setError('Không thể tải tin tức');
-        setNews(mockNewsWithImages);
+        setNews(mockNews);
       } finally {
         setLoading(false);
       }
@@ -82,8 +101,7 @@ export function DailyNews() {
       const diffTime = Math.abs(now.getTime() - date.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       
-      if (diffDays === 0) return 'Hôm nay';
-      if (diffDays === 1) return 'Hôm qua';
+      if (diffDays <= 1) return 'Hôm nay';
       return `${date.getDate()}/${date.getMonth() + 1}`;
     } catch {
       return '';
@@ -91,10 +109,6 @@ export function DailyNews() {
   };
 
   return (
-    /* ĐÃ SỬA: 
-       - `ml-auto mr-0`: Triệt tiêu căn giữa, ép sát hẳn về bên phải.
-       - `self-end justify-self-end`: Đảm bảo dù nằm trong thẻ cha Flex hay Grid thì vẫn hít chặt lề phải.
-    */
     <Card className="shadow-sm border-l-4 border-red-500 rounded-xl h-full flex flex-col w-full max-w-sm ml-auto mr-0 self-end justify-self-end">
       <CardHeader className="py-2.5 px-3 border-b bg-gradient-to-r from-red-50 to-orange-50 flex-shrink-0">
         <CardTitle className="flex items-center justify-between">
@@ -123,34 +137,28 @@ export function DailyNews() {
         
         {!loading && !error && (
           <div className="space-y-2.5">
-            {news.map((item, idx) => (
+            {news.map((item) => (
               <a
-                key={idx}
+                key={item.link}
                 href={item.link}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="block group border-b border-slate-100 pb-2.5 last:border-0 hover:bg-slate-50 rounded-lg transition-all p-1.5 -mx-1.5"
               >
                 <div className="flex gap-2.5">
-                  {/* Ảnh tin tức */}
-                  {item.thumbnail ? (
-                    <div className="w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-100">
+                  <div className="w-14 h-14 flex-shrink-0 rounded-lg overflow-hidden bg-slate-100 border border-slate-100 flex items-center justify-center">
+                    {item.thumbnail ? (
                       <img
                         src={item.thumbnail}
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }}
                       />
-                    </div>
-                  ) : (
-                    <div className="w-14 h-14 flex-shrink-0 rounded-lg bg-gradient-to-br from-red-100 to-orange-100 flex items-center justify-center">
+                    ) : (
                       <Newspaper className="w-5 h-5 text-red-400" />
-                    </div>
-                  )}
+                    )}
+                  </div>
                   
-                  {/* Nội dung */}
                   <div className="flex-1 min-w-0">
                     <h3 className="text-xs font-semibold text-slate-800 group-hover:text-red-600 transition-colors leading-snug line-clamp-2">
                       {item.title}

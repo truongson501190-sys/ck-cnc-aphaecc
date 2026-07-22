@@ -353,7 +353,7 @@ export function WarehouseTransfer({ onSubmit, onSuccess }: WarehouseTransferProp
                   <SelectTrigger><SelectValue placeholder="Chọn kho xuất" /></SelectTrigger>
                   <SelectContent>
                     {Array.from(new Set(warehouses.map(w => w.loaiKho))).map((code, idx) => (
-                      <SelectItem key={`${code}-${idx}`} value={code}>{code}</SelectItem>
+                      <SelectItem key={`${code}-${idx}`} value={code || ''}>{code}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -363,7 +363,7 @@ export function WarehouseTransfer({ onSubmit, onSuccess }: WarehouseTransferProp
                   <SelectTrigger><SelectValue placeholder="Chọn kho nhập" /></SelectTrigger>
                   <SelectContent>
                     {Array.from(new Set(warehouses.map(w => w.loaiKho))).map((code, idx) => (
-                      <SelectItem key={`${code}-${idx}`} value={code}>{code}</SelectItem>
+                      <SelectItem key={`${code}-${idx}`} value={code || ''}>{code}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

@@ -82,6 +82,7 @@ export const XuatKho: React.FC = () => {
   const [rejectReason, setRejectReason] = useState('');
   const [isRejecting, setIsRejecting] = useState(false);
 
+  // ===== LOAD DATA =====
   const loadExports = () => {
     try {
       const data = localStorage.getItem('warehouseExports');
@@ -111,8 +112,30 @@ export const XuatKho: React.FC = () => {
     toast.success('Phiếu xuất đã được thêm');
   };
 
-  // Cập nhật trạng thái
+  // ===== VALIDATION =====
+  const validTransitions: Record<string, string[]> = {
+    'pending': ['approved', 'rejected'],
+    'approved': ['transferred', 'rejected'],
+    'transferred': ['received'],
+    'received': [],
+    'rejected': [],
+  };
+
+  // ===== UPDATE STATUS =====
   const updateExportStatus = (soPhieu: string, newStatus: 'approved' | 'transferred' | 'received' | 'rejected', lyDo?: string) => {
+    // Kiểm tra phiếu có tồn tại không
+    const exp = exportsList.find(e => e.soPhieu === soPhieu);
+    if (!exp) {
+      toast.error('Không tìm thấy phiếu');
+      return;
+    }
+    
+    // Kiểm tra trạng thái chuyển đổi hợp lệ
+    if (!validTransitions[exp.status]?.includes(newStatus)) {
+      toast.error(`Không thể chuyển từ "${exp.status}" sang "${newStatus}"`);
+      return;
+    }
+
     const updatedList = exportsList.map(exp => {
       if (exp.soPhieu === soPhieu) {
         const updated: ExportRecord = { ...exp, status: newStatus };
@@ -151,8 +174,211 @@ export const XuatKho: React.FC = () => {
     toast.success(`Phiếu ${soPhieu} ${statusMessages[newStatus]}`);
   };
 
+  // ===== XÁC NHẬN XUẤT (CHO 1 PHIẾU) =====
+  const handleConfirmTransfer = (soPhieu: string) => {
+    const exp = exportsList.find(e => e.soPhieu === soPhieu);
+    if (!exp) {
+      toast.error('Không tìm thấy phiếu');
+      return;
+    }
+    
+    if (exp.status !== 'approved') {
+      toast.warning('Phiếu này chưa được duyệt, không thể xác nhận xuất');
+      return;
+    }
+    
+    if (!isAdmin) {
+      toast.error('Chỉ Admin mới có quyền xác nhận xuất');
+      return;
+    }
+    
+    updateExportStatus(soPhieu, 'transferred');
+  };
+
+  // ===== XÁC NHẬN XUẤT HÀNG LOẠT =====
+  const handleTransferSelected = () => {
+    if (selectedIds.size === 0) {
+      toast.warning('Vui lòng chọn ít nhất một phiếu để xác nhận xuất');
+      return;
+    }
+    
+    const canTransferList = exportsList.filter(exp => 
+      selectedIds.has(exp.soPhieu) && exp.status === 'approved'
+    );
+    
+    if (canTransferList.length === 0) {
+      toast.warning('Không có phiếu nào ở trạng thái đã duyệt');
+      return;
+    }
+    
+    if (!isAdmin) {
+      toast.error('Chỉ Admin mới có quyền xác nhận xuất');
+      return;
+    }
+    
+    setTransferDialogOpen(true);
+  };
+
+  const confirmTransfer = async () => {
+    setIsTransferring(true);
+    try {
+      let transferCount = 0;
+      const now = new Date().toISOString();
+      const currentUser = user?.fullName || user?.name || 'System';
+      
+      const updatedList = exportsList.map(exp => {
+        if (selectedIds.has(exp.soPhieu) && exp.status === 'approved') {
+          transferCount++;
+          return {
+            ...exp,
+            status: 'transferred' as const,
+            transferredAt: now,
+            nguoiXacNhanXuat: currentUser
+          };
+        }
+        return exp;
+      });
+      
+      localStorage.setItem('warehouseExports', JSON.stringify(updatedList));
+      setExportsList(updatedList);
+      setSelectedIds(new Set());
+      setIsAllSelected(false);
+      
+      toast.success(`Đã xác nhận xuất thành công ${transferCount} phiếu`);
+      setTransferDialogOpen(false);
+    } catch (error) {
+      console.error('Error transferring:', error);
+      toast.error('Lỗi khi xác nhận xuất phiếu');
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  // ===== XÁC NHẬN NHẬN HÀNG LOẠT =====
+  const handleReceiveSelected = () => {
+    if (selectedIds.size === 0) {
+      toast.warning('Vui lòng chọn ít nhất một phiếu để xác nhận đã nhận');
+      return;
+    }
+    
+    const canReceiveList = exportsList.filter(exp => 
+      selectedIds.has(exp.soPhieu) && exp.status === 'transferred'
+    );
+    
+    if (canReceiveList.length === 0) {
+      toast.warning('Không có phiếu nào ở trạng thái đã xuất');
+      return;
+    }
+    
+    setReceiveDialogOpen(true);
+  };
+
+  const confirmReceive = async () => {
+    setIsReceiving(true);
+    try {
+      let receiveCount = 0;
+      const now = new Date().toISOString();
+      const currentUser = user?.fullName || user?.name || 'System';
+      
+      const updatedList = exportsList.map(exp => {
+        if (selectedIds.has(exp.soPhieu) && exp.status === 'transferred') {
+          receiveCount++;
+          return {
+            ...exp,
+            status: 'received' as const,
+            receivedAt: now,
+            nguoiNhanXacNhan: currentUser
+          };
+        }
+        return exp;
+      });
+      
+      localStorage.setItem('warehouseExports', JSON.stringify(updatedList));
+      setExportsList(updatedList);
+      setSelectedIds(new Set());
+      setIsAllSelected(false);
+      
+      toast.success(`Đã xác nhận nhận thành công ${receiveCount} phiếu`);
+      setReceiveDialogOpen(false);
+    } catch (error) {
+      console.error('Error receiving:', error);
+      toast.error('Lỗi khi xác nhận nhận phiếu');
+    } finally {
+      setIsReceiving(false);
+    }
+  };
+
+  // ===== TỪ CHỐI HÀNG LOẠT =====
+  const handleRejectSelected = () => {
+    if (selectedIds.size === 0) {
+      toast.warning('Vui lòng chọn ít nhất một phiếu để từ chối');
+      return;
+    }
+    
+    const canRejectList = exportsList.filter(exp => 
+      selectedIds.has(exp.soPhieu) && (exp.status === 'pending' || exp.status === 'approved')
+    );
+    
+    if (canRejectList.length === 0) {
+      toast.warning('Không có phiếu nào ở trạng thái có thể từ chối');
+      return;
+    }
+    
+    if (!isAdmin) {
+      toast.error('Chỉ Admin mới có quyền từ chối');
+      return;
+    }
+    
+    setRejectReason('');
+    setRejectDialogOpen(true);
+  };
+
+  const confirmReject = async () => {
+    if (!rejectReason.trim()) {
+      toast.warning('Vui lòng nhập lý do từ chối');
+      return;
+    }
+    
+    setIsRejecting(true);
+    try {
+      let rejectedCount = 0;
+      const now = new Date().toISOString();
+      
+      const updatedList = exportsList.map(exp => {
+        if (selectedIds.has(exp.soPhieu) && (exp.status === 'pending' || exp.status === 'approved')) {
+          rejectedCount++;
+          return {
+            ...exp,
+            status: 'rejected' as const,
+            rejectedAt: now,
+            lyDoTuChoi: rejectReason
+          };
+        }
+        return exp;
+      });
+      
+      localStorage.setItem('warehouseExports', JSON.stringify(updatedList));
+      setExportsList(updatedList);
+      setSelectedIds(new Set());
+      setIsAllSelected(false);
+      
+      toast.success(`Đã từ chối thành công ${rejectedCount} phiếu xuất`);
+      setRejectDialogOpen(false);
+      setRejectReason('');
+    } catch (error) {
+      console.error('Error rejecting:', error);
+      toast.error('Lỗi khi từ chối phiếu xuất');
+    } finally {
+      setIsRejecting(false);
+    }
+  };
+
   // ===== EDIT HANDLERS =====
   const handleEdit = (exp: ExportRecord) => {
+    if (exp.status === 'approved' || exp.status === 'received') {
+      toast.warning('Không thể chỉnh sửa phiếu đã duyệt hoặc đã nhận');
+      return;
+    }
     setEditFormData({
       soPhieu: exp.soPhieu,
       ngayXuat: exp.ngayXuat,
@@ -172,10 +398,8 @@ export const XuatKho: React.FC = () => {
     
     setIsSaving(true);
     try {
-      // Tính lại tổng tiền
       const newTongTien = editFormData.items.reduce((sum: number, item: any) => sum + (item.soLuong * item.donGia), 0);
       
-      // Cập nhật dữ liệu
       const updatedExports = exportsList.map(exp => {
         if (exp.soPhieu === editFormData.soPhieu) {
           return {
@@ -239,7 +463,7 @@ export const XuatKho: React.FC = () => {
     setEditFormData({ ...editFormData, items: newItems });
   };
 
-  // Kiểm tra quyền
+  // ===== KIỂM TRA QUYỀN =====
   const canConfirmTransfer = (exp: ExportRecord) => {
     return isAdmin && exp.status === 'approved';
   };
@@ -253,6 +477,7 @@ export const XuatKho: React.FC = () => {
     return isAdmin && (exp.status === 'pending' || exp.status === 'approved');
   };
 
+  // ===== GET STATUS BADGE =====
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'pending':
@@ -277,174 +502,6 @@ export const XuatKho: React.FC = () => {
         </Badge>;
       default:
         return <Badge variant="outline" className="bg-gray-100 text-gray-800">Không xác định</Badge>;
-    }
-  };
-
-  // ========== XÁC NHẬN NHẬN HÀNG LOẠT ==========
-  const handleReceiveSelected = () => {
-    if (selectedIds.size === 0) {
-      toast.warning('Vui lòng chọn ít nhất một phiếu để xác nhận đã nhận');
-      return;
-    }
-    
-    const canReceiveList = exportsList.filter(exp => 
-      selectedIds.has(exp.soPhieu) && exp.status === 'transferred'
-    );
-    
-    if (canReceiveList.length === 0) {
-      toast.warning('Không có phiếu nào ở trạng thái đã xuất');
-      return;
-    }
-    
-    setReceiveDialogOpen(true);
-  };
-
-  const confirmReceive = async () => {
-    setIsReceiving(true);
-    try {
-      let receiveCount = 0;
-      const now = new Date().toISOString();
-      const currentUser = user?.fullName || user?.name || 'System';
-      
-      const updatedList = exportsList.map(exp => {
-        if (selectedIds.has(exp.soPhieu) && exp.status === 'transferred') {
-          receiveCount++;
-          return {
-            ...exp,
-            status: 'received' as const,
-            receivedAt: now,
-            nguoiNhanXacNhan: currentUser
-          };
-        }
-        return exp;
-      });
-      
-      localStorage.setItem('warehouseExports', JSON.stringify(updatedList));
-      setExportsList(updatedList);
-      setSelectedIds(new Set());
-      setIsAllSelected(false);
-      
-      toast.success(`Đã xác nhận nhận thành công ${receiveCount} phiếu`);
-      setReceiveDialogOpen(false);
-    } catch (error) {
-      console.error('Error receiving:', error);
-      toast.error('Lỗi khi xác nhận nhận phiếu');
-    } finally {
-      setIsReceiving(false);
-    }
-  };
-
-  // ========== XÁC NHẬN XUẤT HÀNG LOẠT ==========
-  const handleTransferSelected = () => {
-    if (selectedIds.size === 0) {
-      toast.warning('Vui lòng chọn ít nhất một phiếu để xác nhận xuất');
-      return;
-    }
-    
-    const canTransferList = exportsList.filter(exp => 
-      selectedIds.has(exp.soPhieu) && exp.status === 'approved'
-    );
-    
-    if (canTransferList.length === 0) {
-      toast.warning('Không có phiếu nào ở trạng thái đã duyệt');
-      return;
-    }
-    
-    setTransferDialogOpen(true);
-  };
-
-  const confirmTransfer = async () => {
-    setIsTransferring(true);
-    try {
-      let transferCount = 0;
-      const now = new Date().toISOString();
-      const currentUser = user?.fullName || user?.name || 'System';
-      
-      const updatedList = exportsList.map(exp => {
-        if (selectedIds.has(exp.soPhieu) && exp.status === 'approved') {
-          transferCount++;
-          return {
-            ...exp,
-            status: 'transferred' as const,
-            transferredAt: now,
-            nguoiXacNhanXuat: currentUser
-          };
-        }
-        return exp;
-      });
-      
-      localStorage.setItem('warehouseExports', JSON.stringify(updatedList));
-      setExportsList(updatedList);
-      setSelectedIds(new Set());
-      setIsAllSelected(false);
-      
-      toast.success(`Đã xác nhận xuất thành công ${transferCount} phiếu`);
-      setTransferDialogOpen(false);
-    } catch (error) {
-      console.error('Error transferring:', error);
-      toast.error('Lỗi khi xác nhận xuất phiếu');
-    } finally {
-      setIsTransferring(false);
-    }
-  };
-
-  // ========== TỪ CHỐI HÀNG LOẠT ==========
-  const handleRejectSelected = () => {
-    if (selectedIds.size === 0) {
-      toast.warning('Vui lòng chọn ít nhất một phiếu để từ chối');
-      return;
-    }
-    
-    const canRejectList = exportsList.filter(exp => 
-      selectedIds.has(exp.soPhieu) && (exp.status === 'pending' || exp.status === 'approved')
-    );
-    
-    if (canRejectList.length === 0) {
-      toast.warning('Không có phiếu nào ở trạng thái có thể từ chối');
-      return;
-    }
-    
-    setRejectReason('');
-    setRejectDialogOpen(true);
-  };
-
-  const confirmReject = async () => {
-    if (!rejectReason.trim()) {
-      toast.warning('Vui lòng nhập lý do từ chối');
-      return;
-    }
-    
-    setIsRejecting(true);
-    try {
-      let rejectedCount = 0;
-      const now = new Date().toISOString();
-      
-      const updatedList = exportsList.map(exp => {
-        if (selectedIds.has(exp.soPhieu) && (exp.status === 'pending' || exp.status === 'approved')) {
-          rejectedCount++;
-          return {
-            ...exp,
-            status: 'rejected' as const,
-            rejectedAt: now,
-            lyDoTuChoi: rejectReason
-          };
-        }
-        return exp;
-      });
-      
-      localStorage.setItem('warehouseExports', JSON.stringify(updatedList));
-      setExportsList(updatedList);
-      setSelectedIds(new Set());
-      setIsAllSelected(false);
-      
-      toast.success(`Đã từ chối thành công ${rejectedCount} phiếu xuất`);
-      setRejectDialogOpen(false);
-      setRejectReason('');
-    } catch (error) {
-      console.error('Error rejecting:', error);
-      toast.error('Lỗi khi từ chối phiếu xuất');
-    } finally {
-      setIsRejecting(false);
     }
   };
 
@@ -748,6 +805,11 @@ export const XuatKho: React.FC = () => {
     selectedIds.has(exp.soPhieu) && exp.status === 'transferred'
   );
 
+  // Kiểm tra xem có phiếu nào ở trạng thái "đã duyệt" để hiển thị nút "Xác nhận xuất" không
+  const hasApprovedItems = exportsList.some(exp => 
+    selectedIds.has(exp.soPhieu) && exp.status === 'approved'
+  );
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
@@ -911,12 +973,11 @@ export const XuatKho: React.FC = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Nút Xác nhận xuất - Chỉ Admin */}
-          {isAdmin && (
+          {/* Nút Xác nhận xuất hàng loạt - Chỉ Admin và có phiếu đã duyệt */}
+          {isAdmin && hasApprovedItems && (
             <Button 
               variant="outline"
               onClick={handleTransferSelected}
-              disabled={selectedIds.size === 0}
               className="border-blue-500 text-blue-600 hover:bg-blue-50"
             >
               <Truck className="w-4 h-4 mr-2" />
@@ -924,7 +985,7 @@ export const XuatKho: React.FC = () => {
             </Button>
           )}
 
-          {/* Nút Đã nhận - Admin hoặc người nhận */}
+          {/* Nút Đã nhận hàng loạt - Admin hoặc người nhận và có phiếu đã xuất */}
           {hasTransferableItems && (
             <Button 
               variant="outline"
@@ -936,7 +997,7 @@ export const XuatKho: React.FC = () => {
             </Button>
           )}
 
-          {/* Nút Từ chối - Chỉ Admin */}
+          {/* Nút Từ chối hàng loạt - Chỉ Admin */}
           {isAdmin && (
             <Button 
               variant="outline"
@@ -1020,65 +1081,65 @@ export const XuatKho: React.FC = () => {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{exp.nguoiXuat}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{exp.nguoiNhan}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">{getStatusBadge(exp.status)}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-center space-x-1">
-                    {/* Nút Chỉnh sửa  */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEdit(exp)}
-                      className="text-blue-600 hover:text-blue-800"
-                      disabled={!canEditData}
-                      title="Chỉnh sửa phiếu xuất"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    
-                    {/* Chỉ Admin mới thấy các nút Xác nhận xuất, Từ chối */}
-                    {isAdmin && (
-                      <>
-                        {canConfirmTransfer(exp) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                            onClick={() => updateExportStatus(exp.soPhieu, 'transferred')}
-                          >
-                            <Truck className="w-3 h-3 mr-1" /> Xác nhận xuất
-                          </Button>
-                        )}
-                        {canReject(exp) && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-red-600 border-red-300 hover:bg-red-50"
-                            onClick={() => {
-                              const reason = window.prompt('Nhập lý do từ chối:');
-                              if (reason !== null) {
-                                if (reason.trim()) {
-                                  updateExportStatus(exp.soPhieu, 'rejected', reason);
-                                } else {
-                                  toast.warning('Vui lòng nhập lý do từ chối');
-                                }
-                              }
-                            }}
-                          >
-                            <XCircle className="w-3 h-3 mr-1" /> Từ chối
-                          </Button>
-                        )}
-                      </>
-                    )}
-                    
-                    {/* Nút "Đã nhận" - Admin hoặc người nhận */}
-                    {canConfirmReceive(exp) && (
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center gap-1 flex-wrap">
+                      {/* Nút Chỉnh sửa */}
                       <Button
+                        variant="ghost"
                         size="sm"
-                        variant="outline"
-                        className="text-green-600 border-green-300 hover:bg-green-50"
-                        onClick={() => updateExportStatus(exp.soPhieu, 'received')}
+                        onClick={() => handleEdit(exp)}
+                        className="text-blue-600 hover:text-blue-800"
+                        disabled={!canEditData || exp.status === 'approved' || exp.status === 'received'}
+                        title="Chỉnh sửa phiếu xuất"
                       >
-                        <UserCheckIcon className="w-3 h-3 mr-1" /> Đã nhận
+                        <Edit className="w-4 h-4" />
                       </Button>
-                    )}
+                      
+                      {/* Nút Xác nhận xuất - Chỉ Admin và phiếu đã duyệt */}
+                      {isAdmin && exp.status === 'approved' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                          onClick={() => handleConfirmTransfer(exp.soPhieu)}
+                        >
+                          <Truck className="w-3 h-3 mr-1" /> Xác nhận xuất
+                        </Button>
+                      )}
+                      
+                      {/* Nút Từ chối - Chỉ Admin và phiếu chờ duyệt hoặc đã duyệt */}
+                      {isAdmin && (exp.status === 'pending' || exp.status === 'approved') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                          onClick={() => {
+                            const reason = window.prompt('Nhập lý do từ chối:');
+                            if (reason !== null) {
+                              if (reason.trim()) {
+                                updateExportStatus(exp.soPhieu, 'rejected', reason);
+                              } else {
+                                toast.warning('Vui lòng nhập lý do từ chối');
+                              }
+                            }
+                          }}
+                        >
+                          <XCircle className="w-3 h-3 mr-1" /> Từ chối
+                        </Button>
+                      )}
+                      
+                      {/* Nút Đã nhận - Admin hoặc người nhận và phiếu đã xuất */}
+                      {canConfirmReceive(exp) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-300 hover:bg-green-50"
+                          onClick={() => updateExportStatus(exp.soPhieu, 'received')}
+                        >
+                          <UserCheckIcon className="w-3 h-3 mr-1" /> Đã nhận
+                        </Button>
+                      )}
+                    </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     <Button variant="ghost" size="sm" onClick={() => { setSelectedExport(exp); setViewOpen(true); }}>

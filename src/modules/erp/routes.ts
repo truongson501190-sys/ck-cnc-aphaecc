@@ -194,9 +194,9 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
         icon: Drill, 
         permissionKey: 'bao_cao_gia_cong',
         children: [
-          { id: 'machining-production', label: 'Tông hợp sản xuất', icon: BarChart2, path: ERP_ROUTE.reports.machining.production, permissionKey: 'bao_cao_gia_cong' },
+          { id: 'machining-production', label: 'Tổng hợp sản xuất', icon: BarChart2, path: ERP_ROUTE.reports.machining.production, permissionKey: 'bao_cao_gia_cong' },
           { id: 'machining-tools', label: 'Dao cụ sử dụng', icon: Drill, path: ERP_ROUTE.reports.machining.tools, permissionKey: 'bao_cao_gia_cong' },
-          { id: 'machining-damage', label: 'Hao hỏng dao cụ', icon: FileWarning, path: ERP_ROUTE.reports.machining.damage, permissionKey: 'bao_cao_gia_cong' },
+          { id: 'machining-damage', label: 'Hao hụt dao cụ', icon: FileWarning, path: ERP_ROUTE.reports.machining.damage, permissionKey: 'bao_cao_gia_cong' },
           { id: 'machining-cost', label: 'Chi phí gia công', icon: DollarSign, path: ERP_ROUTE.reports.machining.cost, permissionKey: 'bao_cao_gia_cong' },
         ]
       },

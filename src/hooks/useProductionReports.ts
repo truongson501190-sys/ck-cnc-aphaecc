@@ -42,7 +42,7 @@ export function useProductionReports() {
         .order('ngayThang', { ascending: false });
 
       if (supabaseError) throw supabaseError;
-      const mappedReports = (data || []).map((item) => mapReportFromDb('production_reports', item) as ProductionReport);
+      const mappedReports = (data || []).map((item) => mapReportFromDb('production_reports', item) as unknown as ProductionReport);
       console.log('🔍 Dữ liệu thô từ Supabase (useProductionReports):', data);
       setReports(mappedReports);
     } catch (err) {

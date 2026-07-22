@@ -20,8 +20,6 @@ export interface PermissionFlag {
 
 export type UserPermissions = Record<string, PermissionFlag>;
 
-// src/lib/permissions.ts
-
 // ==================== PERMISSION KEYS ====================
 
 export const PERMISSION_KEYS = [
@@ -52,12 +50,12 @@ export const PERMISSION_KEYS = [
   'tieu_hao_vat_lieu',
   'cho_duyet',
   
-  // 🗂 Quản Lý Danh Mục (ĐÃ SỬA TÊN)
-  'chung_loai',        // ✅ Đúng: Chủng loại
-  'kho',               // ✅ Đúng: Kho
-  'may_moc',           // ✅ Đúng: Máy móc
-  'dao_cu',            // ✅ Đúng: Dao cụ
-  'du_an',             // ✅ Đúng: Dự án
+  // 🗂 Quản Lý Danh Mục
+  'chung_loai',
+  'kho',
+  'may_moc',
+  'dao_cu',
+  'du_an',
   
   // ⚙ Hệ thống
   'quan_ly_nguoi_dung',
@@ -70,6 +68,8 @@ export const PERMISSION_KEYS = [
   'ho_so_ca_nhan',
   'doi_mat_khau',
 ] as const;
+
+export type PermissionKey = typeof PERMISSION_KEYS[number];
 
 // ==================== PERMISSION GROUPS ====================
 
@@ -101,12 +101,12 @@ export const PERMISSION_GROUPS: Record<string, string[]> = {
     'tieu_hao_vat_lieu',
     'cho_duyet'
   ],
-  '🗂 Quản Lý Danh Mục': [   // ✅ Đúng tên nhóm
-    'chung_loai',            // ✅ Chủng loại
-    'kho',                   // ✅ Kho
-    'may_moc',               // ✅ Máy móc
-    'dao_cu',                // ✅ Dao cụ
-    'du_an'                  // ✅ Dự án
+  '🗂 Quản Lý Danh Mục': [
+    'chung_loai',
+    'kho',
+    'may_moc',
+    'dao_cu',
+    'du_an'
   ],
   '⚙ Hệ thống': [
     'quan_ly_nguoi_dung',
@@ -151,12 +151,12 @@ export const PERMISSION_LABELS: Record<string, string> = {
   'tieu_hao_vat_lieu': 'Tiêu hao vật liệu',
   'cho_duyet': 'Chờ duyệt',
   
-  // 🗂 Quản Lý Danh Mục (ĐÃ SỬA)
-  'chung_loai': 'Chủng loại',     // ✅ Đúng
-  'kho': 'Kho',                    // ✅ Đúng
-  'may_moc': 'Máy móc',            // ✅ Đúng
-  'dao_cu': 'Dao cụ',              // ✅ Đúng
-  'du_an': 'Dự án',                // ✅ Đúng
+  // 🗂 Quản Lý Danh Mục
+  'chung_loai': 'Chủng loại',
+  'kho': 'Kho',
+  'may_moc': 'Máy móc',
+  'dao_cu': 'Dao cụ',
+  'du_an': 'Dự án',
   
   // ⚙ Hệ thống
   'quan_ly_nguoi_dung': 'Quản lý người dùng',
@@ -288,4 +288,17 @@ export function coercePermissionsToLevels(data: any): Record<string, PermissionL
     }
   }
   return result;
+}
+
+// ==================== CREATE EMPTY PERMISSION FLAG ====================
+
+export function createEmptyPermissionFlag(): PermissionFlag {
+  return {
+    view: false,
+    add: false,
+    edit: false,
+    delete: false,
+    approve: false,
+    export: false,
+  };
 }

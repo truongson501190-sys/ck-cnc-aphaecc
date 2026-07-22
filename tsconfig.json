@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "ignoreDeprecations": "6.0", // Thêm dòng này để tắt cảnh báo
     "target": "ESNext",
     "useDefineForClassFields": true,
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
-    "baseUrl": ".", // Giữ lại nếu bạn muốn, nhưng sẽ có cảnh báo
+    "ignoreDeprecations": "6.0",
+    "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]
     },

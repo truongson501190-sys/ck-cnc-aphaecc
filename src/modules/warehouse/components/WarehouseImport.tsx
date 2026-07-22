@@ -219,7 +219,7 @@ export function WarehouseImport({ onSubmit, onSuccess }: WarehouseImportProps) {
       toLocation: khoNhap,
       reason: 'Nhập kho',
       referenceNumber: soPhieu,
-      operator: nguoiNhap || user?.name || '',
+      operator: nguoiNhap || user?.fullName || user?.ho_ten || user?.name || user?.full_name || user?.username || '',
       status: 'pending',
       transactionDate: ngayNhap,
       notes: ghiChu,
@@ -279,7 +279,7 @@ export function WarehouseImport({ onSubmit, onSuccess }: WarehouseImportProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg border">
             <div><Label>Số phiếu *</Label><Input value={soPhieu} readOnly className="bg-gray-100" /></div>
             <div><Label>Ngày nhập *</Label><DateInput value={ngayNhap} onChange={setNgayNhap} required /></div>
-            <div><Label>Kho nhập *</Label><Select value={khoNhap} onValueChange={setKhoNhap}><SelectTrigger><SelectValue placeholder="Chọn kho" /></SelectTrigger><SelectContent>{warehouses.map(w => <SelectItem key={w.id} value={w.loaiKho}>{w.tenKho}</SelectItem>)}</SelectContent></Select></div>
+            <div><Label>Kho nhập *</Label><Select value={khoNhap || ''} onValueChange={setKhoNhap}><SelectTrigger><SelectValue placeholder="Chọn kho" /></SelectTrigger><SelectContent>{warehouses.map(w => <SelectItem key={w.id} value={String(w.loaiKho ?? w.id ?? '')}>{w.tenKho}</SelectItem>)}</SelectContent></Select></div>
             <div><Label>Người nhập</Label><Combobox value={nguoiNhap} onValueChange={setNguoiNhap} placeholder="Chọn người nhập..." options={systemUsers.map(u => ({ label: `${u.fullName} - ${u.msnv}`, value: u.fullName }))} allowCustom={false} /></div>
             <div><Label>Nhà cung cấp</Label><Input value={nhaCungCap} onChange={e => setNhaCungCap(e.target.value)} placeholder="Tên nhà cung cấp" /></div>
             <div><Label>Ghi chú chung</Label><Textarea value={ghiChu} onChange={e => setGhiChu(e.target.value)} rows={2} placeholder="Ghi chú" /></div>

@@ -120,7 +120,7 @@ export const ChuyenKho: React.FC = () => {
         const updated: TransferRecord = { ...t, status: newStatus };
         
         const now = new Date().toISOString();
-        const currentUser = user?.fullName || user?.name || 'System';
+       const currentUser = user?.fullName || user?.ho_ten || 'System';
         
         if (newStatus === 'approved') {
           updated.approvedAt = now;
@@ -235,9 +235,9 @@ export const ChuyenKho: React.FC = () => {
   };
 
   const canConfirmTransfer = (t: TransferRecord) => {
-    const currentUserName = user?.fullName || user?.name;
-    return (isAdmin || (currentUserName && currentUserName === t.nguoiThucHien)) && t.status === 'approved';
-  };
+  const currentUserName = user?.fullName || user?.ho_ten || '';
+  return (isAdmin || (currentUserName && currentUserName === t.nguoiThucHien)) && t.status === 'approved';
+};
 
   const canConfirmReceive = (t: TransferRecord) => {
     return isAdmin && t.status === 'transferred';
@@ -298,7 +298,7 @@ export const ChuyenKho: React.FC = () => {
     try {
       let approvedCount = 0;
       const now = new Date().toISOString();
-      const currentUser = user?.fullName || user?.name || 'System';
+      const currentUser = user?.fullName || user?.ho_ten || 'System';
       
       const updatedList = transfersList.map(t => {
         if (selectedIds.has(t.soPhieu) && t.status === 'pending') {
@@ -412,7 +412,7 @@ export const ChuyenKho: React.FC = () => {
     try {
       let transferCount = 0;
       const now = new Date().toISOString();
-      const currentUser = user?.fullName || user?.name || 'System';
+      const currentUser = user?.fullName || user?.ho_ten || 'System';
       
       const updatedList = transfersList.map(t => {
         if (selectedIds.has(t.soPhieu) && t.status === 'approved') {
@@ -466,7 +466,7 @@ export const ChuyenKho: React.FC = () => {
     try {
       let receiveCount = 0;
       const now = new Date().toISOString();
-      const currentUser = user?.fullName || user?.name || 'System';
+      const currentUser = user?.fullName || user?.ho_ten || 'System';
       
       const updatedList = transfersList.map(t => {
         if (selectedIds.has(t.soPhieu) && t.status === 'transferred') {

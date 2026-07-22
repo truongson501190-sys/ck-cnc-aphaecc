@@ -1,11 +1,14 @@
+// src/main.tsx
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './index.css';
+// import './styles.css';  // Tạm thời comment
 
-console.log('📍 main.tsx starting...');
+console.log('📍 Application starting...');
 
 const rootElement = document.getElementById('root');
+
 if (!rootElement) {
   console.error('❌ Root element not found!');
 } else {
@@ -16,12 +19,3 @@ if (!rootElement) {
     </React.StrictMode>
   );
 }
-/*
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js")
-      .then(() => console.log("SW OK"))
-      .catch((err) => console.log("SW lỗi", err));
-  });
-}
-*/

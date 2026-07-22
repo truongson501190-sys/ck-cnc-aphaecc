@@ -1,3 +1,4 @@
+// src/modules/erp/PlaceholderPage.tsx
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useLocation } from 'react-router-dom';
@@ -30,3 +31,6 @@ export function PlaceholderPage({ title, description }: PlaceholderPageProps) {
     </div>
   );
 }
+
+// THÊM DEFAULT EXPORT
+export default PlaceholderPage;

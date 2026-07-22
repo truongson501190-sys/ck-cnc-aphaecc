@@ -1,0 +1,107 @@
+// src/service-worker.ts
+/// <reference types="vite-plugin-pwa/client" />
+
+const precacheAndRoute = (manifest: unknown) => undefined;
+const registerRoute = (_callback: unknown, _handler: unknown) => undefined;
+class StaleWhileRevalidate {
+  constructor(_options?: unknown) {}
+}
+class CacheFirst {
+  constructor(_options?: unknown) {}
+}
+class ExpirationPlugin {
+  constructor(_options?: unknown) {}
+}
+class CacheableResponsePlugin {
+  constructor(_options?: unknown) {}
+}
+
+declare const self: ServiceWorkerGlobalScope & { __WB_MANIFEST?: unknown };
+
+// Precache all assets
+precacheAndRoute(self.__WB_MANIFEST);
+
+// Cache API requests
+registerRoute(
+  ({ url }: { url: URL }) => url.pathname.startsWith('/api/'),
+  new StaleWhileRevalidate({
+    cacheName: 'api-cache',
+    plugins: [
+      new CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+      new ExpirationPlugin({
+        maxEntries: 50,
+        maxAgeSeconds: 60 * 60,
+      }),
+    ],
+  })
+);
+
+// Cache images
+registerRoute(
+  ({ request }: { request: Request }) => request.destination === 'image',
+  new CacheFirst({
+    cacheName: 'image-cache',
+    plugins: [
+      new CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+      new ExpirationPlugin({
+        maxEntries: 100,
+        maxAgeSeconds: 30 * 24 * 60 * 60,
+      }),
+    ],
+  })
+);
+
+// Cache fonts
+registerRoute(
+  ({ url }: { url: URL }) => url.pathname.includes('/fonts/'),
+  new CacheFirst({
+    cacheName: 'font-cache',
+    plugins: [
+      new CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+      new ExpirationPlugin({
+        maxEntries: 10,
+        maxAgeSeconds: 30 * 24 * 60 * 60,
+      }),
+    ],
+  })
+);
+
+// Cache static assets
+registerRoute(
+  ({ request }: { request: Request }) =>
+    request.destination === 'script' ||
+    request.destination === 'style' ||
+    request.destination === 'document',
+  new StaleWhileRevalidate({
+    cacheName: 'static-cache',
+    plugins: [
+      new CacheableResponsePlugin({
+        statuses: [0, 200],
+      }),
+      new ExpirationPlugin({
+        maxEntries: 50,
+        maxAgeSeconds: 24 * 60 * 60,
+      }),
+    ],
+  })
+);
+
+// Offline fallback page
+const offlinePage = '/offline.html';
+registerRoute(
+  ({ request }: { request: Request }) => request.mode === 'navigate',
+  async ({ event }: { event: Event & { request: Request } }) => {
+    try {
+      const response = await fetch(event.request);
+      return response;
+    } catch {
+      return await caches.match(offlinePage) || new Response('Offline', { status: 503 });
+    }
+  }
+);

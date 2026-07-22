@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Suspense, useCallback } from 'react';
+import React, { useState, useEffect, Suspense, useCallback, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/DateInput';
@@ -87,13 +87,120 @@ const createEmptyToolEntry = (): ToolEntry => ({
   thanhTien: 0,
 });
 
-export default function ProductionForm({ onSubmit, onCancel, initialData }: ProductionFormProps) {
+// ======================
+// HELPER FUNCTIONS
+// ======================
+
+const getValue = (data: any, keys: string[], defaultValue: any = '') => {
+  for (const key of keys) {
+    if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+      return data[key];
+    }
+  }
+  return defaultValue;
+};
+
+const getNumberValue = (data: any, keys: string[], defaultValue: number = 0) => {
+  for (const key of keys) {
+    if (data[key] !== undefined && data[key] !== null && data[key] !== '') {
+      return Number(data[key]) || defaultValue;
+    }
+  }
+  return defaultValue;
+};
+
+const getToolEntries = (data: any): ToolEntry[] => {
+  if (data.toolEntries?.length) return data.toolEntries;
+  if (data.tool_entries?.length) return data.tool_entries;
+  return [createEmptyToolEntry()];
+};
+
+const getWorkTimeEntries = (data: any, runHours: number): WorkTimeEntry[] => {
+  if (data.workTimeEntries?.length) return data.workTimeEntries;
+  if (data.work_time_entries?.length) return data.work_time_entries;
+  if (runHours > 0) {
+    return [{ 
+      soGio: runHours, 
+      thoiGianBatDau: data.tgChay_BatDau || '', 
+      thoiGianKetThuc: data.tgChay_KetThuc || '' 
+    }];
+  }
+  return [];
+};
+
+const getSetupTimeEntries = (data: any, setupHours: number): WorkTimeEntry[] => {
+  if (data.setupTimeEntries?.length) return data.setupTimeEntries;
+  if (data.setup_time_entries?.length) return data.setup_time_entries;
+  if (setupHours > 0) {
+    return [{ 
+      soGio: setupHours, 
+      thoiGianBatDau: data.tgGia_BatDau || '', 
+      thoiGianKetThuc: data.tgGia_KetThuc || '' 
+    }];
+  }
+  return [];
+};
+
+const updateSingleToolEntry = (
+  entry: ToolEntry,
+  field: keyof ToolEntry,
+  value: string | number,
+  categoryTypes: CategoryType[]
+): ToolEntry => {
+  const updatedEntry = { ...entry, [field]: value };
+  
+  if (field === 'tenDao' && typeof value === 'string') {
+    const selectedCategory = categoryTypes.find((cat) => cat.tenLoai === value);
+    if (selectedCategory) {
+      updatedEntry.donVi = selectedCategory.donVi ?? '';
+      updatedEntry.donGia = selectedCategory.gia ?? 0;
+      updatedEntry.thanhTien = (entry.slSuDung || 0) * (selectedCategory.gia ?? 0);
+    }
+  }
+  
+  if (field === 'slSuDung' && typeof value === 'number') {
+    updatedEntry.thanhTien = value * (entry.donGia || 0);
+  }
+  
+  return updatedEntry;
+};
+
+const calculateCosts = (
+  workTimeEntries: WorkTimeEntry[],
+  setupTimeEntries: WorkTimeEntry[],
+  machineShiftPrice: number
+) => {
+  const totalRunHours = workTimeEntries.reduce(
+    (sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0), 
+    0
+  );
+  const totalSetupHours = setupTimeEntries.reduce(
+    (sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0), 
+    0
+  );
+  const pricePerHour = machineShiftPrice > 0 ? machineShiftPrice / 8 : 0;
+  const runAmount = totalRunHours * pricePerHour;
+  const setupAmount = totalSetupHours * (pricePerHour / 2);
+  
+  return { totalRunHours, totalSetupHours, runAmount, setupAmount };
+};
+
+// ======================
+// MAIN COMPONENT
+// ======================
+
+export default function ProductionForm({ onSubmit, onCancel, initialData }: Readonly<ProductionFormProps>) {
   const masterDataHook = useMasterData();
   const { user } = useAuth();
 
-  const masterData = masterDataHook?.masterData || { machines: [], tools: [], operators: [], inspectors: [], projects: [] };
+  const masterData = masterDataHook?.masterData || { 
+    machines: [], 
+    tools: [], 
+    operators: [], 
+    inspectors: [], 
+    projects: [] 
+  };
 
-  // Helper để lấy tên user
   const getUserName = useCallback(() => {
     return user?.fullName || user?.name || '';
   }, [user]);
@@ -101,83 +208,70 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
   // ======================
   // FORM STATE
   // ======================
-  const [formData, setFormData] = useState<any>(() => {
-    console.log('📝 ProductionForm - initialData:', initialData);
-    console.log('📝 ProductionForm - getUserName():', getUserName());
-    if (initialData) {
-      console.log('📝 ProductionForm - initialData.nguoiVanHanh:', initialData.nguoiVanHanh);
-      console.log('📝 ProductionForm - initialData.nguoiKiemTra:', initialData.nguoiKiemTra);
-      
-      // Get hours from snake_case first
-      const setupHours = initialData.gio_ga || initialData.gioGa || 0;
-      const runHours = initialData.gio_chay || initialData.gioChay || 0;
-      
-      // Get costs from snake_case first
-      const setupCost = initialData.chi_phi_ga || initialData.chiPhiGa || 0;
-      const runCost = initialData.chi_phi_chay_may || initialData.chiPhiChayMay || initialData.cpMay || 0;
-      const toolCost = initialData.chi_phi_dao || initialData.chiPhiDao || initialData.cpDaoCu || 0;
-      
+  const initializeFormData = useCallback(() => {
+    if (!initialData) {
       return {
-        ngayThang: initialData.ngayThang || initialData.ngay || new Date().toISOString().split('T')[0],
-        maySanXuat: initialData.maySanXuat || initialData.may || '',
-        duAn: initialData.duAn || initialData.maDuAn || '',
-        tenDuAn: initialData.tenDuAn || initialData.khach_hang || '',
-        banVeSo: initialData.banVeSo || '',
-        chiTietSo: initialData.chiTietSo || initialData.ncSo || '',
-        tenChiTiet: initialData.tenChiTiet || '',
-        noiDungGiaCong: initialData.noiDungGiaCong || initialData.noiDung || '',
-        soLuongHoanThanh: initialData.soLuongHoanThanh || initialData.sanLuong || 0,
-        vatLieu: initialData.vatLieu || '',
-        nguyenCongSo: initialData.nguyenCongSo || initialData.ncSo || '',
-        toolEntries: initialData.toolEntries?.length ? 
-          initialData.toolEntries : 
-          (initialData.tool_entries?.length ? initialData.tool_entries : [createEmptyToolEntry()]),
-        workTimeEntries: initialData.workTimeEntries?.length ? 
-          initialData.workTimeEntries : 
-          (initialData.work_time_entries?.length ? initialData.work_time_entries : 
-            (runHours > 0 ? [{ soGio: runHours, thoiGianBatDau: initialData.tgChay_BatDau || '', thoiGianKetThuc: initialData.tgChay_KetThuc || '' }] : [])),
-        setupTimeEntries: initialData.setupTimeEntries?.length ? 
-          initialData.setupTimeEntries : 
-          (initialData.setup_time_entries?.length ? initialData.setup_time_entries : 
-            (setupHours > 0 ? [{ soGio: setupHours, thoiGianBatDau: initialData.tgGia_BatDau || '', thoiGianKetThuc: initialData.tgGia_KetThuc || '' }] : [])),
-        ca: initialData.ca || '',
-        cpMay: runCost,
-        chiPhiChayMay: runCost,
-        cpDaoCu: toolCost,
-        chiPhiDao: toolCost,
-        chiPhiGa: setupCost,
-        nguoiVanHanh: initialData.nguoiVanHanh || getUserName(),
-        nguoiKiemTra: initialData.nguoiKiemTra || '',
-        tgTrenCa: initialData.tgTrenCa || '',
-        tgGaPhoi: initialData.tgGaPhoi || '',
-        status: initialData.status || 'draft',
+        ngayThang: new Date().toISOString().split('T')[0],
+        maySanXuat: '',
+        duAn: '',
+        tenDuAn: '',
+        banVeSo: '',
+        chiTietSo: '',
+        tenChiTiet: '',
+        noiDungGiaCong: '',
+        soLuongHoanThanh: 0,
+        vatLieu: '',
+        nguyenCongSo: '',
+        toolEntries: [createEmptyToolEntry()],
+        workTimeEntries: [] as WorkTimeEntry[],
+        setupTimeEntries: [] as WorkTimeEntry[],
+        ca: '' as 'ngay' | 'dem' | '',
+        cpMay: 0,
+        cpDaoCu: 0,
+        nguoiVanHanh: getUserName(),
+        nguoiKiemTra: '',
+        tgTrenCa: '',
+        tgGaPhoi: '',
+        status: 'draft' as const,
       };
     }
+
+    const setupHours = getNumberValue(initialData, ['gio_ga', 'gioGa']);
+    const runHours = getNumberValue(initialData, ['gio_chay', 'gioChay']);
+    const setupCost = getNumberValue(initialData, ['chi_phi_ga', 'chiPhiGa']);
+    const runCost = getNumberValue(initialData, ['chi_phi_chay_may', 'chiPhiChayMay', 'cpMay']);
+    const toolCost = getNumberValue(initialData, ['chi_phi_dao', 'chiPhiDao', 'cpDaoCu']);
+
     return {
-      ngayThang: new Date().toISOString().split('T')[0],
-      maySanXuat: '',
-      duAn: '',
-      tenDuAn: '',
-      banVeSo: '',
-      chiTietSo: '',
-      tenChiTiet: '',
-      noiDungGiaCong: '',
-      soLuongHoanThanh: 0,
-      vatLieu: '',
-      nguyenCongSo: '',
-      toolEntries: [createEmptyToolEntry()],
-      workTimeEntries: [] as WorkTimeEntry[],
-      setupTimeEntries: [] as WorkTimeEntry[],
-      ca: '' as 'ngay' | 'dem' | '',
-      cpMay: 0,
-      cpDaoCu: 0,
-      nguoiVanHanh: getUserName(),
-      nguoiKiemTra: '',
-      tgTrenCa: '',
-      tgGaPhoi: '',
-      status: 'draft' as const,
+      ngayThang: getValue(initialData, ['ngayThang', 'ngay'], new Date().toISOString().split('T')[0]),
+      maySanXuat: getValue(initialData, ['maySanXuat', 'may']),
+      duAn: getValue(initialData, ['duAn', 'maDuAn']),
+      tenDuAn: getValue(initialData, ['tenDuAn', 'khach_hang']),
+      banVeSo: getValue(initialData, ['banVeSo']),
+      chiTietSo: getValue(initialData, ['chiTietSo', 'ncSo']),
+      tenChiTiet: getValue(initialData, ['tenChiTiet']),
+      noiDungGiaCong: getValue(initialData, ['noiDungGiaCong', 'noiDung']),
+      soLuongHoanThanh: getNumberValue(initialData, ['soLuongHoanThanh', 'sanLuong']),
+      vatLieu: getValue(initialData, ['vatLieu']),
+      nguyenCongSo: getValue(initialData, ['nguyenCongSo', 'ncSo']),
+      toolEntries: getToolEntries(initialData),
+      workTimeEntries: getWorkTimeEntries(initialData, runHours),
+      setupTimeEntries: getSetupTimeEntries(initialData, setupHours),
+      ca: getValue(initialData, ['ca']),
+      cpMay: runCost,
+      chiPhiChayMay: runCost,
+      cpDaoCu: toolCost,
+      chiPhiDao: toolCost,
+      chiPhiGa: setupCost,
+      nguoiVanHanh: getValue(initialData, ['nguoiVanHanh'], getUserName()),
+      nguoiKiemTra: getValue(initialData, ['nguoiKiemTra']),
+      tgTrenCa: getValue(initialData, ['tgTrenCa']),
+      tgGaPhoi: getValue(initialData, ['tgGaPhoi']),
+      status: getValue(initialData, ['status'], 'draft'),
     };
-  });
+  }, [initialData, getUserName]);
+
+  const [formData, setFormData] = useState<any>(initializeFormData);
 
   const [inspectors, setInspectors] = useState<string[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -230,6 +324,45 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
     }
   }, []);
 
+  const getCategoriesFromLocalStorage = useCallback(() => {
+    const localKeys = ['categoryTypes', 'categories'];
+
+    for (const key of localKeys) {
+      try {
+        const stored = localStorage.getItem(key);
+        if (!stored) continue;
+
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      } catch (err) {
+        console.warn(`Cannot parse ${key} from localStorage`, err);
+      }
+    }
+
+    return [];
+  }, []);
+
+  const buildFallbackCategories = useCallback(() => {
+    if (masterData.tools.length > 0) {
+      return masterData.tools.map((tool: any) => ({
+        id: tool.id || crypto.randomUUID(),
+        maLoai: tool.id || '',
+        tenLoai: tool.name || '',
+        donVi: tool.unit || 'cái',
+        gia: 0,
+        createdAt: new Date().toISOString(),
+      }));
+    }
+
+    return [
+      { id: '1', maLoai: 'DAO001', tenLoai: 'Dao phay mặt đầu', donVi: 'cái', gia: 500000, createdAt: new Date().toISOString() },
+      { id: '2', maLoai: 'DAO002', tenLoai: 'Dao phay ngón', donVi: 'cái', gia: 450000, createdAt: new Date().toISOString() },
+      { id: '3', maLoai: 'DAO003', tenLoai: 'Mũi khoan', donVi: 'cái', gia: 300000, createdAt: new Date().toISOString() },
+    ];
+  }, [masterData.tools]);
+
   const loadCategoriesFromSupabase = useCallback(async () => {
     let categoriesData: any[] = [];
 
@@ -246,41 +379,11 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
     }
 
     if (categoriesData.length === 0) {
-      const localKeys = ['categoryTypes', 'categories'];
-      for (const key of localKeys) {
-        if (categoriesData.length > 0) break;
-        try {
-          const stored = localStorage.getItem(key);
-          if (!stored) continue;
-          const parsed = JSON.parse(stored);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            categoriesData = parsed;
-            break;
-          }
-        } catch (err) {
-          console.warn(`Cannot parse ${key} from localStorage`, err);
-        }
-      }
-    }
-
-    if (categoriesData.length === 0 && masterData.tools.length > 0) {
-      categoriesData = masterData.tools.map((tool: any) => ({
-        id: tool.id || crypto.randomUUID(),
-        maLoai: tool.id || '',
-        tenLoai: tool.name || '',
-        donVi: tool.unit || 'cái',
-        gia: 0,
-        createdAt: new Date().toISOString(),
-      }));
+      categoriesData = getCategoriesFromLocalStorage();
     }
 
     if (categoriesData.length === 0) {
-      const hardcodeCategories: CategoryType[] = [
-        { id: '1', maLoai: 'DAO001', tenLoai: 'Dao phay mặt đầu', donVi: 'cái', gia: 500000, createdAt: new Date().toISOString() },
-        { id: '2', maLoai: 'DAO002', tenLoai: 'Dao phay ngón', donVi: 'cái', gia: 450000, createdAt: new Date().toISOString() },
-        { id: '3', maLoai: 'DAO003', tenLoai: 'Mũi khoan', donVi: 'cái', gia: 300000, createdAt: new Date().toISOString() },
-      ];
-      categoriesData = hardcodeCategories;
+      categoriesData = buildFallbackCategories();
     }
 
     const formattedCategories: CategoryType[] = categoriesData
@@ -295,7 +398,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
       .filter((cat) => !!cat.tenLoai);
 
     setCategoryTypes(formattedCategories);
-  }, [masterData.tools]);
+  }, [buildFallbackCategories, getCategoriesFromLocalStorage]);
 
   const loadEmployees = useCallback(async () => {
     try {
@@ -355,7 +458,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
   }, [loadAllMasterData]);
 
   useEffect(() => {
-    if (getUserName() && !initialData) { // Only set nguoiVanHanh for NEW logs, not when editing
+    if (getUserName() && !initialData) {
       setFormData((prev: any) => ({
         ...prev,
         nguoiVanHanh: getUserName() || prev.nguoiVanHanh,
@@ -365,13 +468,15 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
 
   const getInspectorsByRole = useCallback(() => {
     try {
-      const allowedRoles = ['admin', 'quan_ly_xuong', 'to_truong', 'to_pho', 'nhom_truong'];
+      const allowedRoles = new Set(['admin', 'quan_ly_xuong', 'to_truong', 'to_pho', 'nhom_truong']);
+      const allowedChucVu = new Set(['admin', 'quản lý xưởng', 'tổ trưởng', 'tổ phó', 'nhóm trưởng']);
+      
       if (employees.length > 0) {
         const inspectorList = employees
           .filter((emp: Employee) => {
             const role = (emp.role || '').toLowerCase();
             const chucVu = (emp.chucVu || '').toLowerCase();
-            return allowedRoles.includes(role) || ['admin', 'quản lý xưởng', 'tổ trưởng', 'tổ phó', 'nhóm trưởng'].includes(chucVu);
+            return allowedRoles.has(role) || allowedChucVu.has(chucVu);
           })
           .map((emp: Employee) => emp.hoTen || emp.fullName || emp.name || '')
           .filter((name: string) => name && name.trim() !== '');
@@ -435,7 +540,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
       ...prev, 
       toolEntries: prev.toolEntries.filter((_: ToolEntry, i: number) => i !== index) 
     }));
-    setOpenCombobox(prev => {
+    setOpenCombobox((prev) => {
       const newState = { ...prev };
       delete newState[index];
       return newState;
@@ -447,30 +552,23 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
       ...prev,
       toolEntries: prev.toolEntries.map((entry: ToolEntry, i: number) => {
         if (i === index) {
-          const updatedEntry = { ...entry, [field]: value };
-          if (field === 'tenDao' && typeof value === 'string') {
-            const selectedCategory = categoryTypes.find(cat => cat.tenLoai === value);
-            if (selectedCategory) {
-              updatedEntry.donVi = selectedCategory.donVi ?? '';
-              updatedEntry.donGia = selectedCategory.gia ?? 0;
-              updatedEntry.thanhTien = (entry.slSuDung || 0) * (selectedCategory.gia ?? 0);
-            }
-          }
-          if (field === 'slSuDung' && typeof value === 'number') {
-            updatedEntry.thanhTien = value * (entry.donGia || 0);
-          }
-          return updatedEntry;
+          return updateSingleToolEntry(entry, field, value, categoryTypes);
         }
         return entry;
       })
     }));
   };
 
+  const handleToolSelection = (index: number, currentValue: string) => {
+    updateToolEntry(index, 'tenDao', currentValue);
+    setOpenCombobox((prev) => ({ ...prev, [index]: false }));
+  };
+
   const getMachineName = (machine: Machine): string => {
     return machine.ten_may || machine.tenMay || machine.name || machine.ma_may || '';
   };
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
     e.preventDefault();
     try {
       if (!formData.maySanXuat || !formData.duAn || !formData.tenDuAn) {
@@ -489,24 +587,23 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
         return;
       }
 
-      const selectedMachine = machines.find(m => getMachineName(m) === formData.maySanXuat);
-      let machineShiftPrice = selectedMachine?.gia_8h_1ca || selectedMachine?.gia_10h_1ca || selectedMachine?.gia_12h_1ca || 0;
-      const totalRunHours = formData.workTimeEntries.reduce((sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0), 0);
-      const totalSetupHours = formData.setupTimeEntries.reduce((sum: number, item: WorkTimeEntry) => sum + Number(item.soGio || 0), 0);
-      const pricePerHour = machineShiftPrice > 0 ? machineShiftPrice / 8 : 0;
-      const runAmount = totalRunHours * pricePerHour;
-      const setupAmount = totalSetupHours * (pricePerHour / 2);
+      const selectedMachine = machines.find((m) => getMachineName(m) === formData.maySanXuat);
+      const machineShiftPrice = selectedMachine?.gia_8h_1ca || selectedMachine?.gia_10h_1ca || selectedMachine?.gia_12h_1ca || 0;
+      
+      const { totalRunHours, totalSetupHours, runAmount, setupAmount } = calculateCosts(
+        formData.workTimeEntries,
+        formData.setupTimeEntries,
+        machineShiftPrice
+      );
 
       const updatedToolEntries = validToolEntries.map((tool: ToolEntry) => ({
         ...tool,
         thanhTien: (tool.slSuDung || 0) * (tool.donGia || 0),
       }));
 
-      console.log('📤 ProductionForm handleSubmit - formData:', formData);
       const submitData: any = {
         ...formData,
         toolEntries: updatedToolEntries,
-        // Use formData.nguoiVanHanh if user has entered it, otherwise use current user
         nguoiVanHanh: formData.nguoiVanHanh || (initialData ? initialData.nguoiVanHanh : getUserName()),
         status: initialData?.status || 'pending',
         chiPhiGa: setupAmount,
@@ -515,7 +612,6 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
         gioGa: totalSetupHours,
         gioChay: totalRunHours,
       };
-      console.log('📤 ProductionForm handleSubmit - submitData:', submitData);
 
       onSubmit(submitData);
 
@@ -557,7 +653,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
     project.tenDuAn?.toLowerCase().includes(projectSearch.toLowerCase())
   );
 
-  const uniqueMachinesForSelect = React.useMemo(() => {
+  const uniqueMachinesForSelect = useMemo(() => {
     const machineMap = new Map<string, Machine>();
     machines.forEach((machine: Machine) => {
       const name = getMachineName(machine);
@@ -582,13 +678,20 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <Badge variant="secondary" className="px-3 py-1 text-sm">
                   Người dùng: {getUserName()}
                 </Badge>
               </div>
+              <div className="flex flex-wrap gap-2 items-center mt-3 sm:mt-0">
+                <Badge variant="secondary" className="px-3 py-1 text-sm">
+                  Chào mừng, {getUserName()}
+                </Badge>
+              </div>
+            </div>
+            <div className="min-w-0">
               <h1 className="text-2xl font-bold text-gray-900 mt-2">
                 {initialData ? 'Chỉnh sửa nhật ký sản xuất' : 'Thêm mới nhật ký sản xuất'}
               </h1>
@@ -737,9 +840,8 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <Label htmlFor="banVeSo" className="text-sm font-semibold text-slate-700">Bản vẽ số</Label>
+                  <Label className="text-sm font-semibold text-slate-700">Bản vẽ số</Label>
                   <Input
-                    id="banVeSo"
                     value={formData.banVeSo}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('banVeSo', e.target.value)}
                     placeholder="Nhập số bản vẽ"
@@ -747,9 +849,8 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                   />
                 </div>
                 <div>
-                  <Label htmlFor="chiTietSo" className="text-sm font-semibold text-slate-700">Chi tiết số</Label>
+                  <Label className="text-sm font-semibold text-slate-700">Chi tiết số</Label>
                   <Input
-                    id="chiTietSo"
                     value={formData.chiTietSo}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('chiTietSo', e.target.value)}
                     placeholder="Nhập số chi tiết"
@@ -758,9 +859,8 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                 </div>
               </div>
               <div className="mt-6">
-                <Label htmlFor="tenChiTiet" className="text-sm font-semibold text-slate-700">Tên chi tiết</Label>
+                <Label className="text-sm font-semibold text-slate-700">Tên chi tiết</Label>
                 <Input
-                  id="tenChiTiet"
                   value={formData.tenChiTiet}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('tenChiTiet', e.target.value)}
                   placeholder="Nhập tên chi tiết"
@@ -768,9 +868,8 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                 />
               </div>
               <div className="mt-6">
-                <Label htmlFor="noiDungGiaCong" className="text-sm font-semibold text-slate-700">Nội dung gia công</Label>
+                <Label className="text-sm font-semibold text-slate-700">Nội dung gia công</Label>
                 <Textarea
-                  id="noiDungGiaCong"
                   value={formData.noiDungGiaCong}
                   onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => handleInputChange('noiDungGiaCong', e.target.value)}
                   placeholder="Mô tả nội dung gia công"
@@ -789,21 +888,19 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div>
-                  <Label htmlFor="soLuongHoanThanh" className="text-sm font-semibold text-slate-700">Số lượng hoàn thành</Label>
+                  <Label className="text-sm font-semibold text-slate-700">Số lượng hoàn thành</Label>
                   <Input
-                    id="soLuongHoanThanh"
                     type="number"
                     step="0.001"
                     value={formData.soLuongHoanThanh}
-                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('soLuongHoanThanh', parseFloat(e.target.value) || 0)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('soLuongHoanThanh', Number.parseFloat(e.target.value) || 0)}
                     min="0"
                     className="mt-1.5"
                   />
                 </div>
                 <div>
-                  <Label htmlFor="vatLieu" className="text-sm font-semibold text-slate-700">Vật liệu</Label>
+                  <Label className="text-sm font-semibold text-slate-700">Vật liệu</Label>
                   <Input
-                    id="vatLieu"
                     value={formData.vatLieu}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('vatLieu', e.target.value)}
                     placeholder="Loại vật liệu"
@@ -811,9 +908,8 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                   />
                 </div>
                 <div>
-                  <Label htmlFor="nguyenCongSo" className="text-sm font-semibold text-slate-700">Nguyên công số</Label>
+                  <Label className="text-sm font-semibold text-slate-700">Nguyên công số</Label>
                   <Input
-                    id="nguyenCongSo"
                     value={formData.nguyenCongSo}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleInputChange('nguyenCongSo', e.target.value)}
                     placeholder="Số nguyên công"
@@ -844,7 +940,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
             <CardContent className="p-6">
               <div className="space-y-4">
                 {formData.toolEntries.map((entry: ToolEntry, index: number) => (
-                  <div key={index} className="border border-slate-200 rounded-lg p-4 bg-white">
+                  <div key={`tool-${index}-${entry.tenDao || index}`} className="border border-slate-200 rounded-lg p-4 bg-white">
                     <div className="flex justify-between items-center mb-3">
                       <Label className="font-semibold text-slate-700">Dao cụ {index + 1}</Label>
                       {formData.toolEntries.length > 1 && (
@@ -856,7 +952,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
                       <div className="lg:col-span-2">
                         <Label className="text-sm">Tên dao</Label>
-                        <Popover open={openCombobox[index]} onOpenChange={(open) => setOpenCombobox(prev => ({ ...prev, [index]: open }))}>
+                        <Popover open={openCombobox[index]} onOpenChange={(open) => setOpenCombobox((prev) => ({ ...prev, [index]: open }))}>
                           <PopoverTrigger asChild>
                             <Button
                               variant="outline"
@@ -878,10 +974,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                                   <CommandItem
                                     key={category.id}
                                     value={category.tenLoai}
-                                    onSelect={(currentValue) => {
-                                      updateToolEntry(index, 'tenDao', currentValue);
-                                      setOpenCombobox(prev => ({ ...prev, [index]: false }));
-                                    }}
+                                    onSelect={(currentValue) => handleToolSelection(index, currentValue)}
                                   >
                                     <Check
                                       className={cn(
@@ -903,7 +996,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                           type="number"
                           step="0.001"
                           value={entry.slCap}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'slCap', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'slCap', e.target.value === '' ? 0 : Number.parseFloat(e.target.value))}
                           min="0"
                           className="mt-1"
                         />
@@ -914,7 +1007,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                           type="number"
                           step="0.001"
                           value={entry.slSuDung}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'slSuDung', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'slSuDung', e.target.value === '' ? 0 : Number.parseFloat(e.target.value))}
                           min="0"
                           className="mt-1"
                         />
@@ -925,7 +1018,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                           type="number"
                           step="0.001"
                           value={entry.hong}
-                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'hong', e.target.value === '' ? 0 : parseFloat(e.target.value))}
+                          onChange={(e: React.ChangeEvent<HTMLInputElement>) => updateToolEntry(index, 'hong', e.target.value === '' ? 0 : Number.parseFloat(e.target.value))}
                           min="0"
                           className="mt-1"
                         />
@@ -961,7 +1054,6 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
             
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Người vận hành */}
                 <div>
                   <Label htmlFor="nguoiVanHanh" className="text-sm font-semibold text-slate-700">
                     Người vận hành
@@ -978,7 +1070,6 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                   </p>
                 </div>
 
-                {/* Người kiểm tra */}
                 <div>
                   <Label htmlFor="nguoiKiemTra" className="text-sm font-semibold text-slate-700 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-blue-500" />
@@ -992,19 +1083,11 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
                       <SelectValue placeholder="Chọn người kiểm tra" />
                     </SelectTrigger>
                     <SelectContent>
-                      {inspectors.length > 0 ? (
-                        inspectors.map((inspector: string) => (
-                          <SelectItem key={inspector} value={inspector}>
-                            {inspector}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        masterData.inspectors.map((inspector: string) => (
-                          <SelectItem key={inspector} value={inspector}>
-                            {inspector}
-                          </SelectItem>
-                        ))
-                      )}
+                      {(inspectors.length > 0 ? inspectors : masterData.inspectors).map((inspector: string) => (
+                        <SelectItem key={inspector} value={inspector}>
+                          {inspector}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-gray-400 mt-1">
@@ -1017,7 +1100,7 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3 pt-4 pb-6">
-            <Button type="button" variant="outline" onClick={() => onCancel && onCancel()} className="px-6">
+            <Button type="button" variant="outline" onClick={() => onCancel?.()} className="px-6">
               Hủy bỏ
             </Button>
             <Button
@@ -1040,9 +1123,9 @@ export default function ProductionForm({ onSubmit, onCancel, initialData }: Prod
               <p className="text-sm text-gray-600 mb-3">Đưa mã QR vào khung camera để quét.</p>
               <Suspense fallback={<div className="text-center py-8 text-gray-500">Đang tải máy quét...</div>}>
                 <LazyScanner onDetected={(text: string) => {
-                  const found = machines.find(m =>
-                    (m as any).qrData === text ||
-                    (m as any).id === text ||
+                  const found = machines.find((m) =>
+                    (m as any)?.qrData === text ||
+                    (m as any)?.id === text ||
                     getMachineName(m) === text
                   );
                   if (found) {

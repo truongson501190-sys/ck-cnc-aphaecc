@@ -273,7 +273,7 @@ export function OilExport() {
                 </SelectTrigger>
                 <SelectContent>
                   {warehouses.map((warehouse) => (
-                    <SelectItem key={warehouse.id} value={warehouse.loaiKho}>
+                    <SelectItem key={warehouse.id} value={String(warehouse.loaiKho ?? warehouse.id ?? '')}>
                       {warehouse.tenKho}
                     </SelectItem>
                   ))}

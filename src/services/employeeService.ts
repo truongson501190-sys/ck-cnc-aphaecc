@@ -1,6 +1,7 @@
 // src/services/employeeService.ts
 import { supabase } from '../lib/supabase';
 import { hashPassword, verifyPassword } from '../lib/passwordUtils';
+import type { UserPermissions } from '../types/user';
 
 export interface Employee {
   id?: string;
@@ -20,7 +21,15 @@ export interface Employee {
   last_login?: string | null;
   created_at?: string;
   updated_at?: string;
+  avatar?: string; // Thêm field avatar
+  profile_image?: string; // Thêm field profile_image
 }
+
+// Type alias for Employee with avatar fields
+export type EmployeeWithAvatar = Employee & {
+  avatar?: string;
+  profile_image?: string;
+};
 
 /**
  * Employee Service - Single Source of Truth for all employee data

@@ -440,7 +440,7 @@ export function WarehouseExport({ onSubmit, onSuccess }: WarehouseExportProps) {
                       ? getAllowedWarehousesByDepartment(selectedUserDepartment) 
                       : Array.from(new Set(warehouses.map(w => w.loaiKho)))
                     ).map((code, idx) => (
-                      <SelectItem key={`${code}-${idx}`} value={code}>{getWarehouseDisplayName(code)}</SelectItem>
+                      <SelectItem key={`${code}-${idx}`} value={code || ''}>{getWarehouseDisplayName(code)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>

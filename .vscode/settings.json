@@ -1,4 +1,25 @@
 {
-    "github.copilot.chat.languageContext.fix.typescript.enabled": true,
-    "github.copilot.chat.languageContext.inline.typescript.enabled": true
+  "github.copilot.chat.languageContext.fix.typescript.enabled": true,
+  "github.copilot.chat.languageContext.inline.typescript.enabled": true,
+  "css.validate": false,
+  "less.validate": false,
+  "scss.validate": false,
+  "tailwindCSS.validate": true,
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+  "editor.quickSuggestions": {
+    "strings": true
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+  // Đã sửa: dùng js/ts.preferences thay vì typescript.preferences
+  "js/ts.preferences.importModuleSpecifier": "relative",
+  "js/ts.suggest.autoImports": true,
+  "tailwindCSS.classAttributes": ["class", "className", "ngClass", ".*Styles"],
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  }
 }
