@@ -2,6 +2,7 @@
 
 import { SmartOCRParser } from '@/features/ocr/services/smartOCRParser';
 import { AIEnhancer } from '@/features/ocr/services/aiEnhancer';
+import { tesseractService } from './tesseractService';
 
 export interface ParsedReportData {
   type?: 'production' | 'import' | 'export' | 'qc' | 'other';
@@ -148,10 +149,19 @@ export class OCRParser {
 export class OCRService {
   private readonly apiUrl?: string;
   private readonly parser: OCRParser;
+  private useTesseract: boolean = false;
 
   constructor(apiUrl?: string) {
     this.apiUrl = apiUrl;
     this.parser = new OCRParser();
+
+    // ✅ Nếu đang ở production (Vercel), dùng Tesseract.js
+    if (import.meta.env.PROD) {
+      this.useTesseract = true;
+      console.log('📦 Production mode: Dùng Tesseract.js (không cần backend)');
+    } else {
+      console.log('💻 Development mode: Dùng backend Python (localhost:5001)');
+    }
   }
 
   private getCandidateApiUrls(): string[] {
@@ -169,6 +179,7 @@ export class OCRService {
     const errors: unknown[] = [];
 
     for (const baseUrl of this.getCandidateApiUrls()) {
+      if (!baseUrl) continue;
       try {
         const response = await fetch(`${baseUrl}${path}`, {
           ...init,
@@ -187,7 +198,35 @@ export class OCRService {
     throw errors.at(-1) || new Error('OCR request failed');
   }
 
+  private processText(text: string): ParsedReportData {
+    const smartParser = new SmartOCRParser();
+    const parsed = smartParser.parse(text);
+    const enhancer = new AIEnhancer();
+    const enhanced = enhancer.enhance(parsed);
+    return enhanced;
+  }
+
   async processFile(file: File, page?: number): Promise<OCRResult> {
+    // ✅ Ưu tiên: dùng Tesseract.js
+    if (this.useTesseract) {
+      console.log('🧠 Dùng Tesseract.js để OCR...');
+      try {
+        const result = await tesseractService.processFile(file);
+        if (result.status === 'success' && result.text) {
+          // Parse text với SmartOCRParser và AIEnhancer
+          const parsedData = this.processText(result.text);
+          result.parsed_data = parsedData;
+        }
+        return result;
+      } catch (error) {
+        console.error('❌ Lỗi Tesseract.js:', error);
+        // Fallback sang backend nếu Tesseract lỗi
+        console.log('🔄 Fallback sang backend Python...');
+      }
+    }
+
+    // ✅ Fallback: dùng backend Python (localhost)
+    console.log('🐍 Dùng backend Python OCR...');
     const formData = new FormData();
     formData.append('file', file);
 
@@ -215,18 +254,30 @@ export class OCRService {
       }
 
       const result = payload as OCRResult;
-        if (result.status === 'success' && result.text) {
-        // Dùng SmartOCRParser
-        const smartParser = new SmartOCRParser();
-        const parsed = smartParser.parse(result.text);
-        // Dùng AIEnhancer
-        const enhancer = new AIEnhancer();
-        const enhanced = enhancer.enhance(parsed);
-        result.parsed_data = enhanced;
-        }
+      if (result.status === 'success' && result.text) {
+        const parsedData = this.processText(result.text);
+        result.parsed_data = parsedData;
+      }
       return result;
+
     } catch (error) {
       console.error('Lỗi khi gọi OCR API:', error);
+      
+      // ✅ Nếu backend lỗi và đang ở development, thử Tesseract.js
+      if (!this.useTesseract) {
+        console.log('🔄 Backend lỗi, thử Tesseract.js...');
+        try {
+          const result = await tesseractService.processFile(file);
+          if (result.status === 'success' && result.text) {
+            const parsedData = this.processText(result.text);
+            result.parsed_data = parsedData;
+          }
+          return result;
+        } catch (tesseractError) {
+          console.error('❌ Tesseract.js cũng lỗi:', tesseractError);
+        }
+      }
+
       return {
         status: 'error',
         message: 'Không thể kết nối đến server OCR. Vui lòng chạy backend tại http://127.0.0.1:5001 hoặc kiểm tra cổng 5001.',

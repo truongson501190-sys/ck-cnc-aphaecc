@@ -69,6 +69,10 @@ export const XuatKho: React.FC = () => {
   const [editFormData, setEditFormData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
   
+  // State cho duyệt hàng loạt
+  const [approveDialogOpen, setApproveDialogOpen] = useState(false);
+  const [isApproving, setIsApproving] = useState(false);
+  
   // State cho xác nhận nhận hàng loạt
   const [receiveDialogOpen, setReceiveDialogOpen] = useState(false);
   const [isReceiving, setIsReceiving] = useState(false);
@@ -172,6 +176,86 @@ export const XuatKho: React.FC = () => {
     };
     
     toast.success(`Phiếu ${soPhieu} ${statusMessages[newStatus]}`);
+  };
+
+  // ===== DUYỆT PHIẾU (CHO 1 PHIẾU) =====
+  const handleApprove = (soPhieu: string) => {
+    const exp = exportsList.find(e => e.soPhieu === soPhieu);
+    if (!exp) {
+      toast.error('Không tìm thấy phiếu');
+      return;
+    }
+    
+    if (exp.status !== 'pending') {
+      toast.warning('Phiếu này không ở trạng thái chờ duyệt');
+      return;
+    }
+    
+    if (!isAdmin) {
+      toast.error('Chỉ Admin mới có quyền duyệt phiếu xuất');
+      return;
+    }
+    
+    updateExportStatus(soPhieu, 'approved');
+  };
+
+  // ===== DUYỆT PHIẾU HÀNG LOẠT =====
+  const handleApproveSelected = () => {
+    if (selectedIds.size === 0) {
+      toast.warning('Vui lòng chọn ít nhất một phiếu để duyệt');
+      return;
+    }
+    
+    const canApproveList = exportsList.filter(exp => 
+      selectedIds.has(exp.soPhieu) && exp.status === 'pending'
+    );
+    
+    if (canApproveList.length === 0) {
+      toast.warning('Không có phiếu nào ở trạng thái chờ duyệt');
+      return;
+    }
+    
+    if (!isAdmin) {
+      toast.error('Chỉ Admin mới có quyền duyệt phiếu xuất');
+      return;
+    }
+    
+    setApproveDialogOpen(true);
+  };
+
+  const confirmApprove = async () => {
+    setIsApproving(true);
+    try {
+      let approveCount = 0;
+      const now = new Date().toISOString();
+      const currentUser = user?.fullName || user?.name || 'System';
+      
+      const updatedList = exportsList.map(exp => {
+        if (selectedIds.has(exp.soPhieu) && exp.status === 'pending') {
+          approveCount++;
+          return {
+            ...exp,
+            status: 'approved' as const,
+            approvedAt: now,
+            nguoiDuyet: currentUser
+          };
+        }
+        return exp;
+      });
+      
+      localStorage.setItem('warehouseExports', JSON.stringify(updatedList));
+      setExportsList(updatedList);
+      setSelectedIds(new Set());
+      setIsAllSelected(false);
+      
+      toast.success(`Đã duyệt thành công ${approveCount} phiếu xuất`);
+      setApproveDialogOpen(false);
+    } catch (error) {
+      console.error('Error approving:', error);
+      toast.error('Lỗi khi duyệt phiếu xuất');
+    } finally {
+      setIsApproving(false);
+    }
   };
 
   // ===== XÁC NHẬN XUẤT (CHO 1 PHIẾU) =====
@@ -464,6 +548,10 @@ export const XuatKho: React.FC = () => {
   };
 
   // ===== KIỂM TRA QUYỀN =====
+  const canApprove = (exp: ExportRecord) => {
+    return isAdmin && exp.status === 'pending';
+  };
+
   const canConfirmTransfer = (exp: ExportRecord) => {
     return isAdmin && exp.status === 'approved';
   };
@@ -800,6 +888,11 @@ export const XuatKho: React.FC = () => {
     </div>
   );
 
+  // Kiểm tra xem có phiếu nào ở trạng thái "chờ duyệt" để hiển thị nút "Duyệt" không
+  const hasPendingItems = exportsList.some(exp => 
+    selectedIds.has(exp.soPhieu) && exp.status === 'pending'
+  );
+
   // Kiểm tra xem có phiếu nào ở trạng thái "đã xuất" để hiển thị nút "Đã nhận" không
   const hasTransferableItems = exportsList.some(exp => 
     selectedIds.has(exp.soPhieu) && exp.status === 'transferred'
@@ -973,6 +1066,18 @@ export const XuatKho: React.FC = () => {
             </DialogContent>
           </Dialog>
 
+          {/* Nút Duyệt hàng loạt - Chỉ Admin và có phiếu chờ duyệt */}
+          {isAdmin && hasPendingItems && (
+            <Button 
+              variant="outline"
+              onClick={handleApproveSelected}
+              className="border-green-500 text-green-600 hover:bg-green-50"
+            >
+              <CheckCircle className="w-4 h-4 mr-2" />
+              Duyệt ({selectedIds.size})
+            </Button>
+          )}
+
           {/* Nút Xác nhận xuất hàng loạt - Chỉ Admin và có phiếu đã duyệt */}
           {isAdmin && hasApprovedItems && (
             <Button 
@@ -1095,8 +1200,20 @@ export const XuatKho: React.FC = () => {
                         <Edit className="w-4 h-4" />
                       </Button>
                       
+                      {/* Nút Duyệt - Chỉ Admin và phiếu chờ duyệt */}
+                      {canApprove(exp) && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-300 hover:bg-green-50"
+                          onClick={() => handleApprove(exp.soPhieu)}
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" /> Duyệt
+                        </Button>
+                      )}
+                      
                       {/* Nút Xác nhận xuất - Chỉ Admin và phiếu đã duyệt */}
-                      {isAdmin && exp.status === 'approved' && (
+                      {canConfirmTransfer(exp) && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -1108,7 +1225,7 @@ export const XuatKho: React.FC = () => {
                       )}
                       
                       {/* Nút Từ chối - Chỉ Admin và phiếu chờ duyệt hoặc đã duyệt */}
-                      {isAdmin && (exp.status === 'pending' || exp.status === 'approved') && (
+                      {canReject(exp) && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -1360,28 +1477,30 @@ export const XuatKho: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog xác nhận xóa */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      {/* Dialog xác nhận duyệt hàng loạt */}
+      <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Xác nhận xóa</DialogTitle>
+            <DialogTitle>Xác nhận duyệt</DialogTitle>
           </DialogHeader>
           <div className="py-4">
             <p>
-              Bạn có chắc chắn muốn xóa <strong>{selectedIds.size}</strong> phiếu xuất đã chọn?
+              Bạn có chắc chắn muốn duyệt <strong>{selectedIds.size}</strong> phiếu xuất đã chọn?
             </p>
-            <p className="text-red-500 text-sm mt-2">Hành động này không thể hoàn tác!</p>
+            <p className="text-sm text-gray-600 mt-2">
+              Các phiếu ở trạng thái <span className="font-semibold">"Chờ duyệt"</span> sẽ được chuyển sang <span className="font-semibold text-blue-600">"Đã duyệt"</span>
+            </p>
           </div>
           <div className="flex justify-end gap-3">
-            <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
+            <Button variant="outline" onClick={() => setApproveDialogOpen(false)} disabled={isApproving}>
               Hủy
             </Button>
             <Button 
-              onClick={confirmDelete}
-              disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700"
+              onClick={confirmApprove}
+              disabled={isApproving}
+              className="bg-green-600 hover:bg-green-700"
             >
-              {isDeleting ? 'Đang xóa...' : 'Xóa'}
+              {isApproving ? 'Đang xử lý...' : 'Xác nhận duyệt'}
             </Button>
           </div>
         </DialogContent>
