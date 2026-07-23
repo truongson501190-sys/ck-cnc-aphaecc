@@ -84,7 +84,7 @@ export const NhapKho: React.FC = () => {
   const { canEdit } = usePermission();
   const canAdd = canEdit('nhap_kho');
   const canDelete = canEdit('nhap_kho');
-  const canEditData = canEdit('nhap_kho'); // Hoặc bạn có thể tạo permission riêng
+  const canEditData = canEdit('nhap_kho');
   
   // ===== STATE =====
   const [open, setOpen] = useState(false);
@@ -600,7 +600,7 @@ export const NhapKho: React.FC = () => {
 
   // ===== COMPONENT: PHIẾU NHẬP CONTENT =====
   const PhieuNhapContent = ({ data }: { data: ImportRecord }) => (
-    <div id="phieu-nhap-content">
+    <div id="phieu-nhap-content" className="bg-white p-6 rounded-lg">
       <div className="header">
         <h2 style={{ textAlign: 'center', marginBottom: 20, fontSize: 24 }}>PHIẾU NHẬP KHO</h2>
       </div>
@@ -664,14 +664,13 @@ export const NhapKho: React.FC = () => {
                 <Upload className="w-4 h-4 mr-2" /> Import Excel
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              {/* ... Giữ nguyên nội dung Import Excel ... */}
-              <DialogHeader>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white p-6">
+              <DialogHeader className="mb-4">
                 <DialogTitle className="text-xl">Import phiếu nhập từ Excel</DialogTitle>
               </DialogHeader>
               
               <div className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors bg-gray-50">
                   <input
                     type="file"
                     accept=".xlsx,.xls"
@@ -690,7 +689,7 @@ export const NhapKho: React.FC = () => {
                   </label>
                 </div>
 
-                <div className="bg-blue-50 p-4 rounded-lg">
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                   <h4 className="font-medium text-blue-900 mb-2">📋 Cấu trúc file Excel:</h4>
                   <div className="text-sm text-blue-800 space-y-1">
                     <p><span className="font-semibold">Cột bắt buộc:</span> Ngày, Chung Loại, So Luong, Don vi, Don gia</p>
@@ -738,7 +737,7 @@ export const NhapKho: React.FC = () => {
                 </div>
 
                 {excelData.length > 0 && (
-                  <div>
+                  <div className="bg-white border rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-medium">📊 Dữ liệu đã đọc ({excelData.length} dòng)</span>
                       <Button 
@@ -791,7 +790,7 @@ export const NhapKho: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-end gap-3 mt-4">
+                <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
                   <Button variant="outline" onClick={() => {
                     setImportExcelOpen(false);
                     setExcelData([]);
@@ -822,7 +821,7 @@ export const NhapKho: React.FC = () => {
                 <Plus className="w-4 h-4 mr-2" /> Thêm phiếu nhập
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white p-6">
               <DialogHeader>
                 <DialogTitle className="text-xl">Tạo phiếu nhập kho mới</DialogTitle>
               </DialogHeader>
@@ -944,7 +943,6 @@ export const NhapKho: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-center">
                       <div className="flex items-center justify-center gap-1">
-                        {/* Nút Chỉnh sửa - Thay thế nút duyệt */}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -955,7 +953,6 @@ export const NhapKho: React.FC = () => {
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
-                        {/* Nút Xem chi tiết */}
                         <Button
                           variant="ghost"
                           size="sm"
@@ -1009,7 +1006,7 @@ export const NhapKho: React.FC = () => {
 
       {/* EDIT DIALOG */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white p-6">
           <DialogHeader>
             <DialogTitle className="text-xl">✏️ Chỉnh sửa phiếu nhập</DialogTitle>
             <p className="text-sm text-gray-500">Sửa thông tin phiếu {editFormData?.soPhieu}</p>
@@ -1180,7 +1177,7 @@ export const NhapKho: React.FC = () => {
 
       {/* VIEW DETAIL MODAL */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-white p-6">
           <DialogHeader>
             <DialogTitle className="text-xl">📄 Chi tiết phiếu nhập</DialogTitle>
           </DialogHeader>
@@ -1198,7 +1195,7 @@ export const NhapKho: React.FC = () => {
 
       {/* DELETE CONFIRM DIALOG */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white p-6">
           <DialogHeader>
             <DialogTitle>⚠️ Xác nhận xóa</DialogTitle>
           </DialogHeader>

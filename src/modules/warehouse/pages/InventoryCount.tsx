@@ -345,13 +345,13 @@ export function InventoryCount() {
                   <Upload className="w-4 h-4 mr-2" /> Import Excel
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
+              <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white p-6">
+                <DialogHeader className="mb-4">
                   <DialogTitle className="text-xl">Import phiếu kiểm kê từ Excel</DialogTitle>
                 </DialogHeader>
                 
                 <div className="space-y-4">
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors bg-gray-50">
                     <input
                       type="file"
                       accept=".xlsx,.xls"
@@ -359,7 +359,7 @@ export function InventoryCount() {
                       className="hidden"
                       id="excel-upload"
                     />
-                    <label htmlFor="excel-upload" className="cursor-pointer">
+                    <label htmlFor="excel-upload" className="cursor-pointer block">
                       <Upload className="w-12 h-12 mx-auto text-gray-400" />
                       <p className="mt-2 text-sm text-gray-600">
                         Click để chọn file Excel hoặc kéo thả vào đây
@@ -370,12 +370,12 @@ export function InventoryCount() {
                     </label>
                   </div>
 
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-blue-900 mb-2">Cấu trúc file Excel:</h4>
+                  <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                    <h4 className="font-medium text-blue-900 mb-2">📋 Cấu trúc file Excel:</h4>
                     <div className="text-sm text-blue-800 space-y-1">
                       <p><span className="font-semibold">Cột bắt buộc:</span> Mã vật tư, Tên vật tư, Kho, Số lượng thực tế, Số lượng kỳ vọng</p>
                       <p><span className="font-semibold">Cột tùy chọn:</span> Ngày kiểm kê, Trạng thái, Ghi chú</p>
-                      <p className="text-xs text-blue-600">* Trạng thái sẽ tự động tính: Khớp nếu chênh lệch = 0, Chênh lệch nếu khác</p>
+                      <p className="text-xs text-blue-600 mt-1">* Trạng thái sẽ tự động tính: Khớp nếu chênh lệch = 0, Chênh lệch nếu khác</p>
                     </div>
                     <Button 
                       variant="link" 
@@ -410,25 +410,25 @@ export function InventoryCount() {
                         XLSX.writeFile(wb, 'mau_phieu_kiem_ke.xlsx');
                       }}
                     >
-                      Tải file mẫu
+                      📥 Tải file mẫu
                     </Button>
                   </div>
 
                   {excelData.length > 0 && (
-                    <div>
+                    <div className="bg-white border rounded-lg p-4">
                       <div className="flex justify-between items-center mb-2">
-                        <span className="font-medium">Dữ liệu đã đọc ({excelData.length} dòng)</span>
+                        <span className="font-medium">📊 Dữ liệu đã đọc ({excelData.length} dòng)</span>
                         <Button 
                           variant="ghost" 
                           size="sm" 
                           onClick={() => setExcelData([])}
-                          className="text-red-500"
+                          className="text-red-500 hover:text-red-700"
                         >
                           <X className="w-4 h-4" /> Xóa
                         </Button>
                       </div>
                       <div className="border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
-                        <table className="min-w-full divide-y divide-gray-200">
+                        <table className="min-w-full divide-y divide-gray-200 text-sm">
                           <thead className="bg-gray-50 sticky top-0">
                             <tr>
                               <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
@@ -442,14 +442,16 @@ export function InventoryCount() {
                           </thead>
                           <tbody className="bg-white divide-y divide-gray-200">
                             {excelData.slice(0, 10).map((row, idx) => (
-                              <tr key={idx}>
+                              <tr key={idx} className="hover:bg-gray-50">
                                 <td className="px-4 py-2 text-sm text-gray-900">{idx + 1}</td>
                                 <td className="px-4 py-2 text-sm text-gray-900">{row.itemCode}</td>
                                 <td className="px-4 py-2 text-sm text-gray-900">{row.itemName}</td>
                                 <td className="px-4 py-2 text-sm text-gray-900">{row.warehouse}</td>
                                 <td className="px-4 py-2 text-sm text-right text-gray-900">{row.countedQuantity}</td>
                                 <td className="px-4 py-2 text-sm text-right text-gray-900">{row.expectedQuantity}</td>
-                                <td className="px-4 py-2 text-sm text-right text-gray-900">{row.difference}</td>
+                                <td className={`px-4 py-2 text-sm text-right font-semibold ${row.difference !== 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                  {row.difference}
+                                </td>
                               </tr>
                             ))}
                             {excelData.length > 10 && (
@@ -468,7 +470,7 @@ export function InventoryCount() {
                     </div>
                   )}
 
-                  <div className="flex justify-end gap-3 mt-4">
+                  <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
                     <Button variant="outline" onClick={() => {
                       setImportExcelOpen(false);
                       setExcelData([]);
@@ -478,9 +480,9 @@ export function InventoryCount() {
                     <Button 
                       onClick={handleImportExcel}
                       disabled={excelData.length === 0 || isProcessing}
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-green-600 hover:bg-green-700 text-white"
                     >
-                      {isProcessing ? 'Đang xử lý...' : 'Import dữ liệu'}
+                      {isProcessing ? '⏳ Đang xử lý...' : '📤 Import dữ liệu'}
                     </Button>
                   </div>
                 </div>
@@ -494,7 +496,7 @@ export function InventoryCount() {
                   <Plus className="w-4 h-4" /> Thêm phiếu
                 </Button>
               </DialogTrigger>
-              <DialogContent className="max-w-3xl">
+              <DialogContent className="max-w-3xl bg-white p-6">
                 <DialogHeader>
                   <DialogTitle>{selectedEntry ? 'Chỉnh sửa kiểm kê' : 'Thêm kiểm kê mới'}</DialogTitle>
                 </DialogHeader>
@@ -750,7 +752,7 @@ export function InventoryCount() {
 
       {/* Dialog xác nhận xóa */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white p-6">
           <DialogHeader>
             <DialogTitle>Xác nhận xóa</DialogTitle>
           </DialogHeader>
@@ -767,9 +769,9 @@ export function InventoryCount() {
             <Button 
               onClick={confirmDelete}
               disabled={isDeleting}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {isDeleting ? 'Đang xóa...' : 'Xóa'}
+              {isDeleting ? '⏳ Đang xóa...' : 'Xóa'}
             </Button>
           </div>
         </DialogContent>

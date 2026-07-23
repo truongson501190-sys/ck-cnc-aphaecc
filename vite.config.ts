@@ -157,6 +157,10 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('recharts') || id.includes('d3')) {
               return 'vendor-charts';
             }
+            // ✅ Thêm pdfjs-dist vào vendor riêng
+            if (id.includes('pdfjs-dist')) {
+              return 'vendor-pdf';
+            }
             return 'vendor-other';
           }
           if (id.includes('/modules/warehouse/')) {
@@ -199,6 +203,11 @@ export default defineConfig(({ mode }) => ({
       propertyReadSideEffects: false,
       tryCatchDeoptimization: false,
     },
+    // ✅ Thêm commonjsOptions để hỗ trợ pdfjs-dist
+    commonjsOptions: {
+      include: [/pdfjs-dist/, /node_modules/],
+      transformMixedEsModules: true,
+    },
   },
   
   css: {
@@ -227,8 +236,14 @@ export default defineConfig(({ mode }) => ({
       'date-fns',
       'i18next',
       'react-i18next',
+      // ✅ Thêm pdfjs-dist
+      'pdfjs-dist',
     ],
     exclude: [],
+    // ✅ Thêm esbuild options cho pdfjs-dist
+    esbuildOptions: {
+      target: 'es2020',
+    },
   },
   
   esbuild: {

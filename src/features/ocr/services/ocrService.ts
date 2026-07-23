@@ -3,6 +3,7 @@
 import { SmartOCRParser } from '@/features/ocr/services/smartOCRParser';
 import { AIEnhancer } from '@/features/ocr/services/aiEnhancer';
 import { tesseractService } from './tesseractService';
+import { pdfToImage } from './pdfToImage';
 
 export interface ParsedReportData {
   type?: 'production' | 'import' | 'export' | 'qc' | 'other';
@@ -34,76 +35,63 @@ export interface OCRBatchResult {
 export class OCRParser {
   private readonly patterns: Record<string, RegExp[]> = {
     date: [
-      /(?:ngày|date)\s*[:：]\s*(\d{1,2})[ /.-](\d{1,2})[ /.-](\d{4})/i,
+      /(?:ngày|date)\s*[:：]?\s*(\d{1,2})[ /.-](\d{1,2})[ /.-](\d{4})/i,
       /(\d{2})[ /.-](\d{2})[ /.-](\d{4})/,
       /(\d{1,2})\s*[ /.-]\s*(\d{1,2})\s*[ /.-]\s*(\d{4})/,
     ],
     shift: [/ca\s*[:：]?\s*(\d+)/i, /shift\s*[:：]?\s*(\d+)/i, /ca\s*([1-3])/i],
     machine_code: [
-      /m[ãa]\s*m[áa]y\s*[:：]\s*([A-Z0-9-]+)/i,
-      /máy\s*[:：]\s*([A-Z0-9-]+)/i,
-      /machine\s*[:：]\s*([A-Z0-9-]+)/i,
+      /máy\s*[:：]?\s*([A-Z0-9-]+)/i,
+      /machine\s*[:：]?\s*([A-Z0-9-]+)/i,
       /M([A-Z0-9]{2,})/,
       /MC[ -]?\s*([A-Z0-9]+)/i,
     ],
     worker_code: [
-      /c[ôo]ng\s*nh[âa]n\s*[:：]\s*([A-Z0-9-]+)/i,
-      /worker\s*[:：]\s*([A-Z0-9-]+)/i,
+      /công\s*nhân\s*[:：]?\s*([A-Z0-9-]+)/i,
+      /worker\s*[:：]?\s*([A-Z0-9-]+)/i,
       /NV([A-Z0-9]{2,})/i,
-      /nh[âa]n\s*vi[êe]n\s*[:：]\s*([A-Z0-9-]+)/i,
+      /nhân\s*viên\s*[:：]?\s*([A-Z0-9-]+)/i,
     ],
     worker_name: [
-      /t[êe]n\s*c[ôo]ng\s*nh[âa]n\s*[:：]\s*([A-Za-zÀ-ỹ\s]+)/i,
-      /worker\s*name\s*[:：]\s*([A-Za-zÀ-ỹ\s]+)/i,
+      /tên\s*công\s*nhân\s*[:：]?\s*([A-Za-zÀ-ỹ\s]+)/i,
+      /worker\s*name\s*[:：]?\s*([A-Za-zÀ-ỹ\s]+)/i,
     ],
     product_code: [
-      /m[ãa]\s*s[ảa]n\s*ph[ẩa]m\s*[:：]\s*([A-Z0-9-]+)/i,
-      /product\s*code\s*[:：]\s*([A-Z0-9-]+)/i,
+      /mã\s*sản\s*phẩm\s*[:：]?\s*([A-Z0-9-]+)/i,
+      /product\s*code\s*[:：]?\s*([A-Z0-9-]+)/i,
       /SP([A-Z0-9]{2,})/i,
       /P[ -]?\s*([A-Z0-9]+)/i,
     ],
     product_name: [
-      /t[êe]n\s*s[ảa]n\s*ph[ẩa]m\s*[:：]\s*([^\n]+)/i,
-      /product\s*name\s*[:：]\s*([^\n]+)/i,
-      /s[ảa]n\s*ph[ẩa]m\s*[:：]\s*([^\n]+)/i,
+      /tên\s*sản\s*phẩm\s*[:：]?\s*([^\n]+)/i,
+      /product\s*name\s*[:：]?\s*([^\n]+)/i,
+      /sản\s*phẩm\s*[:：]?\s*([^\n]+)/i,
     ],
     batch_number: [
-      /s[ôo]\s*l[ôo]\s*[:：]\s*([A-Z0-9-]+)/i,
-      /batch\s*[:：]\s*([A-Z0-9-]+)/i,
-      /l[ôo]\s*([A-Z0-9]{2,})/i,
-      /lot\s*[:：]\s*([A-Z0-9-]+)/i,
+      /số\s*lô\s*[:：]?\s*([A-Z0-9-]+)/i,
+      /batch\s*[:：]?\s*([A-Z0-9-]+)/i,
+      /lô\s*([A-Z0-9]{2,})/i,
+      /lot\s*[:：]?\s*([A-Z0-9-]+)/i,
     ],
     quantity: [
-      /s[ôo]\s*lư[ơo]ng\s*[:：]\s*(\d+)/i,
-      /quantity\s*[:：]\s*(\d+)/i,
-      /t[ôo]ng\s*(\d+)/i,
-      /sl\s*[:：]\s*(\d+)/i,
+      /số\s*lượng\s*[:：]?\s*(\d+)/i,
+      /quantity\s*[:：]?\s*(\d+)/i,
+      /tổng\s*[:：]?\s*(\d+)/i,
+      /sl\s*[:：]?\s*(\d+)/i,
     ],
-    unit: [
-      /đ[ơo]n\s*v[ịi]\s*[:：]\s*([A-Za-zÀ-ỹ]+)/i,
-      /unit\s*[:：]\s*([A-Za-z]+)/i,
-    ],
+    unit: [/đơn\s*vị\s*[:：]?\s*([A-Za-zÀ-ỹ]+)/i, /unit\s*[:：]?\s*([A-Za-z]+)/i],
     result: [
-      /k[ếe]t\s*qu[ảa]\s*[:：]\s*([A-Za-zÀ-ỹ\s]+)/i,
-      /result\s*[:：]\s*([A-Za-z]+)/i,
+      /kết\s*quả\s*[:：]?\s*([A-Za-zÀ-ỹ\s]+)/i,
+      /result\s*[:：]?\s*([A-Za-z]+)/i,
     ],
     notes: [
-      /ghi\s*ch[úu]\s*[:：]\s*([^\n]+)/i,
-      /notes\s*[:：]\s*([^\n]+)/i,
-      /nh[ậa]n\s*x[ée]t\s*[:：]\s*([^\n]+)/i,
+      /ghi\s*chú\s*[:：]?\s*([^\n]+)/i,
+      /notes\s*[:：]?\s*([^\n]+)/i,
+      /nhận\s*xét\s*[:：]?\s*([^\n]+)/i,
     ],
-    material: [
-      /v[ậa]t\s*li[ệe]u\s*[:：]\s*([^\n]+)/i,
-      /material\s*[:：]\s*([^\n]+)/i,
-    ],
-    supplier: [
-      /nh[àa]\s*cung\s*c[ấa]p\s*[:：]\s*([^\n]+)/i,
-      /supplier\s*[:：]\s*([^\n]+)/i,
-    ],
-    customer: [
-      /kh[áa]ch\s*h[àa]ng\s*[:：]\s*([^\n]+)/i,
-      /customer\s*[:：]\s*([^\n]+)/i,
-    ],
+    material: [/vật\s*liệu\s*[:：]?\s*([^\n]+)/i, /material\s*[:：]?\s*([^\n]+)/i],
+    supplier: [/nhà\s*cung\s*cấp\s*[:：]?\s*([^\n]+)/i, /supplier\s*[:：]?\s*([^\n]+)/i],
+    customer: [/khách\s*hàng\s*[:：]?\s*([^\n]+)/i, /customer\s*[:：]?\s*([^\n]+)/i],
   };
 
   parse(text: string): ParsedReportData {
@@ -113,19 +101,16 @@ export class OCRParser {
     for (const [field, patterns] of Object.entries(this.patterns)) {
       for (const pattern of patterns) {
         const match = pattern.exec(cleanText);
-        if (match && match[1]) {
+        if (match?.[1]) {
           const value = match[1].trim();
-          const num = Number(value);
-          fields[field] = Number.isNaN(num) ? value : num;
+          const numericValue = Number(value);
+          fields[field] = Number.isNaN(numericValue) ? value : numericValue;
           break;
         }
       }
     }
 
-    const totalFields = Object.keys(this.patterns).length;
-    const foundFields = Object.keys(fields).length;
-    const confidence = Math.min(foundFields / totalFields, 1);
-
+    const confidence = Math.min(Object.keys(fields).length / Object.keys(this.patterns).length, 1);
     return {
       type: 'other',
       fields,
@@ -136,66 +121,16 @@ export class OCRParser {
   }
 
   private cleanText(text: string): string {
-    return text
-      .replaceAll('\r\n', '\n')
-      .replaceAll('\r', '\n')
-      .replaceAll(/\s+/g, ' ')
-      .replaceAll(/[•●■◆▶▸➢➣➤★☆✦✧❖]/g, '')
-      .trim();
+    return text.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll(/\s+/g, ' ').trim();
   }
 }
 
 // ==================== OCR SERVICE ====================
 export class OCRService {
-  private readonly apiUrl?: string;
   private readonly parser: OCRParser;
-  private useTesseract: boolean = false;
 
-  constructor(apiUrl?: string) {
-    this.apiUrl = apiUrl;
+  constructor() {
     this.parser = new OCRParser();
-
-    // ✅ Nếu đang ở production (Vercel), dùng Tesseract.js
-    if (import.meta.env.PROD) {
-      this.useTesseract = true;
-      console.log('📦 Production mode: Dùng Tesseract.js (không cần backend)');
-    } else {
-      console.log('💻 Development mode: Dùng backend Python (localhost:5001)');
-    }
-  }
-
-  private getCandidateApiUrls(): string[] {
-    const configured = (this.apiUrl || import.meta.env.VITE_OCR_API_URL || '').trim();
-    const candidates = [configured, 'http://127.0.0.1:5001', 'http://localhost:5001'];
-
-    if (typeof window !== 'undefined') {
-      candidates.unshift(`http://${window.location.hostname}:5001`);
-    }
-
-    return Array.from(new Set(candidates.filter(Boolean).map((value) => value.replace(/\/$/, ''))));
-  }
-
-  private async fetchWithFallback(path: string, init?: RequestInit): Promise<Response> {
-    const errors: unknown[] = [];
-
-    for (const baseUrl of this.getCandidateApiUrls()) {
-      if (!baseUrl) continue;
-      try {
-        const response = await fetch(`${baseUrl}${path}`, {
-          ...init,
-          mode: 'cors',
-          credentials: 'omit',
-        });
-
-        if (response.ok || response.status >= 400) {
-          return response;
-        }
-      } catch (error) {
-        errors.push(error);
-      }
-    }
-
-    throw errors.at(-1) || new Error('OCR request failed');
   }
 
   private processText(text: string): ParsedReportData {
@@ -207,80 +142,39 @@ export class OCRService {
   }
 
   async processFile(file: File, page?: number): Promise<OCRResult> {
-    // ✅ Ưu tiên: dùng Tesseract.js
-    if (this.useTesseract) {
-      console.log('🧠 Dùng Tesseract.js để OCR...');
-      try {
-        const result = await tesseractService.processFile(file);
-        if (result.status === 'success' && result.text) {
-          // Parse text với SmartOCRParser và AIEnhancer
-          const parsedData = this.processText(result.text);
-          result.parsed_data = parsedData;
-        }
-        return result;
-      } catch (error) {
-        console.error('❌ Lỗi Tesseract.js:', error);
-        // Fallback sang backend nếu Tesseract lỗi
-        console.log('🔄 Fallback sang backend Python...');
-      }
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    const isImage = file.type.startsWith('image/') || 
+                    file.name.match(/\.(jpg|jpeg|png|bmp|tiff|webp|gif)$/i);
+
+    if (!isImage && !isPdf) {
+      return {
+        status: 'error',
+        message: `❌ File "${file.name}" KHÔNG được hỗ trợ.\n\n📌 Hệ thống hỗ trợ ẢNH và PDF:\n   • JPG, JPEG, PNG, BMP, TIFF, WEBP, GIF\n   • PDF (OCR trang được chọn)`
+      };
     }
-
-    // ✅ Fallback: dùng backend Python (localhost)
-    console.log('🐍 Dùng backend Python OCR...');
-    const formData = new FormData();
-    formData.append('file', file);
-
-    let path = '/ocr';
-    if (page !== undefined && page >= 0) {
-      path += `?page=${page}`;
-    }
-
+    
     try {
-      const response = await this.fetchWithFallback(path, {
-        method: 'POST',
-        body: formData,
-      });
-
-      const contentType = response.headers.get('content-type') || '';
-      const payload = contentType.includes('application/json')
-        ? await response.json()
-        : { status: 'error', message: await response.text() };
-
-      if (!response.ok) {
-        return {
-          status: 'error',
-          message: payload?.message || 'OCR server returned an error',
-        };
+      console.log(isPdf ? '📄 Chuyển PDF sang ảnh để OCR' : '🧠 Dùng Tesseract.js');
+      const imageFile = isPdf ? await pdfToImage(file, page ?? 1) : file;
+      const result = await tesseractService.processFile(imageFile);
+      result.filename = file.name;
+      result.file_type = isPdf ? 'pdf' : 'image';
+      if (isPdf) {
+        result.page_processed = page ?? 1;
       }
-
-      const result = payload as OCRResult;
+      
       if (result.status === 'success' && result.text) {
         const parsedData = this.processText(result.text);
         result.parsed_data = parsedData;
+        console.log('✅ OCR thành công, đã parse dữ liệu');
       }
-      return result;
-
-    } catch (error) {
-      console.error('Lỗi khi gọi OCR API:', error);
       
-      // ✅ Nếu backend lỗi và đang ở development, thử Tesseract.js
-      if (!this.useTesseract) {
-        console.log('🔄 Backend lỗi, thử Tesseract.js...');
-        try {
-          const result = await tesseractService.processFile(file);
-          if (result.status === 'success' && result.text) {
-            const parsedData = this.processText(result.text);
-            result.parsed_data = parsedData;
-          }
-          return result;
-        } catch (tesseractError) {
-          console.error('❌ Tesseract.js cũng lỗi:', tesseractError);
-        }
-      }
-
+      return result;
+    } catch (error) {
+      console.error('❌ Lỗi Tesseract.js:', error);
       return {
         status: 'error',
-        message: 'Không thể kết nối đến server OCR. Vui lòng chạy backend tại http://127.0.0.1:5001 hoặc kiểm tra cổng 5001.',
+        message: error instanceof Error ? error.message : 'Lỗi OCR. Vui lòng thử file ảnh khác (JPG, PNG).'
       };
     }
   }
@@ -311,15 +205,6 @@ export class OCRService {
       successCount,
       errorCount,
     };
-  }
-
-  async healthCheck(): Promise<boolean> {
-    try {
-      const response = await this.fetchWithFallback('/health', { method: 'GET' });
-      return response.status === 200;
-    } catch {
-      return false;
-    }
   }
 
   getField<T = any>(data: ParsedReportData, field: string, defaultValue?: T): T | undefined {

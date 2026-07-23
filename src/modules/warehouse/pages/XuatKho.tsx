@@ -127,14 +127,12 @@ export const XuatKho: React.FC = () => {
 
   // ===== UPDATE STATUS =====
   const updateExportStatus = (soPhieu: string, newStatus: 'approved' | 'transferred' | 'received' | 'rejected', lyDo?: string) => {
-    // Kiểm tra phiếu có tồn tại không
     const exp = exportsList.find(e => e.soPhieu === soPhieu);
     if (!exp) {
       toast.error('Không tìm thấy phiếu');
       return;
     }
     
-    // Kiểm tra trạng thái chuyển đổi hợp lệ
     if (!validTransitions[exp.status]?.includes(newStatus)) {
       toast.error(`Không thể chuyển từ "${exp.status}" sang "${newStatus}"`);
       return;
@@ -833,7 +831,7 @@ export const XuatKho: React.FC = () => {
 
   // ========== COMPONENT NỘI DUNG PHIẾU ==========
   const PhieuXuatContent = ({ data }: { data: ExportRecord }) => (
-    <div id="phieu-xuat-content">
+    <div id="phieu-xuat-content" className="bg-white p-6 rounded-lg">
       <h2 style={{ textAlign: 'center', marginBottom: 20 }}>PHIẾU XUẤT KHO</h2>
       <div style={{ marginBottom: 20 }}>
         <p><strong>Số phiếu:</strong> {data.soPhieu}</p>
@@ -904,9 +902,14 @@ export const XuatKho: React.FC = () => {
   );
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-900">Xuất Kho</h1>
+    <div className="space-y-6 p-6 bg-gray-50 min-h-screen">
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Xuất Kho</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Quản lý phiếu xuất kho | <strong>{exportsList.length}</strong> phiếu
+          </p>
+        </div>
         <div className="flex gap-2 flex-wrap">
           {/* Nút Import Excel */}
           <Dialog open={importExcelOpen} onOpenChange={setImportExcelOpen}>
@@ -915,13 +918,13 @@ export const XuatKho: React.FC = () => {
                 <Upload className="w-4 h-4 mr-2" /> Import Excel
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
+            <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-white p-6">
+              <DialogHeader className="mb-4">
                 <DialogTitle className="text-xl">Import phiếu xuất từ Excel</DialogTitle>
               </DialogHeader>
               
               <div className="space-y-4">
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center">
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors bg-gray-50">
                   <input
                     type="file"
                     accept=".xlsx,.xls"
@@ -929,7 +932,7 @@ export const XuatKho: React.FC = () => {
                     className="hidden"
                     id="excel-upload"
                   />
-                  <label htmlFor="excel-upload" className="cursor-pointer">
+                  <label htmlFor="excel-upload" className="cursor-pointer block">
                     <Upload className="w-12 h-12 mx-auto text-gray-400" />
                     <p className="mt-2 text-sm text-gray-600">
                       Click để chọn file Excel hoặc kéo thả vào đây
@@ -940,12 +943,13 @@ export const XuatKho: React.FC = () => {
                   </label>
                 </div>
 
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900 mb-2">Cấu trúc file Excel:</h4>
+                <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                  <h4 className="font-medium text-blue-900 mb-2">📋 Cấu trúc file Excel:</h4>
                   <div className="text-sm text-blue-800 space-y-1">
                     <p><span className="font-semibold">Cột bắt buộc:</span> Ngay, Chung Loai, Don vi, Don gia</p>
                     <p><span className="font-semibold">Cột số lượng:</span> Số lượng (nếu có) hoặc cột thứ 3 trong file</p>
                     <p><span className="font-semibold">Cột tùy chọn:</span> Job No, Thanh Tien, Xuat Kho, Nguoi Nhan, Nguoi Xuat, Ghi chú</p>
+                    <p className="text-xs text-blue-600 mt-1">* Nếu không có cột "Thanh Tien", hệ thống sẽ tự động tính = Số lượng × Đơn giá</p>
                   </div>
                   <Button 
                     variant="link" 
@@ -972,25 +976,25 @@ export const XuatKho: React.FC = () => {
                       XLSX.writeFile(wb, 'mau_phieu_xuat.xlsx');
                     }}
                   >
-                    Tải file mẫu
+                    📥 Tải file mẫu
                   </Button>
                 </div>
 
                 {excelData.length > 0 && (
-                  <div>
+                  <div className="bg-white border rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
-                      <span className="font-medium">Dữ liệu đã đọc ({excelData.length} dòng)</span>
+                      <span className="font-medium">📊 Dữ liệu đã đọc ({excelData.length} dòng)</span>
                       <Button 
                         variant="ghost" 
                         size="sm" 
                         onClick={() => setExcelData([])}
-                        className="text-red-500"
+                        className="text-red-500 hover:text-red-700"
                       >
                         <X className="w-4 h-4" /> Xóa
                       </Button>
                     </div>
                     <div className="border rounded-lg overflow-hidden max-h-60 overflow-y-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
+                      <table className="min-w-full divide-y divide-gray-200 text-sm">
                         <thead className="bg-gray-50 sticky top-0">
                           <tr>
                             <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">STT</th>
@@ -1005,7 +1009,7 @@ export const XuatKho: React.FC = () => {
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {excelData.slice(0, 10).map((row, idx) => (
-                            <tr key={idx}>
+                            <tr key={idx} className="hover:bg-gray-50">
                               <td className="px-4 py-2 text-sm text-gray-900">{idx + 1}</td>
                               <td className="px-4 py-2 text-sm text-gray-900">{row.ngayXuat}</td>
                               <td className="px-4 py-2 text-sm text-gray-900">{row.tenChungLoai}</td>
@@ -1032,7 +1036,7 @@ export const XuatKho: React.FC = () => {
                   </div>
                 )}
 
-                <div className="flex justify-end gap-3 mt-4">
+                <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
                   <Button variant="outline" onClick={() => {
                     setImportExcelOpen(false);
                     setExcelData([]);
@@ -1042,9 +1046,9 @@ export const XuatKho: React.FC = () => {
                   <Button 
                     onClick={handleImportExcel}
                     disabled={excelData.length === 0 || isProcessing}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-green-600 hover:bg-green-700 text-white"
                   >
-                    {isProcessing ? 'Đang xử lý...' : 'Import dữ liệu'}
+                    {isProcessing ? '⏳ Đang xử lý...' : '📤 Import dữ liệu'}
                   </Button>
                 </div>
               </div>
@@ -1058,7 +1062,7 @@ export const XuatKho: React.FC = () => {
                 <Plus className="w-4 h-4 mr-2" /> Thêm phiếu xuất
               </Button>
             </DialogTrigger>
-            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white p-6">
               <DialogHeader>
                 <DialogTitle className="text-xl">Tạo phiếu xuất kho mới</DialogTitle>
               </DialogHeader>
@@ -1130,13 +1134,32 @@ export const XuatKho: React.FC = () => {
         </div>
       </div>
 
+      {/* FILTERS - Thêm phần lọc */}
+      <div className="flex flex-wrap gap-4 items-center bg-white p-4 rounded-lg shadow-sm border">
+        <div className="flex-1 min-w-[200px]">
+          <Input
+            placeholder="🔍 Tìm kiếm theo số phiếu, dự án, người nhận..."
+            className="w-full"
+          />
+        </div>
+        <div className="min-w-[180px]">
+          <Input
+            type="date"
+            className="w-full"
+          />
+        </div>
+        <Badge variant="secondary" className="ml-auto">
+          {exportsList.length} phiếu
+        </Badge>
+      </div>
+
       {/* Bảng danh sách phiếu xuất */}
-      <div className="border rounded-lg overflow-hidden shadow-sm">
+      <div className="border rounded-lg overflow-hidden shadow-sm bg-white">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left">
+                <th className="px-4 py-3 text-left w-12">
                   <Button
                     variant="ghost"
                     size="sm"
@@ -1164,7 +1187,7 @@ export const XuatKho: React.FC = () => {
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {exportsList.map((exp) => (
-                <tr key={exp.soPhieu} className="hover:bg-gray-50">
+                <tr key={exp.soPhieu} className="hover:bg-gray-50 transition-colors">
                   <td className="px-4 py-4">
                     <Button
                       variant="ghost"
@@ -1279,7 +1302,7 @@ export const XuatKho: React.FC = () => {
 
       {/* EDIT DIALOG */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white p-6">
           <DialogHeader>
             <DialogTitle className="text-xl">✏️ Chỉnh sửa phiếu xuất</DialogTitle>
             <p className="text-sm text-gray-500">Sửa thông tin phiếu {editFormData?.soPhieu}</p>
@@ -1465,12 +1488,14 @@ export const XuatKho: React.FC = () => {
 
       {/* Modal xem chi tiết phiếu */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Chi tiết phiếu xuất</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white p-6">
+          <DialogHeader>
+            <DialogTitle className="text-xl">📄 Chi tiết phiếu xuất</DialogTitle>
+          </DialogHeader>
           {selectedExport && <PhieuXuatContent data={selectedExport} />}
-          <div className="flex justify-end gap-3 mt-4">
+          <div className="flex justify-end gap-3 mt-4 pt-4 border-t">
             <Button variant="outline" onClick={() => setViewOpen(false)}>Đóng</Button>
-            <Button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handlePrint} className="bg-blue-600 hover:bg-blue-700 text-white">
               <Download className="w-4 h-4 mr-2" /> In / Lưu PDF
             </Button>
           </div>
@@ -1479,7 +1504,7 @@ export const XuatKho: React.FC = () => {
 
       {/* Dialog xác nhận duyệt hàng loạt */}
       <Dialog open={approveDialogOpen} onOpenChange={setApproveDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white p-6">
           <DialogHeader>
             <DialogTitle>Xác nhận duyệt</DialogTitle>
           </DialogHeader>
@@ -1498,9 +1523,9 @@ export const XuatKho: React.FC = () => {
             <Button 
               onClick={confirmApprove}
               disabled={isApproving}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isApproving ? 'Đang xử lý...' : 'Xác nhận duyệt'}
+              {isApproving ? '⏳ Đang xử lý...' : 'Xác nhận duyệt'}
             </Button>
           </div>
         </DialogContent>
@@ -1508,7 +1533,7 @@ export const XuatKho: React.FC = () => {
 
       {/* Dialog xác nhận nhận hàng loạt */}
       <Dialog open={receiveDialogOpen} onOpenChange={setReceiveDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white p-6">
           <DialogHeader>
             <DialogTitle>Xác nhận đã nhận</DialogTitle>
           </DialogHeader>
@@ -1527,9 +1552,9 @@ export const XuatKho: React.FC = () => {
             <Button 
               onClick={confirmReceive}
               disabled={isReceiving}
-              className="bg-green-600 hover:bg-green-700"
+              className="bg-green-600 hover:bg-green-700 text-white"
             >
-              {isReceiving ? 'Đang xử lý...' : 'Xác nhận đã nhận'}
+              {isReceiving ? '⏳ Đang xử lý...' : 'Xác nhận đã nhận'}
             </Button>
           </div>
         </DialogContent>
@@ -1537,7 +1562,7 @@ export const XuatKho: React.FC = () => {
 
       {/* Dialog xác nhận xuất hàng loạt */}
       <Dialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white p-6">
           <DialogHeader>
             <DialogTitle>Xác nhận xuất</DialogTitle>
           </DialogHeader>
@@ -1556,9 +1581,9 @@ export const XuatKho: React.FC = () => {
             <Button 
               onClick={confirmTransfer}
               disabled={isTransferring}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
-              {isTransferring ? 'Đang xử lý...' : 'Xác nhận xuất'}
+              {isTransferring ? '⏳ Đang xử lý...' : 'Xác nhận xuất'}
             </Button>
           </div>
         </DialogContent>
@@ -1566,7 +1591,7 @@ export const XuatKho: React.FC = () => {
 
       {/* Dialog từ chối hàng loạt */}
       <Dialog open={rejectDialogOpen} onOpenChange={setRejectDialogOpen}>
-        <DialogContent>
+        <DialogContent className="bg-white p-6">
           <DialogHeader>
             <DialogTitle>Xác nhận từ chối</DialogTitle>
           </DialogHeader>
@@ -1595,9 +1620,9 @@ export const XuatKho: React.FC = () => {
             <Button 
               onClick={confirmReject}
               disabled={isRejecting || !rejectReason.trim()}
-              className="bg-red-600 hover:bg-red-700"
+              className="bg-red-600 hover:bg-red-700 text-white"
             >
-              {isRejecting ? 'Đang xử lý...' : 'Xác nhận từ chối'}
+              {isRejecting ? '⏳ Đang xử lý...' : 'Xác nhận từ chối'}
             </Button>
           </div>
         </DialogContent>

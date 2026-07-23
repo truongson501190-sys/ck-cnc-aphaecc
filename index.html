@@ -55,9 +55,13 @@
 
         // 3. Check if URL is malformed
         function isMalformedUrl(url) {
+          if (/^(blob|data):/i.test(url)) {
+            return false;
+          }
+
           return url.includes('%20') ||
             url.includes('http//') ||
-            url.includes('http:/') ||
+            /https?:\/\/[^/]/i.test(url) === false && /https?:/i.test(url) ||
             url.includes(' ') ||
             (url.match(/https?:\/\//gi) || []).length > 1;
         }
