@@ -1,24 +1,34 @@
-import type { PDFDocumentProxy } from 'pdfjs-dist';
+// src/features/ocr/services/pdfToImage.ts
 
-let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | undefined;
+// ✅ Load pdfjs-dist từ CDN bằng script tag
+function loadPDFJS(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    // Kiểm tra nếu đã load rồi
+    if (window.pdfjsLib) {
+      resolve(window.pdfjsLib);
+      return;
+    }
 
-async function loadPDFJS(): Promise<typeof import('pdfjs-dist')> {
-  if (!pdfjsPromise) {
-    pdfjsPromise = import('pdfjs-dist').then((pdfjsLib) => {
-      pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-        'pdfjs-dist/build/pdf.worker.min.js',
-        import.meta.url,
-      ).toString();
-      return pdfjsLib;
-    });
-  }
-
-  return pdfjsPromise;
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js';
+    script.onload = () => {
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      } else {
+        reject(new Error('PDF.js không được tải đúng cách'));
+      }
+    };
+    script.onerror = () => reject(new Error('Không thể tải PDF.js từ CDN'));
+    document.head.appendChild(script);
+  });
 }
 
-export async function loadPDFDocument(file: File): Promise<PDFDocumentProxy> {
-  const pdfjsLib = await loadPDFJS();
-  return pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+declare global {
+  interface Window {
+    pdfjsLib: any;
+  }
 }
 
 export async function pdfToImage(file: File, pageNumber = 1): Promise<File> {
@@ -27,7 +37,11 @@ export async function pdfToImage(file: File, pageNumber = 1): Promise<File> {
       throw new Error('PDF chỉ hỗ trợ trên browser');
     }
     
-    const pdf = await loadPDFDocument(file);
+    // ✅ Load PDF.js từ CDN
+    const pdfjsLib = await loadPDFJS();
+
+    const arrayBuffer = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
     
     if (!Number.isInteger(pageNumber) || pageNumber < 1 || pageNumber > pdf.numPages) {
       throw new Error(`Trang PDF không hợp lệ. File có ${pdf.numPages} trang.`);

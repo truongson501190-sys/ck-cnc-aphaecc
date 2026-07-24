@@ -1,10 +1,89 @@
 // src/features/ocr/services/tesseractService.ts
 import Tesseract from 'tesseract.js';
 import { OCRResult } from './ocrService';
-import { loadPDFDocument, pdfToImage } from './pdfToImage';
+import { pdfToImage } from './pdfToImage';
+import { preprocessImage } from './imageProcessor';
+
+// ✅ Load PDF.js helper
+async function loadPDFJS(): Promise<any> {
+  return new Promise((resolve, reject) => {
+    if (window.pdfjsLib) {
+      resolve(window.pdfjsLib);
+      return;
+    }
+
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.min.js';
+    script.onload = () => {
+      if (window.pdfjsLib) {
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 
+          'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.0.379/pdf.worker.min.js';
+        resolve(window.pdfjsLib);
+      } else {
+        reject(new Error('PDF.js không được tải đúng cách'));
+      }
+    };
+    script.onerror = () => reject(new Error('Không thể tải PDF.js từ CDN'));
+    document.head.appendChild(script);
+  });
+}
+
+declare global {
+  interface Window {
+    pdfjsLib: any;
+  }
+}
 
 export class TesseractService {
   private isProcessing = false;
+  private worker: Tesseract.Worker | null = null;
+
+  private async getWorker(): Promise<Tesseract.Worker> {
+    if (this.worker) {
+      return this.worker;
+    }
+    
+    this.worker = await Tesseract.createWorker('vie+eng', 1, {
+      logger: (m: any) => {
+        if (m.status === 'recognizing text') {
+          console.log(`📊 Tiến độ: ${Math.round(m.progress * 100)}%`);
+        }
+      }
+    });
+    
+    // ✅ Cấu hình tham số
+    try {
+      await this.worker.setParameters({
+        tessedit_pageseg_mode: 6, // SINGLE_BLOCK
+        tessedit_ocr_engine_mode: 1, // LSTM_ONLY
+        tessedit_do_deskew: true,
+      });
+    } catch (e) {
+      console.log('⚠️ Không thể setParameters, dùng cấu hình mặc định');
+    }
+    
+    return this.worker;
+  }
+
+  private formatText(text: string): string {
+    const lines = text.split('\n');
+    const formatted: string[] = [];
+    let emptyCount = 0;
+    
+    for (const line of lines) {
+      if (line.trim() === '') {
+        emptyCount++;
+        if (emptyCount < 2) {
+          formatted.push('');
+        }
+      } else {
+        emptyCount = 0;
+        formatted.push(line.replace(/\s+/g, ' ').trim());
+      }
+    }
+    
+    return formatted.join('\n');
+  }
 
   async processFile(file: File): Promise<OCRResult> {
     if (this.isProcessing) {
@@ -25,13 +104,14 @@ export class TesseractService {
                       file.name.match(/\.(jpg|jpeg|png|bmp|tiff|webp|gif)$/i);
 
       let allText = '';
+      const worker = await this.getWorker();
 
-      // ✅ XỬ LÝ PDF
       if (isPdf) {
         console.log('📄 Phát hiện PDF, đang xử lý từng trang...');
         
-        // Lấy số trang PDF
-        const pdf = await loadPDFDocument(file);
+        const arrayBuffer = await file.arrayBuffer();
+        const pdfjsLib = await loadPDFJS();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
         const totalPages = pdf.numPages;
         console.log(`📄 PDF có ${totalPages} trang`);
 
@@ -39,43 +119,25 @@ export class TesseractService {
           console.log(`📊 Đang xử lý trang ${pageNum}/${totalPages}...`);
           
           const pageImage = await pdfToImage(file, pageNum);
-          console.log(`   ✅ Đã chuyển trang ${pageNum} thành ảnh`);
-
-          const result = await Tesseract.recognize(
-            pageImage,
-            'vie+eng',
-            {
-              logger: (m: { status: string; progress: number }) => {
-                if (m.status === 'recognizing text') {
-                  console.log(`   Tiến độ: ${Math.round(m.progress * 100)}%`);
-                }
-              }
-            }
-          );
+          const processedImage = await preprocessImage(pageImage);
+          
+          const result = await worker.recognize(processedImage);
           
           const pageText = result.data.text || '';
           if (pageText.trim()) {
-            allText += `\n--- Trang ${pageNum} ---\n${pageText}`;
+            allText += `\n--- Trang ${pageNum} ---\n${this.formatText(pageText)}`;
           }
         }
         
         console.log(`✅ OCR PDF thành công: ${allText.length} ký tự`);
 
       } else if (isImage) {
-        // ✅ XỬ LÝ ẢNH
         console.log('🖼️ Xử lý ảnh...');
-        const result = await Tesseract.recognize(
-          file,
-          'vie+eng',
-          {
-            logger: (m: { status: string; progress: number }) => {
-              if (m.status === 'recognizing text') {
-                console.log(`📊 Tiến độ: ${Math.round(m.progress * 100)}%`);
-              }
-            }
-          }
-        );
-        allText = result.data.text || '';
+        
+        const processedImage = await preprocessImage(file);
+        const result = await worker.recognize(processedImage);
+        
+        allText = this.formatText(result.data.text || '');
         console.log(`✅ OCR ảnh thành công: ${allText.length} ký tự`);
 
       } else {
@@ -110,6 +172,14 @@ export class TesseractService {
       this.isProcessing = false;
     }
   }
+
+  async terminate() {
+    if (this.worker) {
+      await this.worker.terminate();
+      this.worker = null;
+    }
+  }
 }
 
+// ✅ EXPORT DUY NHẤT
 export const tesseractService = new TesseractService();
