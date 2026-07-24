@@ -1,5 +1,4 @@
 // src/features/ocr/services/imageProcessor.ts
-
 export async function preprocessImage(imageData: string | File): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -14,14 +13,22 @@ export async function preprocessImage(imageData: string | File): Promise<string>
         return;
       }
       
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
+      // ✅ Tăng kích thước ảnh lên 2x
+      const scale = 2;
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
       
+      // ✅ Vẽ ảnh với chất lượng cao
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      
+      // ✅ Lấy dữ liệu ảnh
       const imageDataObj = ctx.getImageData(0, 0, canvas.width, canvas.height);
       const data = imageDataObj.data;
       
-      const contrast = 1.5;
+      // ✅ Tăng contrast mạnh
+      const contrast = 2.0;
       const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
       
       for (let i = 0; i < data.length; i += 4) {
