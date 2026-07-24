@@ -128,9 +128,66 @@ export class OCRParser {
 // ==================== OCR SERVICE ====================
 export class OCRService {
   private readonly parser: OCRParser;
+  private backendUrl: string = 'http://localhost:5001';
+  private useBackend: boolean = false;
 
   constructor() {
     this.parser = new OCRParser();
+    
+    // ✅ Kiểm tra nên dùng backend hay Tesseract.js
+    // Nếu đang ở production (Vercel), dùng Tesseract.js
+    // Nếu ở local, có thể dùng backend
+    if (import.meta.env.PROD) {
+      console.log('📦 Production mode: Dùng Tesseract.js (không cần backend)');
+      this.useBackend = false;
+    } else {
+      // Kiểm tra backend có chạy không
+      this.checkBackendHealth().then(isRunning => {
+        this.useBackend = isRunning;
+        console.log(`🔍 Backend OCR: ${isRunning ? '✅ Đang chạy' : '❌ Không chạy, dùng Tesseract.js'}`);
+      });
+    }
+  }
+
+  private async checkBackendHealth(): Promise<boolean> {
+    try {
+      const response = await fetch(`${this.backendUrl}/health`, {
+        method: 'GET',
+        signal: AbortSignal.timeout(3000),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  private async callBackend(file: File): Promise<OCRResult> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      console.log(`📡 Gọi backend: ${this.backendUrl}/ocr`);
+      const response = await fetch(`${this.backendUrl}/ocr`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Backend error: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('✅ Backend response:', result.status);
+      
+      if (result.status === 'success' && result.text) {
+        const parsedData = this.processText(result.text);
+        result.parsed_data = parsedData;
+      }
+      return result;
+    } catch (error) {
+      console.error('❌ Lỗi backend:', error);
+      throw error;
+    }
   }
 
   private processText(text: string): ParsedReportData {
@@ -154,8 +211,22 @@ export class OCRService {
     }
     
     try {
+      // ✅ Ưu tiên dùng backend nếu có
+      if (this.useBackend) {
+        console.log('🐍 Dùng backend Python OCR...');
+        return await this.callBackend(file);
+      }
+
+      // ✅ Fallback: Tesseract.js
       console.log(isPdf ? '📄 Chuyển PDF sang ảnh để OCR' : '🧠 Dùng Tesseract.js');
-      const imageFile = isPdf ? await pdfToImage(file, page ?? 1) : file;
+      
+      let imageFile: File;
+      if (isPdf) {
+        imageFile = await pdfToImage(file, page ?? 1);
+      } else {
+        imageFile = file;
+      }
+      
       const result = await tesseractService.processFile(imageFile);
       result.filename = file.name;
       result.file_type = isPdf ? 'pdf' : 'image';
@@ -171,7 +242,7 @@ export class OCRService {
       
       return result;
     } catch (error) {
-      console.error('❌ Lỗi Tesseract.js:', error);
+      console.error('❌ Lỗi OCR:', error);
       return {
         status: 'error',
         message: error instanceof Error ? error.message : 'Lỗi OCR. Vui lòng thử file ảnh khác (JPG, PNG).'
