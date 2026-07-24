@@ -129,36 +129,11 @@ export class OCRParser {
 export class OCRService {
   private readonly parser: OCRParser;
   private backendUrl: string = 'http://localhost:5001';
-  private useBackend: boolean = false;
+  private useBackend: boolean = true; // ✅ FORCE dùng backend Python
 
   constructor() {
     this.parser = new OCRParser();
-    
-    // ✅ Kiểm tra nên dùng backend hay Tesseract.js
-    // Nếu đang ở production (Vercel), dùng Tesseract.js
-    // Nếu ở local, có thể dùng backend
-    if (import.meta.env.PROD) {
-      console.log('📦 Production mode: Dùng Tesseract.js (không cần backend)');
-      this.useBackend = false;
-    } else {
-      // Kiểm tra backend có chạy không
-      this.checkBackendHealth().then(isRunning => {
-        this.useBackend = isRunning;
-        console.log(`🔍 Backend OCR: ${isRunning ? '✅ Đang chạy' : '❌ Không chạy, dùng Tesseract.js'}`);
-      });
-    }
-  }
-
-  private async checkBackendHealth(): Promise<boolean> {
-    try {
-      const response = await fetch(`${this.backendUrl}/health`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(3000),
-      });
-      return response.ok;
-    } catch {
-      return false;
-    }
+    console.log('🐍 FORCE: Dùng backend Python OCR');
   }
 
   private async callBackend(file: File): Promise<OCRResult> {
@@ -211,12 +186,12 @@ export class OCRService {
     }
     
     try {
-      // ✅ Ưu tiên dùng backend nếu có
-      if (this.useBackend) {
-        console.log('🐍 Dùng backend Python OCR...');
-        return await this.callBackend(file);
-      }
-
+      // ✅ FORCE dùng backend
+      console.log('🐍 Gọi backend Python OCR...');
+      return await this.callBackend(file);
+    } catch (error) {
+      console.error('❌ Lỗi backend, fallback sang Tesseract.js:', error);
+      
       // ✅ Fallback: Tesseract.js
       console.log(isPdf ? '📄 Chuyển PDF sang ảnh để OCR' : '🧠 Dùng Tesseract.js');
       
@@ -241,12 +216,6 @@ export class OCRService {
       }
       
       return result;
-    } catch (error) {
-      console.error('❌ Lỗi OCR:', error);
-      return {
-        status: 'error',
-        message: error instanceof Error ? error.message : 'Lỗi OCR. Vui lòng thử file ảnh khác (JPG, PNG).'
-      };
     }
   }
 
