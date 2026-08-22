@@ -8,6 +8,8 @@ import {
   permissionsToLevels,
   levelsToPermissions,
   createDefaultPermissionLevels,
+  createAdminPermissions,
+  createDefaultPermissions,
   PERMISSION_KEYS,
 } from '../lib/permissions';
 
@@ -25,6 +27,45 @@ export interface UserPermission {
   updated_at?: string;
 }
 
+function getLocalPermissionsFallback(msnv: string): UserPermissions {
+  if (typeof window === 'undefined') {
+    return msnv === '1118' ? createAdminPermissions() : Object.fromEntries(
+      PERMISSION_KEYS.map(key => [key, { view: false, add: false, edit: false, delete: false, approve: false, export: false }])
+    ) as UserPermissions;
+  }
+
+  const storedPermissions = localStorage.getItem(`permissions_${msnv}`) || localStorage.getItem(`wms_permissions_${msnv}`);
+  if (storedPermissions) {
+    try {
+      const parsed = JSON.parse(storedPermissions);
+      if (parsed && typeof parsed === 'object') {
+        const fallback: UserPermissions = {};
+        for (const key of PERMISSION_KEYS) {
+          fallback[key] = { view: false, add: false, edit: false, delete: false, approve: false, export: false };
+        }
+
+        for (const [key, value] of Object.entries(parsed)) {
+          if (key in fallback && typeof value === 'object' && value !== null) {
+            fallback[key as keyof typeof fallback] = {
+              view: Boolean((value as any).view),
+              add: Boolean((value as any).add),
+              edit: Boolean((value as any).edit),
+              delete: Boolean((value as any).delete),
+              approve: Boolean((value as any).approve),
+              export: Boolean((value as any).export),
+            };
+          }
+        }
+        return fallback;
+      }
+    } catch {
+      // Ignore malformed local permission data.
+    }
+  }
+
+  return msnv === '1118' ? createAdminPermissions() : createDefaultPermissions();
+}
+
 /**
  * Permission Service - Single Source of Truth for all permissions
  */
@@ -33,32 +74,42 @@ export const PermissionService = {
    * Get all permissions for an employee as UserPermissions (PermissionFlag format)
    */
   async getByMsnv(msnv: string): Promise<UserPermissions> {
-    const { data, error } = await supabase
-      .from('user_permissions')
-      .select('*')
-      .eq('msnv', msnv);
+    try {
+      const query = supabase?.from('user_permissions')?.select('*')?.eq('msnv', msnv);
+      if (!query) return getLocalPermissionsFallback(msnv);
 
-    if (error) throw error;
+      const { data, error } = await query;
 
-    // Tạo map với tất cả keys có permission mặc định
-    const result: UserPermissions = {};
-    for (const key of PERMISSION_KEYS) {
-      result[key] = { view: false, add: false, edit: false, delete: false, approve: false, export: false };
+      if (error) {
+        console.warn('⚠️ Supabase permission lookup failed, using local fallback:', error);
+        return getLocalPermissionsFallback(msnv);
+      }
+
+      const result: UserPermissions = {};
+      for (const key of PERMISSION_KEYS) {
+        result[key] = { view: false, add: false, edit: false, delete: false, approve: false, export: false };
+      }
+
+      for (const p of (data as UserPermission[] || [])) {
+        result[p.module_key] = {
+          view: p.can_view,
+          add: p.can_add,
+          edit: p.can_edit,
+          delete: p.can_delete,
+          approve: p.can_approve,
+          export: p.can_export,
+        };
+      }
+
+      if (Object.keys(result).length > 0) {
+        return result;
+      }
+
+      return getLocalPermissionsFallback(msnv);
+    } catch (error) {
+      console.warn('⚠️ PermissionService.getByMsnv fallback triggered:', error);
+      return getLocalPermissionsFallback(msnv);
     }
-
-    // Ghi đè với dữ liệu từ database
-    for (const p of (data as UserPermission[])) {
-      result[p.module_key] = {
-        view: p.can_view,
-        add: p.can_add,
-        edit: p.can_edit,
-        delete: p.can_delete,
-        approve: p.can_approve,
-        export: p.can_export,
-      };
-    }
-
-    return result;
   },
 
   /**

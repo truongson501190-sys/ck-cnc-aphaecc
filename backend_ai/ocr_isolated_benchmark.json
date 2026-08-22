@@ -1,0 +1,68 @@
+[
+  {
+    "engine_used": "paddle",
+    "input_image": "original",
+    "available": false,
+    "init_ok": false,
+    "success": false,
+    "raw_text": "",
+    "ocr_confidence": 0.0,
+    "processing_time_sec": 0.00049,
+    "error": "OCR engine 'paddle' not available"
+  },
+  {
+    "engine_used": "paddle",
+    "input_image": "preprocessed",
+    "available": false,
+    "init_ok": false,
+    "success": false,
+    "raw_text": "",
+    "ocr_confidence": 0.0,
+    "processing_time_sec": 0.00019,
+    "error": "OCR engine 'paddle' not available"
+  },
+  {
+    "engine_used": "easyocr",
+    "input_image": "original",
+    "available": true,
+    "init_ok": true,
+    "success": true,
+    "raw_text": "ECC\nBÁO CÁO GIA CÔNG\nAln\nXưởng CK-CNC\nNGÀY:\nCA:\nNgày\nD Đêm\nMAY:\nDự Án\nSó Lượng\nVật Liệu\nSó Bản Vẽ\nChi tiet\nTên chi tiet\nNg Công sô\nTong\nT.gian GC\nTông T.gian\nNg Cong\nJCai\nSL Sử\nTốc độ\nChièu\nBước\nTG bắt\nTG két\nTên dụng cụ cat\nĐK @\nSL me\nLoại\nSL Cấp\nNội dung công việc\ndụng\nHòng\nquay\nsâu cằt |tiên daol\nđau\nthuc\nTHỞl GIAN CHỈNH MÁY VÀ THỞl GIAN OFFSET DAO CỤ:\nKích thước phói(mm\nMm\nmm)\n14\n15\n16\n317\nTHỜl GIAN THAY PHÔl GẢ PHÔI\n9\n14 |\n15 |\n16\n17 |\nTHỜl GIAN THỰC TÉ CHẠY MÁY (Machine)\nGhi chú\n15\n16\n17\nNgười vận hảnh:\nNgười kiếm tra:\nChữ ký:\nChữ ký:",
+    "ocr_confidence": 0.77306,
+    "processing_time_sec": 11.65759,
+    "error": null
+  },
+  {
+    "engine_used": "easyocr",
+    "input_image": "preprocessed",
+    "available": true,
+    "init_ok": true,
+    "success": true,
+    "raw_text": "BAocAoiooNd",
+    "ocr_confidence": 0.09652,
+    "processing_time_sec": 4.23807,
+    "error": null
+  },
+  {
+    "engine_used": "tesseract",
+    "input_image": "original",
+    "available": false,
+    "init_ok": false,
+    "success": false,
+    "raw_text": "",
+    "ocr_confidence": 0.0,
+    "processing_time_sec": 0.00149,
+    "error": "OCR engine 'tesseract' not available"
+  },
+  {
+    "engine_used": "tesseract",
+    "input_image": "preprocessed",
+    "available": false,
+    "init_ok": false,
+    "success": false,
+    "raw_text": "",
+    "ocr_confidence": 0.0,
+    "processing_time_sec": 1e-05,
+    "error": "OCR engine 'tesseract' not available"
+  }
+]

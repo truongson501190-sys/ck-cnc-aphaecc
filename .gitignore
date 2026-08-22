@@ -11,3 +11,70 @@ data/
 tmp-*.txt
 .DS_Store
 Thumbs.db
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+backend_ai/venv_ocr_bench/
+
+# Python temporary files
+tmp_*.py
+
+# OCR uploads
+backend_ocr/uploads/
+
+# Local OCR cache
+backend_ocr/__pycache__/
+# Environment / secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.venv/
+env/
+backend_ai/venv_ocr_bench/
+
+# Python temporary files
+tmp_*.py
+
+# OCR uploads
+backend_ocr/uploads/
+
+# ERP AI uploads
+backend_ai/uploads/
+
+# ERP AI benchmark outputs
+backend_ai/benchmark_results/
+
+# OCR benchmark artifacts
+backend_ai/ocr_benchmark/
+
+structure.txt
+
+backend_ai/benchmark_results/
+
+# OCR benchmark generated results
+backend_ai/benchmark_results/
+
+test_gemini.py
+
+structure.txt
+
+backend_ocr/uploads/
+
+# OCR benchmark artifacts
+backend_ai/original.jpg
+backend_ai/preprocessed.jpg
+backend_ai/ocr_benchmark/original.jpg
+backend_ai/ocr_benchmark/preprocessed.jpg

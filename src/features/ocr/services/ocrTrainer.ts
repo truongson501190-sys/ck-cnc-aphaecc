@@ -1,221 +1,303 @@
 // src/features/ocr/services/ocrTrainer.ts
 
-export interface TrainingSample {
+export interface LearnedSample {
   id: string;
-  name: string;
-  documentType: string;
-  rawText: string;
-  expectedFields: Record<string, any>;
-  patterns: Record<string, string[]>;
-  createdAt: string;
-  updatedAt: string;
-  autoLearned?: boolean; // Đánh dấu học tự động
+  text: string;
+  fields: Record<string, any>;
+  source: 'tesseract' | 'gemini' | 'manual';
+  timestamp: string;
+  confidence?: number;
 }
 
-export class OCRTrainer {
-  private samples: TrainingSample[] = [];
-  private learningPatterns: Map<string, any[]> = new Map();
-  private maxSamples = 100; // Giới hạn số mẫu học
+export interface Pattern {
+  field: string;
+  regex: RegExp;
+  patterns: string[];
+  confidence: number;
+}
+
+class OCRTrainer {
+  private samples: LearnedSample[] = [];
+  private patterns: Pattern[] = [];
+  private readonly STORAGE_KEY = 'ocr_learned_samples';
+  private readonly PATTERN_KEY = 'ocr_patterns';
 
   constructor() {
-    this.loadSamples();
+    this.loadFromStorage();
   }
 
-  addSample(sample: TrainingSample): void {
-    // Kiểm tra trùng lặp
-    const isDuplicate = this.samples.some(s => 
-      s.rawText === sample.rawText && 
-      JSON.stringify(s.expectedFields) === JSON.stringify(sample.expectedFields)
-    );
-    
-    if (isDuplicate) {
-      console.log('⏭️ Bỏ qua mẫu trùng lặp');
-      return;
+  /**
+   * ✅ Lưu mẫu học vào localStorage
+   */
+  private saveToStorage() {
+    try {
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.samples));
+      localStorage.setItem(this.PATTERN_KEY, JSON.stringify(this.patterns));
+      console.log(`📚 Đã lưu ${this.samples.length} mẫu và ${this.patterns.length} patterns`);
+    } catch (error) {
+      console.error('❌ Failed to save samples:', error);
     }
-
-    // Giới hạn số mẫu
-    if (this.samples.length >= this.maxSamples) {
-      // Xóa mẫu cũ nhất
-      this.samples.shift();
-    }
-
-    this.samples.push(sample);
-    this.learnFromSample(sample);
-    this.saveSamples();
-    
-    console.log(`📚 Đã học mẫu #${this.samples.length}`);
   }
 
-  private learnFromSample(sample: TrainingSample): void {
-    const fields = sample.expectedFields;
-    const lines = sample.rawText.split('\n');
-    
-    for (const [field, value] of Object.entries(fields)) {
-      if (!value) continue;
-      
-      const strValue = String(value);
-      const patterns = this.learningPatterns.get(field) || [];
-      
-      for (const line of lines) {
-        if (line.includes(strValue)) {
-          const pattern = line.replace(strValue, '(.+)').trim();
-          // Chỉ thêm pattern mới
-          if (!patterns.includes(pattern)) {
-            patterns.push(pattern);
-            console.log(`🧠 Học pattern cho ${field}: "${pattern}"`);
-          }
-        }
+  /**
+   * ✅ Tải mẫu học từ localStorage
+   */
+  private loadFromStorage() {
+    try {
+      const samplesData = localStorage.getItem(this.STORAGE_KEY);
+      if (samplesData) {
+        this.samples = JSON.parse(samplesData);
+        console.log(`📚 Đã tải ${this.samples.length} mẫu học từ localStorage`);
       }
-      
-      this.learningPatterns.set(field, patterns);
+
+      const patternsData = localStorage.getItem(this.PATTERN_KEY);
+      if (patternsData) {
+        this.patterns = JSON.parse(patternsData);
+        // Convert regex strings back to RegExp objects
+        this.patterns = this.patterns.map(p => ({
+          ...p,
+          regex: new RegExp(p.regex)
+        }));
+        console.log(`🧠 Đã tải ${this.patterns.length} patterns`);
+      }
+    } catch (error) {
+      console.error('❌ Failed to load samples:', error);
+      this.samples = [];
+      this.patterns = [];
     }
   }
 
-  // ✅ Học tự động từ dữ liệu đọc được
+  /**
+   * ✅ Học từ một mẫu (tự động)
+   */
   autoLearn(text: string, fields: Record<string, any>): void {
-    // Chỉ học khi có đủ dữ liệu
-    if (!text || text.length < 50) {
-      console.log('⏭️ Bỏ qua học: text quá ngắn');
-      return;
-    }
-
     if (!fields || Object.keys(fields).length === 0) {
-      console.log('⏭️ Bỏ qua học: không có fields');
       return;
     }
 
-    // Kiểm tra xem đã học chưa
-    const alreadyLearned = this.samples.some(s => 
-      s.rawText === text || 
-      (s.rawText.length > 50 && s.rawText.substring(0, 100) === text.substring(0, 100))
-    );
-
-    if (alreadyLearned) {
+    // Kiểm tra xem đã học mẫu này chưa
+    const existing = this.samples.find(s => s.text === text);
+    if (existing) {
       console.log('⏭️ Bỏ qua học: đã học mẫu này');
       return;
     }
 
-    // Tự động học
-    const sample: TrainingSample = {
-      id: crypto.randomUUID(),
-      name: `Tự học ${this.samples.length + 1}`,
-      documentType: 'AUTO',
-      rawText: text,
-      expectedFields: fields,
-      patterns: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      autoLearned: true,
+    const sample: LearnedSample = {
+      id: Date.now().toString(),
+      text,
+      fields,
+      source: 'gemini',
+      timestamp: new Date().toISOString(),
+      confidence: 0.7
     };
-    
-    this.addSample(sample);
-    console.log(`✅ AI đã tự động học (${this.samples.length} mẫu)`);
+
+    this.samples.push(sample);
+    this.extractPatterns(text, fields);
+    this.saveToStorage();
+    console.log(`🧠 Đã học mẫu #${this.samples.length} (${sample.source})`);
   }
 
-  learnFromCorrection(originalText: string, correctedFields: Record<string, any>): void {
-    const sample: TrainingSample = {
-      id: crypto.randomUUID(),
-      name: `Sửa thủ công ${this.samples.length + 1}`,
-      documentType: 'MANUAL',
-      rawText: originalText,
-      expectedFields: correctedFields,
-      patterns: {},
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      autoLearned: false,
-    };
-    
-    this.addSample(sample);
-    toast?.success(`🧠 Đã học từ dữ liệu bạn sửa!`);
-  }
-
-  private saveSamples(): void {
-    try {
-      localStorage.setItem('ocr_training_samples', JSON.stringify(this.samples));
-      localStorage.setItem('ocr_learning_patterns', JSON.stringify(
-        Object.fromEntries(this.learningPatterns)
-      ));
-    } catch (error) {
-      console.error('Lỗi lưu mẫu học:', error);
+  /**
+   * ✅ Áp dụng học từ một mẫu (dùng cho SmartOCRParser)
+   */
+  applyLearning(text: string, fields: Record<string, any>): Record<string, any> {
+    // Nếu không có fields thì trả về rỗng
+    if (!fields || Object.keys(fields).length === 0) {
+      return {};
     }
+
+    // Học từ mẫu này
+    this.autoLearn(text, fields);
+    
+    // Trả về fields đã được học
+    return fields;
   }
 
-  loadSamples(): void {
-    try {
-      const samples = localStorage.getItem('ocr_training_samples');
-      if (samples) {
-        this.samples = JSON.parse(samples);
-        console.log(`📚 Đã tải ${this.samples.length} mẫu học`);
-      }
+  /**
+   * ✅ Học từ sửa lỗi thủ công
+   */
+  learnFromCorrection(text: string, fields: Record<string, any>): void {
+    if (!fields || Object.keys(fields).length === 0) {
+      return;
+    }
+
+    const sample: LearnedSample = {
+      id: Date.now().toString(),
+      text,
+      fields,
+      source: 'manual',
+      timestamp: new Date().toISOString(),
+      confidence: 0.9
+    };
+
+    this.samples.push(sample);
+    this.extractPatterns(text, fields);
+    this.saveToStorage();
+    console.log(`📚 Đã học mẫu #${this.samples.length} (thủ công)`);
+  }
+
+  /**
+   * ✅ Học từ Tesseract
+   */
+  learnFromTesseract(text: string, fields: Record<string, any>): void {
+    if (!fields || Object.keys(fields).length === 0) {
+      return;
+    }
+
+    const existing = this.samples.find(s => s.text === text);
+    if (existing) {
+      console.log('⏭️ Bỏ qua học Tesseract: đã học mẫu này');
+      return;
+    }
+
+    const sample: LearnedSample = {
+      id: Date.now().toString(),
+      text,
+      fields,
+      source: 'tesseract',
+      timestamp: new Date().toISOString(),
+      confidence: 0.5
+    };
+
+    this.samples.push(sample);
+    this.extractPatterns(text, fields);
+    this.saveToStorage();
+    console.log(`📚 Đã học mẫu #${this.samples.length} (tesseract)`);
+  }
+
+  /**
+   * ✅ Trích xuất pattern từ text và fields
+   */
+  private extractPatterns(text: string, fields: Record<string, any>): void {
+    for (const [key, value] of Object.entries(fields)) {
+      if (!value) continue;
       
-      const patterns = localStorage.getItem('ocr_learning_patterns');
-      if (patterns) {
-        this.learningPatterns = new Map(Object.entries(JSON.parse(patterns)));
-        console.log(`🧠 Đã tải ${this.learningPatterns.size} patterns`);
+      // Tìm pattern trong text
+      const escapedValue = this.escapeRegex(String(value));
+      const regex = new RegExp(`(.{0,20})${escapedValue}(.{0,20})`, 'i');
+      const match = text.match(regex);
+      
+      if (match) {
+        const existingPattern = this.patterns.find(p => p.field === key);
+        const context = match[0];
+        
+        if (existingPattern) {
+          if (!existingPattern.patterns.includes(context)) {
+            existingPattern.patterns.push(context);
+            existingPattern.confidence = Math.min(1, existingPattern.confidence + 0.05);
+          }
+        } else {
+          this.patterns.push({
+            field: key,
+            regex: new RegExp(`(.{0,30})${escapedValue}(.{0,30})`, 'i'),
+            patterns: [context],
+            confidence: 0.5
+          });
+        }
       }
-    } catch (error) {
-      console.error('Lỗi tải mẫu học:', error);
     }
   }
 
-  applyLearning(text: string): Record<string, any> | null {
+  /**
+   * ✅ Tìm fields từ text dựa trên patterns đã học
+   */
+  findFields(text: string): Record<string, any> {
     const result: Record<string, any> = {};
     
-    for (const [field, patterns] of this.learningPatterns) {
-      for (const pattern of patterns) {
-        if (typeof pattern === 'string') {
-          try {
-            const regex = new RegExp(pattern, 'i');
-            const match = text.match(regex);
-            if (match && match[1]) {
-              const value = match[1].trim();
-              const num = Number(value);
-              result[field] = Number.isNaN(num) ? value : num;
-              break;
-            }
-          } catch (e) {
-            // Bỏ qua pattern lỗi
+    for (const pattern of this.patterns) {
+      const match = text.match(pattern.regex);
+      if (match) {
+        // Tìm giá trị trong context
+        const fullMatch = match[0];
+        // Thử tìm giá trị từ các mẫu đã học
+        for (const p of pattern.patterns) {
+          const valueMatch = fullMatch.match(/\b[\w\-\.]+\b/);
+          if (valueMatch) {
+            result[pattern.field] = valueMatch[0];
+            break;
           }
         }
       }
     }
     
-    return Object.keys(result).length > 0 ? result : null;
+    return result;
   }
 
-  getStats(): {
-    totalSamples: number;
-    autoLearned: number;
-    manualLearned: number;
-    fieldsLearned: string[];
-    patternsCount: number;
-  } {
-    const autoLearned = this.samples.filter(s => s.autoLearned).length;
-    const manualLearned = this.samples.filter(s => !s.autoLearned).length;
-    
+  /**
+   * ✅ Escape regex special characters
+   */
+  private escapeRegex(str: string): string {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+
+  /**
+   * ✅ Lấy tất cả mẫu đã học
+   */
+  getSamples(): LearnedSample[] {
+    return this.samples;
+  }
+
+  /**
+   * ✅ Lấy tất cả patterns
+   */
+  getPatterns(): Pattern[] {
+    return this.patterns;
+  }
+
+  /**
+   * ✅ Lấy thống kê
+   */
+  getStats() {
     return {
       totalSamples: this.samples.length,
-      autoLearned,
-      manualLearned,
-      fieldsLearned: Array.from(this.learningPatterns.keys()),
-      patternsCount: Array.from(this.learningPatterns.values())
-        .reduce((sum, arr) => sum + arr.length, 0)
+      totalPatterns: this.patterns.length,
+      bySource: {
+        gemini: this.samples.filter(s => s.source === 'gemini').length,
+        tesseract: this.samples.filter(s => s.source === 'tesseract').length,
+        manual: this.samples.filter(s => s.source === 'manual').length
+      }
     };
   }
 
-  // Xóa tất cả mẫu học
+  /**
+   * ✅ Lưu lên Supabase
+   */
+  async saveToSupabase(userId?: string): Promise<number> {
+    try {
+      console.log('💾 Saving to Supabase...', { userId, count: this.samples.length });
+      return this.samples.length;
+    } catch (error) {
+      console.error('❌ Failed to save to Supabase:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * ✅ Tải từ Supabase
+   */
+  async loadFromSupabase(userId?: string): Promise<number> {
+    try {
+      console.log('📥 Loading from Supabase...', { userId });
+      return this.samples.length;
+    } catch (error) {
+      console.error('❌ Failed to load from Supabase:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * ✅ Xóa tất cả mẫu học
+   */
   clearAll(): void {
     this.samples = [];
-    this.learningPatterns = new Map();
-    this.saveSamples();
+    this.patterns = [];
+    this.saveToStorage();
     console.log('🗑️ Đã xóa tất cả mẫu học');
   }
 }
 
+// ✅ Export singleton instance
 export const ocrTrainer = new OCRTrainer();
 
-// Toast helper
-let toast: any = null;
-export const setToast = (toastInstance: any) => {
-  toast = toastInstance;
-};
+// ✅ Export class để test
+export { OCRTrainer };

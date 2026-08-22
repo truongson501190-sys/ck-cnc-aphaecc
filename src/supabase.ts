@@ -3,19 +3,25 @@ import { createClient } from '@supabase/supabase-js'
 // ❌ Xóa dòng import này vì không dùng: import { hashPassword } from '@/lib/passwordUtils';
 
 // @ts-ignore: import.meta.env is provided by Vite at build time
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
 // @ts-ignore: import.meta.env is provided by Vite at build time
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+const isDeadSupabaseHost = /oxolhlkfezihtvtyjyxf|your-project-id/i.test(supabaseUrl)
+
+export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey && !isDeadSupabaseHost)
 
 console.log('🔍 Supabase Config:')
 console.log('  URL:', supabaseUrl ? '✅ exists' : '❌ missing')
 console.log('  Key:', supabaseAnonKey ? '✅ exists' : '❌ missing')
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.error('❌ Missing Supabase environment variables')
+if (!hasSupabaseConfig) {
+  console.warn('⚠️ Supabase is disabled until a valid project URL and anon key are configured.')
 }
 
-export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '')
+export const supabase = hasSupabaseConfig
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : null as any
+
 export const getSupabase = () => supabase
 
 export const loadDataFromSupabase = async (tableName: string) => {
