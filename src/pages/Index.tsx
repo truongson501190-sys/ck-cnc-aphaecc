@@ -23,7 +23,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { usePermission } from '@/hooks/usePermission';
 import OCRUploadButton from '@/features/ocr/components/OCRUploadButton';
-import { ParsedReportData } from '@/features/ocr/services/ocrService';
+import type { ParsedReportData } from '@/features/ocr/types/documentTypes';
 import {
   Sheet,
   SheetContent,
@@ -690,10 +690,8 @@ export default function Index() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <OCRUploadButton
-                onParsedData={handleOCRData}
-                autoFillForm={false}
+                onDataParsed={handleOCRData}
                 buttonText="📷 Đọc báo cáo"
-                variant="outline"
               />
               
               {/* ✅ Nút "Chuyển vào form" - chỉ hiển thị khi có dữ liệu OCR */}

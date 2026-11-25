@@ -54,7 +54,7 @@ export class TesseractService {
     // ✅ Cấu hình tham số
     try {
       await this.worker.setParameters({
-        tessedit_pageseg_mode: 6, // SINGLE_BLOCK
+        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_BLOCK,
         tessedit_ocr_engine_mode: 1, // LSTM_ONLY
         tessedit_do_deskew: true,
       });

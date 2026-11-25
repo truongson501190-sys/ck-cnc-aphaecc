@@ -1,0 +1,275 @@
+﻿  src\api\inventoryCount.ts:105: .from('inventory_count_sessions')
+  src\api\inventoryCount.ts:130: .from('inventory_count_lines')
+  src\api\inventoryCount.ts:134: await client.from('inventory_count_sessions').delete().eq('id', sessionId);
+  src\api\inventoryCount.ts:150: .from('inventory_count_sessions')
+  src\api\inventoryCount.ts:173: .from('inventory_count_sessions')
+  src\api\inventoryCount.ts:181: .from('inventory_count_lines')
+  src\api\inventoryCount.ts:241: .from('inventory_count_sessions')
+  src\api\stock.ts:118: const { error } = await client.from('stock_documents').upsert(
+  src\api\stock.ts:185: .from('stock_document_lines')
+  src\api\stock.ts:190: .from('stock_document_lines')
+  src\api\stockDocument.ts:119: .from('stock_documents')
+  src\api\stockDocument.ts:157: .from('stock_document_lines')
+  src\api\stockDocument.ts:162: await client.from('stock_documents').delete().eq('id', documentId);
+  src\api\stockDocument.ts:204: .from('stock_documents')
+  src\api\stockDocument.ts:222: .from('stock_documents')
+  src\api\stockDocument.ts:251: .from('stock_documents')
+  src\api\stockDocument.ts:259: .from('stock_document_lines')
+  src\api\stockDocument.ts:283: await client.from('stock_document_lines').delete().eq('document_id', id);
+  src\api\stockDocument.ts:284: const { error } = await client.from('stock_documents').delete().eq('id', id);
+  src\api\stockDocument.ts:461: .from('stock_documents')
+  src\api\stockInsights.ts:18: .from('v_low_stock_alert')
+  src\api\stockLedger.ts:41: .from('stock_ledger')
+  src\api\stockLedger.ts:71: .from('stock_ledger')
+  src\api\stockLedger.ts:118: let q = client.from('stock_ledger').select('*');
+  src\api\toolReturn.ts:162: .from('tool_returns')
+  src\api\toolReturn.ts:209: let query = client.from('v_tool_consumption_by_machine').select('*');
+  src\api\toolReturn.ts:234: let query = client.from('v_tool_consumption_by_project').select('*');
+  src\api\valuation.ts:88: .from('v_stock_valuation')
+  src\api\warehouse.ts:47: .from('warehouses')
+  src\api\warehouse.ts:62: .from('tools')
+  src\api\warehouse.ts:80: let q = client.from('v_stock_on_hand').select('*');
+  src\api\warehouse.ts:105: .from('v_stock_on_hand')
+  src\components\categories\CategoryTypeManagement.tsx:57: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:80: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:123: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:139: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:197: await supabase.from('categories').delete().eq('id', id)
+  src\components\categories\CategoryTypeManagement.tsx:226: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:250: .from('categories')
+  src\components\categories\MachineManagement.tsx:87: .from('machines')
+  src\components\categories\MachineManagement.tsx:141: .from('machines')
+  src\components\categories\MachineManagement.tsx:195: .from('machines')
+  src\components\categories\MachineManagement.tsx:214: .from('machines')
+  src\components\categories\MachineManagement.tsx:272: const { error } = await supabase.from('machines').delete().eq('id', id);
+  src\components\categories\MachineManagement.tsx:296: const { error } = await supabase.from('machines').delete().in('id', selectedIds);
+  src\components\categories\MachineManagement.tsx:356: .from('machines')
+  src\components\categories\MachineManagement.tsx:406: const { error } = await supabase.from('machines').insert({
+  src\components\categories\ProjectManagement.tsx:63: .from('projects')
+  src\components\categories\ProjectManagement.tsx:107: .from('projects')
+  src\components\categories\ProjectManagement.tsx:121: .from('projects')
+  src\components\categories\ProjectManagement.tsx:133: .from('projects')
+  src\components\categories\ProjectManagement.tsx:185: const { error } = await supabase.from('projects').delete().eq('id', id);
+  src\components\categories\ProjectManagement.tsx:211: await supabase.from('projects').delete().eq('id', id);
+  src\components\categories\ProjectManagement.tsx:305: .from('projects')
+  src\components\categories\ProjectManagement.tsx:312: .from('projects')
+  src\components\categories\ProjectManagement.tsx:322: .from('projects')
+  src\components\categories\WarehouseManagement.tsx:49: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:78: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:96: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:109: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:142: const { error } = await supabase.from('warehouses').delete().eq('id', id);
+  src\components\categories\WarehouseManagement.tsx:161: await supabase.from('warehouses').delete().eq('id', id);
+  src\components\categories\WarehouseManagement.tsx:202: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:230: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:238: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:247: await supabase.from('warehouses').insert({
+  src\core\inventory-engine\index.ts:41: let query = client.from('v_stock_on_hand').select('*');
+  src\core\inventory-engine\index.ts:71: const { data, error } = await client.from('v_stock_on_hand_product').select('*');
+  src\core\inventory-engine\index.ts:92: .from('stock_ledger')
+  src\core\stock-ledger\postingApi.ts:111: const { error } = await client.from('stock_ledger').upsert(rows, {
+  src\features\ocr\pages\SomePage.tsx:47: .from('reports')
+  src\features\ocr\pages\SomePage.tsx:215: .from('reports')
+  src\hooks\useProductionReports.ts:39: .from('production_reports')
+  src\lib\dataSync.ts:75: .from('employees')
+  src\modules\reports\machining\ToolsUsage.tsx:89: .from('information_schema.tables')
+  src\modules\reports\MachinePerformancePage.tsx:53: .from('production_reports')
+  src\modules\reports\ProductionForm.tsx:296: .from('machines')
+  src\modules\reports\ProductionForm.tsx:309: .from('projects')
+  src\modules\reports\ProductionForm.tsx:371: .from('categories')
+  src\modules\reports\ProductionForm.tsx:406: .from('employees')
+  src\modules\reports\ProductionReportPage.tsx:513: .from('production_reports')
+  src\modules\reports\ProductionReportPage.tsx:576: .from('production_reports')
+  src\modules\reports\ProductionReportPage.tsx:602: .from('production_reports')
+  src\modules\reports\ProductionReportPage.tsx:665: const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(newLog));
+  src\modules\reports\ProductionReportPage.tsx:728: .from('production_reports')
+  src\modules\reports\ProductionReportPage.tsx:751: const { error } = await supabase.from('production_reports').delete().eq('id', id);
+  src\modules\reports\ProductionReportPage.tsx:778: const { error } = await supabase.from('production_reports').delete().eq('id', id);
+  src\modules\reports\ProductionReportPage.tsx:820: const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(insertData));
+  src\modules\system\pages\Roles.tsx:221: .from('employees')
+  src\modules\system\pages\Roles.tsx:310: .from('employees')
+  src\modules\warehouse\components\WarehouseExport.tsx:85: const { data: projData } = await client.from('projects').select('*');
+  src\modules\warehouse\pages\ChuyenKho.tsx:88: const { data } = await client.from('stock_document_lines').select('*').eq('document_id', doc.id).order('line_no');
+  src\modules\warehouse\pages\ChuyenKho.tsx:151: const { error } = await client.from('stock_documents').update(patch).eq('id', id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:172: await getSupabase()?.from('stock_documents').update({ workflow_status: 'approved', approved_by: user?.name, approved_at: now }).eq('id', id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:202: await getSupabase()?.from('stock_documents').update({ workflow_status: 'received', received_by: user?.name, received_at: now }).eq('id', id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:219: await getSupabase()?.from('stock_documents').update({ workflow_status: 'rejected', rejected_by: user?.name, rejected_at: now, rejected_reason: rejectReason }).eq('id', id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:236: await client.from('stock_documents').update({
+  src\modules\warehouse\pages\ChuyenKho.tsx:244: await client.from('stock_document_lines').delete().eq('document_id', editFormData.id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:248: await client.from('stock_document_lines').insert(lines);
+  src\modules\warehouse\pages\NhapKho.tsx:133: .from('stock_document_lines')
+  src\modules\warehouse\pages\NhapKho.tsx:278: .from('stock_documents')
+  src\modules\warehouse\pages\XuatKho.tsx:91: const { data } = await client.from('stock_document_lines').select('*').eq('document_id', doc.id).order('line_no');
+  src\modules\warehouse\pages\XuatKho.tsx:170: const { error } = await client.from('stock_documents').update(patch).eq('id', id);
+  src\modules\warehouse\pages\XuatKho.tsx:187: await getSupabase()?.from('stock_documents').update({ workflow_status: 'approved', approved_by: user?.name, approved_at: now }).eq('id', id);
+  src\modules\warehouse\pages\XuatKho.tsx:217: await getSupabase()?.from('stock_documents').update({ workflow_status: 'received', received_by: user?.name, received_at: now }).eq('id', id);
+  src\modules\warehouse\pages\XuatKho.tsx:234: await getSupabase()?.from('stock_documents').update({ workflow_status: 'rejected', rejected_by: user?.name, rejected_at: now, rejected_reason: rejectReason }).eq('id', id);
+  src\modules\warehouse\pages\XuatKho.tsx:251: await client.from('stock_documents').update({
+  src\modules\warehouse\pages\XuatKho.tsx:258: await client.from('stock_document_lines').delete().eq('document_id', editFormData.id);
+  src\modules\warehouse\pages\XuatKho.tsx:262: await client.from('stock_document_lines').insert(lines);
+  src\pages\InventoryCount.tsx:19: const { data } = await client.from('warehouses').select('id, name').order('name');
+  src\pages\InventoryCount.tsx:25: const { data } = await client.from('products').select('id, name, sku').order('name');
+  src\pages\InventoryCount.tsx:32: .from('stock_ledger')
+  src\services\employeeService.ts:95: const query = supabase?.from('employees')?.select('*')?.order('msnv', { ascending: true });
+  src\services\employeeService.ts:121: const query = supabase?.from('employees')?.select('*')?.eq('msnv', msnv);
+  src\services\employeeService.ts:144: const query = supabase?.from('employees')?.select('*')?.eq('msnv', msnv)?.eq('status', 'active');
+  src\services\employeeService.ts:173: .from('employees')
+  src\services\employeeService.ts:189: .from('employees')
+  src\services\employeeService.ts:208: .from('employees')
+  src\services\employeeService.ts:223: .from('employees')
+  src\services\permissionService.ts:78: const query = supabase?.from('user_permissions')?.select('*')?.eq('msnv', msnv);
+  src\services\permissionService.ts:127: const { data, error } = await supabase.from('user_permissions').select('*');
+  src\services\permissionService.ts:160: .from('user_permissions')
+  src\services\permissionService.ts:185: .from('user_permissions')
+
+######## DANH SÁCH BẢNG/VIEW ########
+  categories
+  employees
+  information_schema.tables
+  inventory_count_lines
+  inventory_count_sessions
+  machines
+  production_reports
+  products
+  projects
+  reports
+  stock_document_lines
+  stock_documents
+  stock_ledger
+  tool_returns
+  tools
+  user_permissions
+  v_low_stock_alert
+  v_stock_on_hand
+  v_stock_on_hand_product
+  v_stock_valuation
+  v_tool_consumption_by_machine
+  v_tool_consumption_by_project
+  warehouses
+
+######## GHI ########
+  src\api\inventoryCount.ts:105: .from('inventory_count_sessions')
+  src\api\inventoryCount.ts:130: .from('inventory_count_lines')
+  src\api\inventoryCount.ts:134: await client.from('inventory_count_sessions').delete().eq('id', sessionId);
+  src\api\inventoryCount.ts:241: .from('inventory_count_sessions')
+  src\api\stock.ts:118: const { error } = await client.from('stock_documents').upsert(
+  src\api\stock.ts:185: .from('stock_document_lines')
+  src\api\stock.ts:190: .from('stock_document_lines')
+  src\api\stockDocument.ts:119: .from('stock_documents')
+  src\api\stockDocument.ts:157: .from('stock_document_lines')
+  src\api\stockDocument.ts:162: await client.from('stock_documents').delete().eq('id', documentId);
+  src\api\stockDocument.ts:204: .from('stock_documents')
+  src\api\stockDocument.ts:283: await client.from('stock_document_lines').delete().eq('document_id', id);
+  src\api\stockDocument.ts:284: const { error } = await client.from('stock_documents').delete().eq('id', id);
+  src\api\stockDocument.ts:461: .from('stock_documents')
+  src\components\categories\CategoryTypeManagement.tsx:80: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:123: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:139: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:197: await supabase.from('categories').delete().eq('id', id)
+  src\components\categories\CategoryTypeManagement.tsx:250: .from('categories')
+  src\components\categories\MachineManagement.tsx:195: .from('machines')
+  src\components\categories\MachineManagement.tsx:214: .from('machines')
+  src\components\categories\MachineManagement.tsx:272: const { error } = await supabase.from('machines').delete().eq('id', id);
+  src\components\categories\MachineManagement.tsx:296: const { error } = await supabase.from('machines').delete().in('id', selectedIds);
+  src\components\categories\MachineManagement.tsx:406: const { error } = await supabase.from('machines').insert({
+  src\components\categories\ProjectManagement.tsx:107: .from('projects')
+  src\components\categories\ProjectManagement.tsx:133: .from('projects')
+  src\components\categories\ProjectManagement.tsx:185: const { error } = await supabase.from('projects').delete().eq('id', id);
+  src\components\categories\ProjectManagement.tsx:211: await supabase.from('projects').delete().eq('id', id);
+  src\components\categories\ProjectManagement.tsx:312: .from('projects')
+  src\components\categories\ProjectManagement.tsx:322: .from('projects')
+  src\components\categories\WarehouseManagement.tsx:96: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:109: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:142: const { error } = await supabase.from('warehouses').delete().eq('id', id);
+  src\components\categories\WarehouseManagement.tsx:161: await supabase.from('warehouses').delete().eq('id', id);
+  src\components\categories\WarehouseManagement.tsx:238: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:247: await supabase.from('warehouses').insert({
+  src\core\stock-ledger\postingApi.ts:111: const { error } = await client.from('stock_ledger').upsert(rows, {
+  src\features\ocr\pages\SomePage.tsx:47: .from('reports')
+  src\modules\reports\ProductionReportPage.tsx:576: .from('production_reports')
+  src\modules\reports\ProductionReportPage.tsx:602: .from('production_reports')
+  src\modules\reports\ProductionReportPage.tsx:665: const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(newLog));
+  src\modules\reports\ProductionReportPage.tsx:728: .from('production_reports')
+  src\modules\reports\ProductionReportPage.tsx:751: const { error } = await supabase.from('production_reports').delete().eq('id', id);
+  src\modules\reports\ProductionReportPage.tsx:778: const { error } = await supabase.from('production_reports').delete().eq('id', id);
+  src\modules\reports\ProductionReportPage.tsx:820: const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(insertData));
+  src\modules\warehouse\pages\ChuyenKho.tsx:151: const { error } = await client.from('stock_documents').update(patch).eq('id', id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:172: await getSupabase()?.from('stock_documents').update({ workflow_status: 'approved', approved_by: user?.name, approved_at: now }).eq('id', id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:202: await getSupabase()?.from('stock_documents').update({ workflow_status: 'received', received_by: user?.name, received_at: now }).eq('id', id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:219: await getSupabase()?.from('stock_documents').update({ workflow_status: 'rejected', rejected_by: user?.name, rejected_at: now, rejected_reason: rejectReason }).eq('id', id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:236: await client.from('stock_documents').update({
+  src\modules\warehouse\pages\ChuyenKho.tsx:244: await client.from('stock_document_lines').delete().eq('document_id', editFormData.id);
+  src\modules\warehouse\pages\ChuyenKho.tsx:248: await client.from('stock_document_lines').insert(lines);
+  src\modules\warehouse\pages\NhapKho.tsx:278: .from('stock_documents')
+  src\modules\warehouse\pages\XuatKho.tsx:170: const { error } = await client.from('stock_documents').update(patch).eq('id', id);
+  src\modules\warehouse\pages\XuatKho.tsx:187: await getSupabase()?.from('stock_documents').update({ workflow_status: 'approved', approved_by: user?.name, approved_at: now }).eq('id', id);
+  src\modules\warehouse\pages\XuatKho.tsx:217: await getSupabase()?.from('stock_documents').update({ workflow_status: 'received', received_by: user?.name, received_at: now }).eq('id', id);
+  src\modules\warehouse\pages\XuatKho.tsx:234: await getSupabase()?.from('stock_documents').update({ workflow_status: 'rejected', rejected_by: user?.name, rejected_at: now, rejected_reason: rejectReason }).eq('id', id);
+  src\modules\warehouse\pages\XuatKho.tsx:251: await client.from('stock_documents').update({
+  src\modules\warehouse\pages\XuatKho.tsx:258: await client.from('stock_document_lines').delete().eq('document_id', editFormData.id);
+  src\modules\warehouse\pages\XuatKho.tsx:262: await client.from('stock_document_lines').insert(lines);
+  src\services\employeeService.ts:173: .from('employees')
+  src\services\employeeService.ts:189: .from('employees')
+  src\services\employeeService.ts:208: .from('employees')
+  src\services\employeeService.ts:223: .from('employees')
+  src\services\permissionService.ts:160: .from('user_permissions')
+  src\services\permissionService.ts:185: .from('user_permissions')
+
+######## ĐỌC ########
+  src\api\inventoryCount.ts:150: .from('inventory_count_sessions')
+  src\api\inventoryCount.ts:173: .from('inventory_count_sessions')
+  src\api\inventoryCount.ts:181: .from('inventory_count_lines')
+  src\api\stockDocument.ts:222: .from('stock_documents')
+  src\api\stockDocument.ts:251: .from('stock_documents')
+  src\api\stockDocument.ts:259: .from('stock_document_lines')
+  src\api\stockInsights.ts:18: .from('v_low_stock_alert')
+  src\api\stockLedger.ts:41: .from('stock_ledger')
+  src\api\stockLedger.ts:71: .from('stock_ledger')
+  src\api\stockLedger.ts:118: let q = client.from('stock_ledger').select('*');
+  src\api\toolReturn.ts:162: .from('tool_returns')
+  src\api\toolReturn.ts:209: let query = client.from('v_tool_consumption_by_machine').select('*');
+  src\api\toolReturn.ts:234: let query = client.from('v_tool_consumption_by_project').select('*');
+  src\api\valuation.ts:88: .from('v_stock_valuation')
+  src\api\warehouse.ts:47: .from('warehouses')
+  src\api\warehouse.ts:62: .from('tools')
+  src\api\warehouse.ts:80: let q = client.from('v_stock_on_hand').select('*');
+  src\api\warehouse.ts:105: .from('v_stock_on_hand')
+  src\components\categories\CategoryTypeManagement.tsx:57: .from('categories')
+  src\components\categories\CategoryTypeManagement.tsx:226: .from('categories')
+  src\components\categories\MachineManagement.tsx:87: .from('machines')
+  src\components\categories\MachineManagement.tsx:141: .from('machines')
+  src\components\categories\MachineManagement.tsx:356: .from('machines')
+  src\components\categories\ProjectManagement.tsx:63: .from('projects')
+  src\components\categories\ProjectManagement.tsx:121: .from('projects')
+  src\components\categories\ProjectManagement.tsx:305: .from('projects')
+  src\components\categories\WarehouseManagement.tsx:49: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:78: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:202: .from('warehouses')
+  src\components\categories\WarehouseManagement.tsx:230: .from('warehouses')
+  src\core\inventory-engine\index.ts:41: let query = client.from('v_stock_on_hand').select('*');
+  src\core\inventory-engine\index.ts:71: const { data, error } = await client.from('v_stock_on_hand_product').select('*');
+  src\core\inventory-engine\index.ts:92: .from('stock_ledger')
+  src\features\ocr\pages\SomePage.tsx:215: .from('reports')
+  src\hooks\useProductionReports.ts:39: .from('production_reports')
+  src\lib\dataSync.ts:75: .from('employees')
+  src\modules\reports\machining\ToolsUsage.tsx:89: .from('information_schema.tables')
+  src\modules\reports\MachinePerformancePage.tsx:53: .from('production_reports')
+  src\modules\reports\ProductionForm.tsx:296: .from('machines')
+  src\modules\reports\ProductionForm.tsx:309: .from('projects')
+  src\modules\reports\ProductionForm.tsx:371: .from('categories')
+  src\modules\reports\ProductionForm.tsx:406: .from('employees')
+  src\modules\reports\ProductionReportPage.tsx:513: .from('production_reports')
+  src\modules\system\pages\Roles.tsx:221: .from('employees')
+  src\modules\system\pages\Roles.tsx:310: .from('employees')
+  src\modules\warehouse\components\WarehouseExport.tsx:85: const { data: projData } = await client.from('projects').select('*');
+  src\modules\warehouse\pages\ChuyenKho.tsx:88: const { data } = await client.from('stock_document_lines').select('*').eq('document_id', doc.id).order('line_no');
+  src\modules\warehouse\pages\NhapKho.tsx:133: .from('stock_document_lines')
+  src\modules\warehouse\pages\XuatKho.tsx:91: const { data } = await client.from('stock_document_lines').select('*').eq('document_id', doc.id).order('line_no');
+  src\pages\InventoryCount.tsx:19: const { data } = await client.from('warehouses').select('id, name').order('name');
+  src\pages\InventoryCount.tsx:25: const { data } = await client.from('products').select('id, name, sku').order('name');
+  src\pages\InventoryCount.tsx:32: .from('stock_ledger')
+  src\services\employeeService.ts:95: const query = supabase?.from('employees')?.select('*')?.order('msnv', { ascending: true });
+  src\services\employeeService.ts:121: const query = supabase?.from('employees')?.select('*')?.eq('msnv', msnv);
+  src\services\employeeService.ts:144: const query = supabase?.from('employees')?.select('*')?.eq('msnv', msnv)?.eq('status', 'active');
+  src\services\permissionService.ts:78: const query = supabase?.from('user_permissions')?.select('*')?.eq('msnv', msnv);
+  src\services\permissionService.ts:127: const { data, error } = await supabase.from('user_permissions').select('*');

@@ -1,6 +1,7 @@
 // src/features/ocr/services/smartOCRParser.ts
 
-import { ParsedReportData, OCRParser } from './ocrService';
+import { OCRParser } from './ocrService';
+import type { ParsedReportData } from './ocrService';
 import { ocrTrainer } from './ocrTrainer';
 
 export class SmartOCRParser {
@@ -144,7 +145,8 @@ export class SmartOCRParser {
     const customFields = this.extractCustomFields(fixedText);
     console.log('🎯 Custom fields:', customFields);
     
-    const mlFields = ocrTrainer.applyLearning(fixedText);
+    const extractedFields = { ...ruleResult.fields, ...customFields };
+    const mlFields = ocrTrainer.applyLearning(fixedText, extractedFields);
     if (mlFields) {
       console.log('🧠 ML fields:', mlFields);
     }
@@ -208,7 +210,7 @@ export class SmartOCRParser {
       fields: mergedFields,
       confidence,
       source,
-    } as any;
+    };
   }
 
   private extractCustomFields(text: string): Record<string, any> {

@@ -113,7 +113,7 @@ export function MachineManagement() {
           schema: 'public',
           table: 'machines',
         },
-        (payload) => {
+        (payload: { eventType: string; new: Machine; old: Partial<Machine> }) => {
           if (payload.eventType === 'INSERT') {
             setMachines((prev) => [payload.new as Machine, ...prev]);
             toast.success(`Đã thêm máy mới: ${(payload.new as Machine).tenMay}`);

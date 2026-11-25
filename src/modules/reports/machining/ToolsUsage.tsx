@@ -91,7 +91,7 @@ export function ToolsUsage() {
         .eq('table_schema', 'public');
       
       if (!error && tables) {
-        console.log('📋 Danh sách bảng trong public schema:', tables.map(t => t.table_name));
+        console.log('📋 Danh sách bảng trong public schema:', tables.map((t: { table_name: string }) => t.table_name));
         // Tìm bảng có tên liên quan đến chủng loại
         const keywords = ['chung', 'loai', 'category', 'tool', 'dao', 'catalog'];
         for (const table of tables) {
@@ -140,11 +140,11 @@ export function ToolsUsage() {
 
       chungLoaiCache = data || [];
       cacheTimestamp = now;
-      console.log(`✅ Đã tải ${chungLoaiCache.length} loại chủng loại`);
+      console.log(`✅ Đã tải ${chungLoaiCache?.length ?? 0} loại chủng loại`);
       
-      if (chungLoaiCache.length > 0) {
-        console.log('📋 Cấu trúc dữ liệu:', Object.keys(chungLoaiCache[0]));
-        console.log('📋 5 loại đầu tiên:', chungLoaiCache.slice(0, 5).map(item => ({
+      if ((chungLoaiCache?.length ?? 0) > 0) {
+        console.log('📋 Cấu trúc dữ liệu:', chungLoaiCache?.[0] ? Object.keys(chungLoaiCache[0]) : []);
+        console.log('📋 5 loại đầu tiên:', (chungLoaiCache ?? []).slice(0, 5).map(item => ({
           ten: item.tenLoai || item.ten_loai || item.ten || item.name || 'N/A',
           gia: item.gia || item.donGia || item.don_gia || item.price || 0,
           donVi: item.donVi || item.don_vi || item.unit || 'Cái'
@@ -384,7 +384,7 @@ export function ToolsUsage() {
       try {
         // Lấy danh sách chủng loại
         const catalog = await loadChungLoai();
-        console.log('📦 Catalog loaded:', catalog.length);
+        console.log('📦 Catalog loaded:', catalog?.length ?? 0);
         
         // Cập nhật đơn giá cho từng dòng
         const updated = rawData.map(row => {
@@ -394,7 +394,7 @@ export function ToolsUsage() {
           }
           
           // Tìm đơn giá từ danh sách chủng loại
-          const priceInfo = findPriceInChungLoai(row.tenDao, catalog);
+          const priceInfo = findPriceInChungLoai(row.tenDao, catalog ?? []);
           
           if (priceInfo.donGia > 0) {
             const newDonGia = priceInfo.donGia;

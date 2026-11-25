@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/table';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
+import type { ProductionPlanEntry } from '@/types/manufacturing';
 
 import {
   AlertTriangle,

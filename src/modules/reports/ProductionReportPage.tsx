@@ -516,7 +516,7 @@ export default function ProductionReportPage() {
       
       if (allError) throw allError;
       
-      const mappedDbLogs = (allLogs || []).map((item) => {
+      const mappedDbLogs = (allLogs || []).map((item: Record<string, unknown>) => {
         const mapped = mapReportFromDb('production_reports', item);
         return mapped as any as ProductionLog;
       });
@@ -524,7 +524,7 @@ export default function ProductionReportPage() {
       let filteredLogs = mappedDbLogs;
       
       if (!isAdmin && !isQuanLyXuong) {
-        filteredLogs = filteredLogs.filter(log => {
+        filteredLogs = filteredLogs.filter((log: Record<string, unknown>) => {
           const logNguoiVanHanh = (String(log.nguoiVanHanh || '')).trim().toLowerCase();
           const logNguoiKiemTra = (String(log.nguoiKiemTra || '')).trim().toLowerCase();
           const currentUserName = userName.toLowerCase();

@@ -128,7 +128,7 @@ export class AIEnhancer {
     // ===== 7. DÙNG ML TỪ TRAINER =====
     if (!fields.machine_code || !fields.product_code || !fields.date) {
       console.log('🔍 Dùng ML để bổ sung dữ liệu thiếu...');
-      const mlFields = ocrTrainer.applyLearning(fixedRawText);
+      const mlFields = ocrTrainer.applyLearning(fixedRawText, fields);
       if (mlFields) {
         for (const [key, value] of Object.entries(mlFields)) {
           if (!fields[key] || !fields[key].toString().trim() || fields[key] === '1' || fields[key] === 'Máy') {

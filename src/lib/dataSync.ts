@@ -27,6 +27,37 @@ const mapUserToSnake = (user: any) => ({
   updated_at: user.updatedAt || new Date().toISOString(),
 });
 
+const mapQcReportToSnake = (r: any) => ({
+  id: r.id,
+  ngay: r.ngay,
+  du_an: r.duAn,
+  ban_ve_so: r.banVeSo,
+  chi_tiet_so: r.chiTietSo,
+  ten_chi_tiet: r.tenChiTiet,
+  inspected_quantity: r.inspectedQuantity,
+  result: r.result,
+  inspector: r.inspector,
+  notes: r.notes,
+  created_at: r.createdAt,
+});
+
+const mapMaintenanceToSnake = (r: any) => ({
+  id: r.id,
+  ngay: r.ngay,
+  machine_name: r.machineName,
+  equipment_code: r.equipmentCode,
+  technician: r.technician,
+  job_content: r.jobContent,
+  reason: r.reason,
+  corrective_action: r.correctiveAction,
+  replacement_parts: r.replacementParts,
+  completion_time: r.completionTime,
+  post_maintenance_status: r.postMaintenanceStatus,
+  next_maintenance_schedule: r.nextMaintenanceSchedule,
+  notes_attachments: r.notesAttachments,
+  created_at: r.createdAt,
+});
+
 // Data synchronization service
 export class DataSyncService {
   private static instance: DataSyncService;
@@ -129,8 +160,11 @@ export class DataSyncService {
         { key: 'projects', table: 'projects' },
         { key: 'warehouses', table: 'warehouses' },
         { key: 'productionReports', table: 'production_reports' },
-        { key: 'maintenanceReports', table: 'maintenance_reports' },
-        { key: 'qcReports', table: 'qc_reports' },
+        { key: 'maintenanceReports', table: 'maintenance_reports', mapper: mapMaintenanceToSnake },
+        { key: 'qcReports', table: 'qc_reports', mapper: mapQcReportToSnake },
+        // MES ProductionPlan — sync kế hoạch SX lên Supabase
+        { key: 'productionPlanEntries', table: 'production_plans' },
+        { key: 'productionMachineDowntime', table: 'machine_downtime' },
       ];
 
       for (const { key, table, mapper } of tables) {
@@ -192,6 +226,9 @@ export class DataSyncService {
         { key: 'productionReports', table: 'production_reports' },
         { key: 'maintenanceReports', table: 'maintenance_reports' },
         { key: 'qcReports', table: 'qc_reports' },
+        // MES ProductionPlan — sync kế hoạch SX lên Supabase
+        { key: 'productionPlanEntries', table: 'production_plans' },
+        { key: 'productionMachineDowntime', table: 'machine_downtime' },
       ];
 
       for (const { key, table, reverseMapper } of tables) {
@@ -257,6 +294,8 @@ export class DataSyncService {
         'productionReports',
         'maintenanceReports',
         'qcReports',
+        'productionPlanEntries',
+        'productionMachineDowntime',
       ];
 
       if (

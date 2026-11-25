@@ -11,6 +11,37 @@ import type {
 } from '../types/documentTypes';
 
 export type { OCRResult, OCRBatchResult, ParsedReportData, AIResponse } from '../types/documentTypes';
+export type { DocumentType, DocumentTypeInfo, DocumentStructure, LineStructure, Measurement } from '../types/documentTypes';
+
+export class OCRParser {
+  parse(text: string): ParsedReportData {
+    const fields: Record<string, unknown> = {};
+    const patterns: Record<string, RegExp> = {
+      date: /(?:ngày|date)\s*[:：]?\s*(\d{1,2})[ /.-](\d{1,2})[ /.-](\d{4})/i,
+      shift: /ca\s*[:：]?\s*(\d+)/i,
+      machine_code: /máy\s*[:：]?\s*([A-Z0-9-]+)/i,
+      product_code: /(?:dự án|clue)\s*[:：_]?\s*([A-Z0-9-]+)/i,
+      quantity: /(?:số\s*lượng|sl)\s*[:：]?\s*(\d+)/i,
+      worker_name: /người\s*(?:vận\s*hành|nhận)\s*[:：]?\s*([A-Za-zÀ-ỹ\s]+)/i,
+    };
+
+    for (const [field, pattern] of Object.entries(patterns)) {
+      const match = pattern.exec(text);
+      if (match?.[1]) {
+        fields[field] = field === 'quantity' ? Number(match[1]) : match[1].trim();
+      }
+    }
+
+    return {
+      type: 'bao_cao_gia_cong',
+      fields,
+      confidence: Math.min(Object.keys(fields).length / Object.keys(patterns).length, 1),
+      raw_text: text,
+      parsed_at: new Date().toISOString(),
+      source: 'rule',
+    };
+  }
+}
 
 // ============================================================
 // CONSTANTS

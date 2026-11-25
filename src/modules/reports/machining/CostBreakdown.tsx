@@ -90,7 +90,7 @@ export function CostBreakdown() {
 
       machineCache = data || [];
       cacheTimestamp = now;
-      console.log(`✅ Đã tải ${machineCache.length} máy`);
+      console.log(`✅ Đã tải ${machineCache?.length ?? 0} máy`);
       return machineCache;
     } catch (error) {
       return [];
@@ -116,7 +116,7 @@ export function CostBreakdown() {
 
       chungLoaiCache = data || [];
       cacheTimestamp = now;
-      console.log(`✅ Đã tải ${chungLoaiCache.length} chủng loại`);
+      console.log(`✅ Đã tải ${chungLoaiCache?.length ?? 0} chủng loại`);
       return chungLoaiCache;
     } catch (error) {
       console.error('❌ Lỗi tải chủng loại:', error);
@@ -619,7 +619,7 @@ export function CostBreakdown() {
         ]);
 
         const updated = rawData.map((row) => {
-          const machine = findMachineByName(row.may, machines);
+          const machine = findMachineByName(row.may, machines ?? []);
           const donGia = machine ? getMachineRateByShift(machine, row.caMay) : 250000;
 
           const chiPhiChayMay = row.totalHours > 0 ? row.totalHours * donGia : 0;
@@ -632,7 +632,7 @@ export function CostBreakdown() {
           let totalChiPhiDao = 0;
           if (row.reports && Array.isArray(row.reports)) {
             row.reports.forEach((report: any) => {
-              totalChiPhiDao += calculateToolCost(report, chungLoai);
+              totalChiPhiDao += calculateToolCost(report, chungLoai ?? []);
             });
           }
 

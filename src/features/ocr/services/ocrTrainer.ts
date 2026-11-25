@@ -9,6 +9,11 @@ export interface LearnedSample {
   confidence?: number;
 }
 
+export interface TrainingSample {
+  documentType?: string;
+  expectedData: Record<string, unknown> & { measurements?: import('../types/documentTypes').Measurement[] };
+}
+
 export interface Pattern {
   field: string;
   regex: RegExp;
@@ -248,15 +253,27 @@ class OCRTrainer {
    * ✅ Lấy thống kê
    */
   getStats() {
+    const bySource = {
+      gemini: this.samples.filter(s => s.source === 'gemini').length,
+      tesseract: this.samples.filter(s => s.source === 'tesseract').length,
+      manual: this.samples.filter(s => s.source === 'manual').length,
+    };
+    const fieldsLearned = [...new Set(this.samples.flatMap(sample => Object.keys(sample.fields)))];
+
     return {
       totalSamples: this.samples.length,
       totalPatterns: this.patterns.length,
-      bySource: {
-        gemini: this.samples.filter(s => s.source === 'gemini').length,
-        tesseract: this.samples.filter(s => s.source === 'tesseract').length,
-        manual: this.samples.filter(s => s.source === 'manual').length
-      }
+      patternsCount: this.patterns.length,
+      autoLearned: bySource.gemini + bySource.tesseract,
+      manualLearned: bySource.manual,
+      fieldsLearned,
+      bySource,
     };
+  }
+
+  loadSamples(): LearnedSample[] {
+    this.loadFromStorage();
+    return this.samples;
   }
 
   /**

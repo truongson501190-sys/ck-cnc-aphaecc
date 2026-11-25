@@ -1,6 +1,6 @@
 // src/services/advancedTrainer.ts
-import { TrainingSample } from '../features/ocr/services/ocrTrainer';
-import { ParsedReportData } from '../features/ocrService';
+import type { TrainingSample } from '../features/ocr/services/ocrTrainer';
+import type { Measurement, ParsedReportData } from '../features/ocr/types/documentTypes';
 
 export class AdvancedTrainer {
   private knowledgeBase: Map<string, Record<string, string>> = new Map();
@@ -42,8 +42,8 @@ export class AdvancedTrainer {
     
     for (const field of fields) {
       const values = samples
-        .map(s => (s.expectedData as any)[field])
-        .filter(Boolean) as string[];
+        .map(s => s.expectedData[field])
+        .filter((value): value is string => typeof value === 'string');
       
       if (values.length > 1) {
         const commonRegex = this.findCommonRegex(values);
@@ -54,7 +54,7 @@ export class AdvancedTrainer {
     }
     
     // Học measurements
-    const allMeasurements = samples.flatMap(s => s.expectedData.measurements || []);
+    const allMeasurements = samples.flatMap(s => s.expectedData.measurements ?? []);
     if (allMeasurements.length > 0) {
       const measurementPattern = this.findMeasurementPatterns(allMeasurements);
       if (measurementPattern) {
@@ -102,7 +102,7 @@ export class AdvancedTrainer {
   /**
    * Tìm pattern cho measurements
    */
-  private findMeasurementPatterns(measurements: any[]): string {
+  private findMeasurementPatterns(measurements: Measurement[]): string {
     // Tìm các parameter chung
     const params = measurements.map(m => m.parameter);
     const uniqueParams = [...new Set(params)];
@@ -162,7 +162,7 @@ export class AdvancedTrainer {
         const regex = new RegExp(pattern, 'i');
         const match = regex.exec(text);
         if (match?.[1]) {
-          (result as any)[field] = match[1].trim();
+          result[field] = match[1].trim();
         }
       } catch (error) {
         console.warn(`Lỗi pattern cho field ${field}:`, error);
@@ -175,8 +175,8 @@ export class AdvancedTrainer {
   /**
    * Trích xuất measurements từ pattern
    */
-  private extractMeasurementsFromPattern(text: string, pattern: string): any[] {
-    const measurements: any[] = [];
+  private extractMeasurementsFromPattern(text: string, pattern: string): Measurement[] {
+    const measurements: Measurement[] = [];
     
     try {
       const regex = new RegExp(pattern, 'gi');

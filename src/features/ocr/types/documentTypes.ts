@@ -1,5 +1,51 @@
 // src/features/ocr/types/documentTypes.ts
 
+export type DocumentType =
+  | 'phieu_cap_phat'
+  | 'bao_cao_gia_cong'
+  | 'nhap_kho'
+  | 'xuat_kho'
+  | 'nhat_ky_qc'
+  | 'bao_tri'
+  | 'unknown';
+
+export interface DocumentTypeInfo {
+  label: string;
+  icon: string;
+  color: string;
+  fields: string[];
+  module: string;
+}
+
+export interface LineStructure {
+  content: string;
+  type: 'title' | 'date' | 'header' | 'signature' | 'row' | 'note' | 'empty' | 'unknown';
+  level?: number;
+  columns?: string[];
+}
+
+export interface DocumentStructure {
+  type: DocumentType;
+  title?: string;
+  date?: string;
+  headers: string[];
+  rows: string[][];
+  signature?: string;
+  notes: string[];
+  rawText: string;
+  structuredLines: LineStructure[];
+  confidence: number;
+}
+
+export interface Measurement {
+  parameter: string;
+  value: number;
+  min?: number;
+  max?: number;
+  unit?: string;
+  status?: string;
+}
+
 export interface AIPrediction {
   success: boolean;
   scan_id?: number;
@@ -46,12 +92,14 @@ export interface AIResponse {
 }
 
 export interface ParsedReportData {
+  [key: string]: unknown;
   type?: string;
   fields: Record<string, any>;
+  measurements?: Measurement[];
   confidence: number;
   raw_text: string;
   parsed_at: string;
-  source?: 'ai_backend' | 'tesseract' | 'rule';
+  source?: 'ai_backend' | 'tesseract' | 'rule' | 'ml' | 'hybrid';
   reasoning?: string[];
   reasoning_steps?: string[];
   confidence_breakdown?: Record<string, number>;

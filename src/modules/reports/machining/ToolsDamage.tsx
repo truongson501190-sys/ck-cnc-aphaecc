@@ -87,7 +87,7 @@ export function ToolsDamage() {
 
       chungLoaiCache = data || [];
       cacheTimestamp = now;
-      console.log(`✅ Đã tải ${chungLoaiCache.length} chủng loại`);
+      console.log(`✅ Đã tải ${chungLoaiCache?.length ?? 0} chủng loại`);
       return chungLoaiCache;
     } catch (error) {
       console.error('❌ Lỗi tải chủng loại:', error);
@@ -340,7 +340,7 @@ export function ToolsDamage() {
       setIsLoadingPrices(true);
       try {
         const catalog = await loadChungLoai();
-        console.log('📦 Catalog loaded:', catalog.length);
+        console.log('📦 Catalog loaded:', catalog?.length ?? 0);
 
         const updated = rawData.map((row) => {
           // Nếu đã có đơn giá > 0 thì giữ nguyên
@@ -349,7 +349,7 @@ export function ToolsDamage() {
           }
 
           // Tìm đơn giá từ chủng loại
-          const priceInfo = findPriceInChungLoai(row.tenDao, catalog);
+          const priceInfo = findPriceInChungLoai(row.tenDao, catalog ?? []);
           const newDonGia = priceInfo.donGia || 0;
           const newThietHai = row.hong * newDonGia;
 

@@ -114,7 +114,7 @@ const App: React.FC = () => {
           <AuthProvider>
             <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 dark:bg-gray-900 dark:text-gray-100">
               <ErpBootstrap />
-              <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+              <Router>
                 <Suspense fallback={<LoadingSpinner fullScreen />}>
                   <Routes>
                     {/* Authentication */}

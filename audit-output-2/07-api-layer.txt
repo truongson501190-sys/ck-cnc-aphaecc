@@ -1,0 +1,916 @@
+﻿===== src\api\stockDocument.ts =====
+import { getSupabase } from '@/supabase';
+
+// ============================================================================
+// TYPES
+// ============================================================================
+
+export type StockDocumentType =
+  | 'IN' | 'OUT' | 'TRANSFER' | 'OIL_OUT' | 'ADJUSTMENT' | 'INVENTORY';
+
+export type WorkflowStatus =
+  | 'draft' | 'pending' | 'approved' | 'transferred'
+  | 'received' | 'rejected' | 'posted';
+
+export interface StockDocumentLineInput {
+  lineNo: number;
+  productId: string;          // khá»›p stock_ledger.product_id (tĂªn/ma_dao)
+  quantity: number;
+  unit?: string;
+  unitCost?: number;
+  totalValue?: number;
+  notes?: string;
+  machineId?: string | null;  // UUID
+  projectId?: string | null;  // UUID
+}
+
+export interface CreateDocumentInput {
+  documentType: StockDocumentType;
+  referenceNumber: string;
+  transactionDate?: string;             // YYYY-MM-DD
+  warehouseId?: string | null;
+  fromWarehouseId?: string | null;
+  toWarehouseId?: string | null;
+  supplier?: string;
+  projectId?: string;
+  notes?: string;
+  createdBy?: string;
+  lines: StockDocumentLineInput[];
+}
+
+export interface StockDocumentRow {
+  id: string;
+  document_type: string;
+  reference_number: string;
+  status: string;
+  transaction_date: string;
+  warehouse_id: string | null;
+  from_warehouse_id: string | null;
+  to_warehouse_id: string | null;
+  total_value: number | null;
+  created_by: string | null;
+  notes: string | null;
+  created_at: string;
+  posted_at: string | null;
+  workflow_status: WorkflowStatus | null;
+  approved_by: string | null;
+  approved_at: string | null;
+  transferred_by: string | null;
+  transferred_at: string | null;
+  received_by: string | null;
+  received_at: string | null;
+  rejected_by: string | null;
+  rejected_at: string | null;
+  rejected_reason: string | null;
+  project_id: string | null;
+  supplier: string | null;
+  metadata: Record<string, unknown>;
+}
+
+export interface StockDocumentLineRow {
+  id: string;
+  document_id: string;
+  line_no: number;
+  product_id: string;
+  quantity: number;
+  unit: string | null;
+  unit_cost: number | null;
+  total_value: number | null;
+  notes: string | null;
+  machine_id: string | null;
+  project_id: string | null;
+}
+
+export interface ListDocumentsFilter {
+  documentType?: StockDocumentType;
+  workflowStatus?: WorkflowStatus;
+  warehouseId?: string;
+  fromDate?: string;   // YYYY-MM-DD
+  toDate?: string;
+  limit?: number;
+}
+
+// ============================================================================
+// API
+// ============================================================================
+
+/**
+ * Táº¡o phiáº¿u kho má»›i (header + lines).
+ * â ï¸ KhĂ´ng atomic â€” náº¿u insert lines fail, header sáº½ bá»‹ xĂ³a (cleanup).
+ */
+export async function createDocument(
+  input: CreateDocumentInput
+): Promise<{ ok: true; documentId: string } | { ok: false; error: string }> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  if (!input.documentType || !input.referenceNumber) {
+    return { ok: false, error: 'documentType + referenceNumber required' };
+  }
+  if (!input.lines || input.lines.length === 0) {
+    return { ok: false, error: 'at least 1 line required' };
+  }
+
+  const totalValue = input.lines.reduce(
+    (s, l) => s + (l.totalValue ?? (l.quantity * (l.unitCost ?? 0))),
+    0
+  );
+
+  const { data: header, error: headerErr } = await client
+    .from('stock_documents')
+    .insert({
+      document_type: input.documentType,
+      reference_number: input.referenceNumber,
+      transaction_date: input.transactionDate ?? new Date().toISOString().slice(0, 10),
+      warehouse_id: input.warehouseId ?? null,
+      from_warehouse_id: input.fromWarehouseId ?? null,
+      to_warehouse_id: input.toWarehouseId ?? null,
+      supplier: input.supplier ?? null,
+      project_id: input.projectId ?? null,
+      notes: input.notes ?? null,
+      created_by: input.createdBy ?? null,
+      total_value: totalValue,
+      workflow_status: 'pending',
+    })
+    .select('id')
+    .single();
+
+  if (headerErr || !header) {
+    return { ok: false, error: headerErr?.message ?? 'insert header failed' };
+  }
+
+  const documentId = (header as { id: string }).id;
+
+  const lineRows = input.lines.map((l) => ({
+    document_id: documentId,
+    line_no: l.lineNo,
+    product_id: l.productId,
+    quantity: l.quantity,
+    unit: l.unit ?? null,
+    unit_cost: l.unitCost ?? 0,
+    total_value: l.totalValue ?? (l.quantity * (l.unitCost ?? 0)),
+    notes: l.notes ?? null,
+    machine_id: l.machineId ?? null,
+    project_id: l.projectId ?? null,
+  }));
+
+  const { error: linesErr } = await client
+    .from('stock_document_lines')
+    .insert(lineRows);
+
+  if (linesErr) {
+    // Cleanup header
+    await client.from('stock_documents').delete().eq('id', documentId);
+    return { ok: false, error: `insert lines failed: ${linesErr.message}` };
+  }
+
+  return { ok: true, documentId };
+}
+
+/**
+ * Cáº­p nháº­t workflow status + audit fields tÆ°Æ¡ng á»©ng.
+ */
+export async function updateWorkflowStatus(
+  documentId: string,
+  status: WorkflowStatus,
+  user: string,
+  reason?: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = {
+    workflow_status: status,
+  };
+
+  if (status === 'approved') {
+    patch.approved_by = user;
+    patch.approved_at = now;
+  } else if (status === 'transferred') {
+    patch.transferred_by = user;
+    patch.transferred_at = now;
+  } else if (status === 'received') {
+    patch.received_by = user;
+    patch.received_at = now;
+  } else if (status === 'rejected') {
+    patch.rejected_by = user;
+    patch.rejected_at = now;
+    if (reason) patch.rejected_reason = reason;
+  } else if (status === 'posted') {
+    patch.posted_at = now;
+  }
+
+  const { error } = await client
+    .from('stock_documents')
+    .update(patch)
+    .eq('id', documentId);
+
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+/**
+ * List documents (khĂ´ng kĂ¨m lines).
+ */
+export async function listDocuments(
+  filter: ListDocumentsFilter = {}
+): Promise<{ ok: true; data: StockDocumentRow[] } | { ok: false; error: string }> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  let q = client
+    .from('stock_documents')
+    .select('*')
+    .order('created_at', { ascending: false });
+
+  if (filter.documentType)   q = q.eq('document_type', filter.documentType);
+  if (filter.workflowStatus) q = q.eq('workflow_status', filter.workflowStatus);
+  if (filter.warehouseId)    q = q.eq('warehouse_id', filter.warehouseId);
+  if (filter.fromDate)       q = q.gte('transaction_date', filter.fromDate);
+  if (filter.toDate)         q = q.lte('transaction_date', filter.toDate);
+  if (filter.limit)          q = q.limit(filter.limit);
+
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: (data ?? []) as StockDocumentRow[] };
+}
+
+/**
+ * Get document + lines.
+ */
+export async function getDocumentById(
+  id: string
+): Promise<
+  | { ok: true; document: StockDocumentRow; lines: StockDocumentLineRow[] }
+  | { ok: false; error: string }
+> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  const { data: doc, error: docErr } = await client
+    .from('stock_documents')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (docErr || !doc) return { ok: false, error: docErr?.message ?? 'not found' };
+
+  const { data: lines, error: linesErr } = await client
+    .from('stock_document_lines')
+    .select('*')
+    .eq('document_id', id)
+    .order('line_no');
+
+  if (linesErr) return { ok: false, error: linesErr.message };
+
+  return {
+    ok: true,
+    document: doc as StockDocumentRow,
+    lines: (lines ?? []) as StockDocumentLineRow[],
+  };
+}
+
+/**
+ * XĂ³a document + lines (hard delete â€” chá»‰ dĂ¹ng cho draft/test).
+ * Production nĂªn dĂ¹ng workflow_status = 'rejected' thay vĂ¬ delete.
+ */
+export async function deleteDocument(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  await client.from('stock_document_lines').delete().eq('document_id', id);
+  const { error } = await client.from('stock_documents').delete().eq('id', id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+// ============================================================================
+// POST â€” ghi ledger (THĂM Má»I)
+// ============================================================================
+
+type RpcCaller = (
+  fn: string,
+  params: Record<string, unknown>
+) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+async function postOneLine(args: {
+  kind: 'IN' | 'OUT' | 'TRANSFER';
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  warehouseId?: string | null;
+  fromWarehouseId?: string | null;
+  toWarehouseId?: string | null;
+  documentId: string;
+  documentLineId: string;
+  createdBy: string | null;
+  notes: string;
+}): Promise<{ ok: true; ledgerIds: string[] } | { ok: false; error: string }> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+  const rpc = client.rpc as unknown as RpcCaller;
+
+  let params: Record<string, unknown>;
+  const idem = `doc:${args.documentId}:${args.documentLineId}`;
+
+  if (args.kind === 'IN') {
+    if (!args.warehouseId) return { ok: false, error: 'IN requires warehouseId' };
+    params = {
+      p_movement_kind: 'IN',
+      p_product_id: args.productId,
+      p_quantity: args.quantity,
+      p_warehouse_id: args.warehouseId,
+      p_unit_cost: args.unitCost,
+      p_document_id: args.documentId,
+      p_document_line_id: args.documentLineId,
+      p_created_by: args.createdBy,
+      p_notes: args.notes,
+      p_legacy_transaction_id: idem,
+      p_reference: `DOC-${args.documentId.slice(0, 8)}`,
+    };
+  } else if (args.kind === 'OUT') {
+    if (!args.warehouseId) return { ok: false, error: 'OUT requires warehouseId' };
+    params = {
+      p_movement_kind: 'OUT',
+      p_product_id: args.productId,
+      p_quantity: Math.abs(args.quantity),
+      p_warehouse_id: args.warehouseId,
+      p_unit_cost: args.unitCost,
+      p_document_id: args.documentId,
+      p_document_line_id: args.documentLineId,
+      p_created_by: args.createdBy,
+      p_notes: args.notes,
+      p_legacy_transaction_id: idem,
+      p_reference: `DOC-${args.documentId.slice(0, 8)}`,
+    };
+  } else {
+    if (!args.fromWarehouseId || !args.toWarehouseId) {
+      return { ok: false, error: 'TRANSFER requires from + to warehouse' };
+    }
+    params = {
+      p_movement_kind: 'TRANSFER',
+      p_product_id: args.productId,
+      p_quantity: Math.abs(args.quantity),
+      p_from_warehouse_id: args.fromWarehouseId,
+      p_to_warehouse_id: args.toWarehouseId,
+      p_unit_cost: args.unitCost,
+      p_document_id: args.documentId,
+      p_document_line_id: args.documentLineId,
+      p_created_by: args.createdBy,
+      p_notes: args.notes,
+      p_legacy_transaction_id: idem,
+      p_reference: `DOC-${args.documentId.slice(0, 8)}`,
+    };
+  }
+
+  const { data, error } = await rpc('post_warehouse_movement_weighted_average', params);
+  if (error) return { ok: false, error: error.message };
+
+  const ids = (data as { ledger_entry_ids?: string[] } | null)?.ledger_entry_ids ?? [];
+  const expected = args.kind === 'TRANSFER' ? 2 : 1;
+  if (ids.length !== expected) {
+    return { ok: false, error: `RPC tráº£ ${ids.length} dĂ²ng (ká»³ vá»ng ${expected})` };
+  }
+  return { ok: true, ledgerIds: ids };
+}
+
+/**
+ * Ghi ledger cho document (IN/OUT/TRANSFER) + chuyá»ƒn workflow status.
+ * Pháº£i gá»i SAU createDocument().
+ */
+export async function postDocument(
+  documentId: string,
+  createdBy?: string
+): Promise<
+  | { ok: true; ledgerIds: string[]; linesPosted: number }
+  | { ok: false; error: string }
+> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  // Load doc + lines
+  const docRes = await getDocumentById(documentId);
+  if (!docRes.ok) return { ok: false, error: docRes.error };
+
+  const { document: doc, lines } = docRes;
+
+  if (doc.posted_at) {
+    return { ok: false, error: 'Phiáº¿u Ä‘Ă£ Ä‘Æ°á»£c ghi ledger trÆ°á»›c Ä‘Ă³' };
+  }
+  if (doc.workflow_status === 'rejected') {
+    return { ok: false, error: 'Phiáº¿u Ä‘Ă£ bá»‹ tá»« chá»‘i' };
+  }
+  if (doc.document_type === 'ADJUSTMENT' || doc.document_type === 'INVENTORY') {
+    return {
+      ok: false,
+      error: `DĂ¹ng API inventoryCount cho document_type=${doc.document_type}`,
+    };
+  }
+
+  const docType = doc.document_type as 'IN' | 'OUT' | 'TRANSFER';
+  const ledgerIds: string[] = [];
+  let linesPosted = 0;
+
+  for (const line of lines) {
+    const res = await postOneLine({
+      kind: docType,
+      productId: line.product_id,
+      quantity: Number(line.quantity),
+      unitCost: Number(line.unit_cost ?? 0),
+      warehouseId: doc.warehouse_id,
+      fromWarehouseId: doc.from_warehouse_id,
+      toWarehouseId: doc.to_warehouse_id,
+      documentId: doc.id,
+      documentLineId: line.id,
+      createdBy: createdBy ?? null,
+      notes: `${docType} â€” ${doc.reference_number} â€” line ${line.line_no}`,
+    });
+
+    if (!res.ok) {
+      return {
+        ok: false,
+        error:
+          `Line ${line.line_no} (${line.product_id}): ${res.error}. ` +
+          `ÄĂ£ ghi ${linesPosted} dĂ²ng trÆ°á»›c Ä‘Ă³ â€” cáº§n rollback thá»§ cĂ´ng cho doc ${doc.id}.`,
+      };
+    }
+
+    ledgerIds.push(...res.ledgerIds);
+    linesPosted++;
+  }
+
+  // Update workflow
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = {
+    posted_at: now,
+    status: 'posted',
+  };
+  if (docType === 'IN') {
+    patch.workflow_status = 'received';
+    patch.received_by = createdBy ?? null;
+    patch.received_at = now;
+  } else {
+    patch.workflow_status = 'transferred';
+    patch.transferred_by = createdBy ?? null;
+    patch.transferred_at = now;
+  }
+
+  const { error: uErr } = await client
+    .from('stock_documents')
+    .update(patch)
+    .eq('id', documentId);
+
+  if (uErr) {
+    return {
+      ok: false,
+      error:
+        `ÄĂ£ ghi ${ledgerIds.length} dĂ²ng ledger nhÆ°ng update doc lá»—i: ${uErr.message}. ` +
+        `Cáº§n rollback thá»§ cĂ´ng cho doc ${doc.id}.`,
+    };
+  }
+
+  return { ok: true, ledgerIds, linesPosted };
+}
+
+===== src\api\stock.ts =====
+import { getSupabase } from '@/supabase';
+import {
+  mapTransactionTypeToKind,
+  postWarehouseMovementToLedger,
+} from '@/core/stock-ledger/postingApi';
+import { resolveProductId, resolveWarehouseId } from '@/core/stock-ledger/resolveIds';
+import type { PostMovementLineInput, WarehouseMovementKind } from '@/core/stock-ledger/types';
+import type { WarehouseTransaction } from '@/types/inventory';
+import type { StockLedgerRow } from '@/core/stock-ledger/types';
+import {
+  getMovements,
+  getOnHand,
+  getOnHandByProduct,
+  getValuation,
+  type MovementFilter,
+} from '@/core/inventory-engine';
+
+export type StockDocumentInput = WarehouseTransaction & {
+  itemName?: string;
+  itemId?: string;
+  toLocation?: string;
+  fromLocation?: string;
+  operator?: string;
+};
+
+function buildLines(tx: StockDocumentInput): PostMovementLineInput[] {
+  if (tx.items && tx.items.length > 0) {
+    return tx.items
+      .map((item, idx) => ({
+        productId: resolveProductId(item.category_id || item.itemId || item.itemName || ''),
+        quantity: Number(item.quantity) || 0,
+        unitCost: Number(item.price) || 0,
+        lineId: item.id || `line-${idx}`,
+      }))
+      .filter((l) => l.productId && l.quantity > 0);
+  }
+
+  const productId = resolveProductId(tx.category_id || tx.itemId || tx.itemName || '');
+  const qty = Number(tx.quantity) || 0;
+  if (!productId || qty <= 0) return [];
+
+  return [
+    {
+      productId,
+      quantity: qty,
+      unitCost: Number(tx.price) || 0,
+      lineId: 'line-0',
+    },
+  ];
+}
+
+/**
+ * UI â†’ API â†’ stock_ledger (ONLY mutation path for inventory quantity)
+ *
+ * â ï¸ Thá»© tá»± quan trá»ng:
+ *   1. POST LEDGER trÆ°á»›c â€” Ä‘Ă¢y lĂ  nguá»“n chĂ¢n lĂ½ cá»§a tá»“n kho
+ *   2. Náº¿u ledger OK â†’ má»›i upsert stock_documents (metadata phiáº¿u)
+ *   3. Ghi stock_document_lines (chi tiáº¿t items)
+ *   4. Náº¿u ledger fail â†’ KHĂ”NG ghi document (trĂ¡nh orphan)
+ */
+export async function postStockDocument(
+  document: StockDocumentInput
+): Promise<{ ok: boolean; documentId: string }> {
+  const documentId =
+    document.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const status = document.status || 'approved';
+  const shouldPost = status === 'approved' || status === 'completed';
+
+  if (!shouldPost) {
+    return { ok: false, documentId };
+  }
+
+  const kind = mapTransactionTypeToKind(document.type);
+  const lines = buildLines(document);
+  if (!kind || lines.length === 0) {
+    return { ok: false, documentId };
+  }
+
+  // TĂ­nh total_value tá»« lines (fallback náº¿u UI khĂ´ng set)
+  const computedTotal = lines.reduce(
+    (s, l) => s + l.quantity * (l.unitCost ?? 0),
+    0
+  );
+
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // BÆ¯á»C 1: POST LEDGER TRÆ¯á»C
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const posted = await postWarehouseMovementToLedger({
+    kind,
+    lines,
+    warehouseId: resolveWarehouseId(document.warehouse_id),
+    fromWarehouseId: resolveWarehouseId(
+      document.from_warehouse_id || document.fromLocation
+    ),
+    toWarehouseId: resolveWarehouseId(
+      document.to_warehouse_id || document.toLocation
+    ),
+    reference: document.referenceNumber || documentId,
+    legacyTransactionId: documentId,
+    documentId,
+    createdBy: document.created_by || document.operator,
+    notes: document.notes,
+    occurredAt: document.transactionDate
+      ? new Date(document.transactionDate).toISOString()
+      : undefined,
+  });
+
+  if (!posted) {
+    console.error('postStockDocument: ledger post failed, document NOT written', documentId);
+    return { ok: false, documentId };
+  }
+
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // BÆ¯á»C 2: GHI DOCUMENT HEADER (metadata)
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  const client = getSupabase();
+  if (client) {
+    const { error } = await client.from('stock_documents').upsert(
+      {
+        id: documentId,
+        document_type: kind,
+        reference_number: document.referenceNumber || documentId,
+        status: 'posted',
+        transaction_date:
+          document.transactionDate || new Date().toISOString().slice(0, 10),
+        warehouse_id: resolveWarehouseId(
+          document.warehouse_id || document.toLocation
+        ),
+        from_warehouse_id: resolveWarehouseId(
+          document.from_warehouse_id || document.fromLocation
+        ),
+        to_warehouse_id: resolveWarehouseId(
+          document.to_warehouse_id || document.toLocation
+        ),
+        total_value: document.totalValue || computedTotal,
+        created_by: document.created_by || document.operator || null,
+        notes: document.notes || null,
+        posted_at: new Date().toISOString(),
+        legacy_payload: document,
+      },
+      { onConflict: 'reference_number', ignoreDuplicates: false }
+    );
+
+    if (error) {
+      console.error(
+        'postStockDocument: stock_documents upsert failed (ledger OK):',
+        error.message
+      );
+    }
+  }
+
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // BÆ¯á»C 3: GHI STOCK_DOCUMENT_LINES (chi tiáº¿t items)
+  // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  if (client) {
+    const rawItems = document.items && document.items.length > 0
+      ? document.items
+      : [];
+
+    const docLines = rawItems
+      .map((item, idx) => {
+        const productId = resolveProductId(
+          item.category_id || item.itemId || item.itemName || ''
+        );
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.price) || 0;
+        return {
+          document_id: documentId,
+          line_no: idx + 1,
+          product_id: productId,
+          quantity: qty,
+          unit: item.unit || null,
+          unit_cost: price,
+          total_value: Number(item.totalValue) || qty * price,
+          notes: item.ghiChu || null,
+          machine_id: null,
+          project_id: document.project_id || null,
+        };
+      })
+      .filter((l) => l.product_id && l.quantity > 0);
+
+    if (docLines.length > 0) {
+      // XĂ³a lines cÅ© (náº¿u upsert láº¡i cĂ¹ng document_id) rá»“i insert má»›i
+      await client
+        .from('stock_document_lines')
+        .delete()
+        .eq('document_id', documentId);
+
+      const { error: linesErr } = await client
+        .from('stock_document_lines')
+        .insert(docLines);
+
+      if (linesErr) {
+        console.error(
+          'postStockDocument: stock_document_lines insert failed (ledger OK):',
+          linesErr.message
+        );
+      }
+    }
+  }
+
+  return { ok: true, documentId };
+}
+
+export async function listLedgerMovements(
+  filter: MovementFilter = {}
+): Promise<StockLedgerRow[]> {
+  return getMovements(filter);
+}
+
+export async function listOnHandByProduct() {
+  return getOnHandByProduct();
+}
+
+export async function listOnHand(filters?: { warehouseId?: string; productId?: string }) {
+  return getOnHand(filters);
+}
+
+export async function getStockValuation(filters?: { warehouseId?: string }) {
+  return getValuation(filters);
+}
+
+export function movementTypeLabel(type: string): string {
+  switch (type) {
+    case 'IN':
+    case 'TRANSFER_IN':
+      return 'Nháº­p';
+    case 'OUT':
+      return 'Xuáº¥t';
+    case 'OIL_OUT':
+      return 'Xuáº¥t dáº§u';
+    case 'TRANSFER_OUT':
+      return 'Chuyá»ƒn (xuáº¥t)';
+    case 'ADJUSTMENT':
+      return 'Äiá»u chá»‰nh';
+    default:
+      return type;
+  }
+}
+
+export function matchesMovementFilter(
+  movementType: string,
+  filter: string
+): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'import') return movementType === 'IN' || movementType === 'TRANSFER_IN';
+  if (filter === 'export') return movementType === 'OUT';
+  if (filter === 'oil_export') return movementType === 'OIL_OUT';
+  if (filter === 'transfer') {
+    return movementType === 'TRANSFER_OUT' || movementType === 'TRANSFER_IN';
+  }
+  return true;
+}
+
+export function ledgerStatsFromMovements(movements: StockLedgerRow[]) {
+  return {
+    totalLines: movements.length,
+    ins: movements.filter(
+      (m) => m.movement_type === 'IN' || m.movement_type === 'TRANSFER_IN'
+    ).length,
+    outs: movements.filter(
+      (m) =>
+        m.movement_type === 'OUT' ||
+        m.movement_type === 'OIL_OUT' ||
+        m.movement_type === 'TRANSFER_OUT'
+    ).length,
+    transfers: movements.filter((m) => m.movement_type.startsWith('TRANSFER')).length,
+    oilExports: movements.filter((m) => m.movement_type === 'OIL_OUT').length,
+  };
+}
+
+export type { WarehouseMovementKind, MovementFilter };
+
+===== src\api\stockLedger.ts =====
+import { getSupabase } from '@/supabase';
+
+export interface LedgerRow {
+  id: string;
+  occurred_at: string;
+  posted_at: string;
+  warehouse_id: string;
+  product_id: string;
+  movement_type: string;
+  qty_delta: number;
+  unit_cost: number | null;
+  document_type: string | null;
+  document_id: string | null;
+  document_line_id: string | null;
+  reference: string | null;
+  legacy_transaction_id: string | null;
+  created_by: string | null;
+  notes: string | null;
+  idempotency_key: string | null;
+}
+
+export interface MovementFilter {
+  warehouseId?: string;
+  productId?: string;
+  fromDate?: string;
+  toDate?: string;
+  movementTypes?: string[];
+  limit?: number;
+}
+
+type Result<T> = { ok: true } & T | { ok: false; error: string };
+
+// ============ LIST MOVEMENTS ============
+export async function listMovements(filter: MovementFilter = {}): Promise<
+  Result<{ data: LedgerRow[] }>
+> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  let q = client
+    .from('stock_ledger')
+    .select('*')
+    .order('occurred_at', { ascending: true });
+
+  if (filter.warehouseId) q = q.eq('warehouse_id', filter.warehouseId);
+  if (filter.productId)   q = q.eq('product_id', filter.productId);
+  if (filter.fromDate)    q = q.gte('occurred_at', filter.fromDate);
+  if (filter.toDate)      q = q.lte('occurred_at', filter.toDate);
+  if (filter.movementTypes?.length) q = q.in('movement_type', filter.movementTypes);
+  if (filter.limit)       q = q.limit(filter.limit);
+
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, data: (data ?? []) as LedgerRow[] };
+}
+
+// ============ STOCK CARD (tháº» kho) ============
+export async function getStockCard(params: {
+  warehouseId: string;
+  productId: string;
+  fromDate?: string;
+  toDate?: string;
+}): Promise<Result<{ opening: number; rows: Array<LedgerRow & { running_qty: number }> }>> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  // Opening balance = tá»•ng trÆ°á»›c fromDate
+  let opening = 0;
+  if (params.fromDate) {
+    const { data, error } = await client
+      .from('stock_ledger')
+      .select('qty_delta')
+      .eq('warehouse_id', params.warehouseId)
+      .eq('product_id', params.productId)
+      .lt('occurred_at', params.fromDate);
+    if (error) return { ok: false, error: error.message };
+    opening = (data ?? []).reduce((s: number, r: any) => s + Number(r.qty_delta), 0);
+  }
+
+  const res = await listMovements({
+    warehouseId: params.warehouseId,
+    productId: params.productId,
+    fromDate: params.fromDate,
+    toDate: params.toDate,
+  });
+  if (!res.ok) return res;
+
+  let running = opening;
+  const rows = res.data.map(r => {
+    running += Number(r.qty_delta);
+    return { ...r, running_qty: running };
+  });
+  return { ok: true, opening, rows };
+}
+
+// ============ NXT REPORT ============
+export interface NxtRow {
+  warehouse_id: string;
+  product_id: string;
+  opening: number;
+  in_qty: number;
+  out_qty: number;
+  transfer_in: number;
+  transfer_out: number;
+  adjust: number;
+  closing: number;
+}
+
+export async function getNxtReport(params: {
+  fromDate: string;
+  toDate: string;
+  warehouseId?: string;
+  productId?: string;
+}): Promise<Result<{ rows: NxtRow[] }>> {
+  const client = getSupabase();
+  if (!client) return { ok: false, error: 'Supabase client not available' };
+
+  let q = client.from('stock_ledger').select('*');
+  if (params.warehouseId) q = q.eq('warehouse_id', params.warehouseId);
+  if (params.productId)   q = q.eq('product_id', params.productId);
+
+  const { data, error } = await q;
+  if (error) return { ok: false, error: error.message };
+
+  const from = new Date(params.fromDate).getTime();
+  const to = new Date(params.toDate).getTime();
+  const map = new Map<string, NxtRow>();
+
+  for (const r of (data ?? []) as LedgerRow[]) {
+    const key = `${r.warehouse_id}|${r.product_id}`;
+    if (!map.has(key)) {
+      map.set(key, {
+        warehouse_id: r.warehouse_id,
+        product_id: r.product_id,
+        opening: 0, in_qty: 0, out_qty: 0,
+        transfer_in: 0, transfer_out: 0, adjust: 0, closing: 0,
+      });
+    }
+    const row = map.get(key)!;
+    const t = new Date(r.occurred_at).getTime();
+    const qty = Number(r.qty_delta);
+
+    if (t < from) {
+      row.opening += qty;
+    } else if (t <= to) {
+      switch (r.movement_type) {
+        case 'IN': row.in_qty += qty; break;
+        case 'OUT':
+        case 'OIL_OUT': row.out_qty += Math.abs(qty); break;
+        case 'TRANSFER_IN': row.transfer_in += qty; break;
+        case 'TRANSFER_OUT': row.transfer_out += Math.abs(qty); break;
+        case 'ADJUSTMENT': row.adjust += qty; break;
+      }
+    }
+    row.closing += qty;
+  }
+
+  const rows = Array.from(map.values()).sort(
+    (a, b) => a.warehouse_id.localeCompare(b.warehouse_id) ||
+              a.product_id.localeCompare(b.product_id)
+  );
+  return { ok: true, rows };
+}
+

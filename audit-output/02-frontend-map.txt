@@ -1,0 +1,1754 @@
+﻿===== src\api\index.ts =====
+
+===== src\api\inventoryCount.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L64: const client = getSupabase();
+  L65: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L96: const client = getSupabase();
+  L97: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L105: .from('inventory_count_sessions')
+  L130: .from('inventory_count_lines')
+  L134: await client.from('inventory_count_sessions').delete().eq('id', sessionId);
+  L146: const client = getSupabase();
+  L147: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L150: .from('inventory_count_sessions')
+  L169: const client = getSupabase();
+  L170: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L173: .from('inventory_count_sessions')
+  L181: .from('inventory_count_lines')
+  L236: const client = getSupabase();
+  L237: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L241: .from('inventory_count_sessions')
+
+===== src\api\stock.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L5: } from '@/core/stock-ledger/postingApi';
+  L6: import { resolveProductId, resolveWarehouseId } from '@/core/stock-ledger/resolveIds';
+  L7: import type { PostMovementLineInput, WarehouseMovementKind } from '@/core/stock-ledger/types';
+  L8: import type { WarehouseTransaction } from '@/types/inventory';
+  L9: import type { StockLedgerRow } from '@/core/stock-ledger/types';
+  L16: } from '@/core/inventory-engine';
+  L116: const client = getSupabase();
+  L118: const { error } = await client.from('stock_documents').upsert(
+  L185: .from('stock_document_lines')
+  L190: .from('stock_document_lines')
+
+===== src\api\stockDocument.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L103: const client = getSupabase();
+  L104: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L119: .from('stock_documents')
+  L157: .from('stock_document_lines')
+  L162: await client.from('stock_documents').delete().eq('id', documentId);
+  L178: const client = getSupabase();
+  L179: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L204: .from('stock_documents')
+  L218: const client = getSupabase();
+  L219: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L222: .from('stock_documents')
+  L247: const client = getSupabase();
+  L248: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L251: .from('stock_documents')
+  L259: .from('stock_document_lines')
+  L280: const client = getSupabase();
+  L281: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L283: await client.from('stock_document_lines').delete().eq('document_id', id);
+  L284: const { error } = await client.from('stock_documents').delete().eq('id', id);
+  L311: const client = getSupabase();
+  L312: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L390: const client = getSupabase();
+  L391: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L461: .from('stock_documents')
+
+===== src\api\stockInsights.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L14: const client = getSupabase();
+  L15: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L18: .from('v_low_stock_alert')
+
+===== src\api\stockLedger.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L37: const client = getSupabase();
+  L38: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L41: .from('stock_ledger')
+  L64: const client = getSupabase();
+  L65: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L71: .from('stock_ledger')
+  L115: const client = getSupabase();
+  L116: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L118: let q = client.from('stock_ledger').select('*');
+
+===== src\api\toolReturn.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L108: const client = getSupabase();
+  L109: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L158: const client = getSupabase();
+  L159: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L162: .from('tool_returns')
+  L177: // Filter items-level sau khi fetch (vĂ¬ Supabase nested filter cáº§n .filter() trĂªn relation)
+  L206: const client = getSupabase();
+  L207: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L209: let query = client.from('v_tool_consumption_by_machine').select('*');
+  L231: const client = getSupabase();
+  L232: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L234: let query = client.from('v_tool_consumption_by_project').select('*');
+
+===== src\api\valuation.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L42: const client = getSupabase();
+  L43: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L68: const client = getSupabase();
+  L69: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L84: const client = getSupabase();
+  L85: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L88: .from('v_stock_valuation')
+
+===== src\api\warehouse.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L43: const client = getSupabase();
+  L44: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L47: .from('warehouses')
+  L58: const client = getSupabase();
+  L59: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L62: .from('tools')
+  L77: const client = getSupabase();
+  L78: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L80: let q = client.from('v_stock_on_hand').select('*');
+  L101: const client = getSupabase();
+  L102: if (!client) return { ok: false, error: 'Supabase client not available' };
+  L105: .from('v_stock_on_hand')
+
+===== src\components\categories\CategoryManagementTabs.tsx =====
+
+===== src\components\categories\CategoryTypeManagement.tsx =====
+  L1: //Quáº£n lĂ½ danh má»¥c -> chá»§ng loáº¡i (ÄĂƒ Sá»¬A DĂ™NG SUPABASE - CAMELCASE)
+  L6: import { Button } from '@/components/ui/button'
+  L7: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+  L8: import { Checkbox } from '@/components/ui/checkbox'
+  L9: import { Input } from '@/components/ui/input'
+  L10: import { Label } from '@/components/ui/label'
+  L11: import { Textarea } from '@/components/ui/textarea'
+  L12: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+  L13: import { supabase } from '@/supabase'
+  L14: import { useAuth } from '@/contexts/AuthContext'
+  L15: import { usePermission } from '@/hooks/usePermission'
+  L51: // Táº£i dá»¯ liá»‡u tá»« Supabase
+  L56: const { data, error } = await supabase
+  L57: .from('categories')
+  L63: // Data tá»« Supabase Ä‘Ă£ cĂ³ sáºµn camelCase
+  L79: const { error } = await supabase
+  L80: .from('categories')
+  L122: const { error } = await supabase
+  L123: .from('categories')
+  L138: const { error } = await supabase
+  L139: .from('categories')
+  L197: await supabase.from('categories').delete().eq('id', id)
+  L225: const { count } = await supabase
+  L226: .from('categories')
+  L249: const { error } = await supabase
+  L250: .from('categories')
+
+===== src\components\categories\EmployeeManagement.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L3: import { Input } from '@/components/ui/input';
+  L4: import { Label } from '@/components/ui/label';
+  L5: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L6: import { Badge } from '@/components/ui/badge';
+  L7: import { Textarea } from '@/components/ui/textarea';
+  L10: import { Employee } from '@/types/categories';
+  L12: import { usePermission } from '@/hooks/usePermission';
+  L39: const saved = localStorage.getItem('employees');
+  L50: localStorage.setItem('employees', JSON.stringify(newEmployees));
+
+===== src\components\categories\MachineManagement.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L7: import { Badge } from '@/components/ui/badge';
+  L8: import { Checkbox } from '@/components/ui/checkbox';
+  L19: import { supabase } from '@/supabase';
+  L20: import { usePermission } from '@/hooks/usePermission';
+  L86: const { data, error } = await supabase
+  L87: .from('machines')
+  L107: const channel = supabase
+  L134: supabase.removeChannel(channel);
+  L140: const { data, error } = await supabase
+  L141: .from('machines')
+  L194: const { error } = await supabase
+  L195: .from('machines')
+  L213: const { error } = await supabase
+  L214: .from('machines')
+  L272: const { error } = await supabase.from('machines').delete().eq('id', id);
+  L296: const { error } = await supabase.from('machines').delete().in('id', selectedIds);
+  L355: const { count: currentCount } = await supabase
+  L356: .from('machines')
+  L406: const { error } = await supabase.from('machines').insert({
+
+===== src\components\categories\ProjectManagement.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L7: import { Badge } from '@/components/ui/badge';
+  L8: import { Textarea } from '@/components/ui/textarea';
+  L9: import { Checkbox } from '@/components/ui/checkbox';
+  L13: import { supabase } from '@/supabase';
+  L14: import { usePermission } from '@/hooks/usePermission';
+  L56: // Táº£i dá»¯ liá»‡u tá»« Supabase - DĂ™NG TĂN Cá»˜T ÄĂNG
+  L62: const { data, error } = await supabase
+  L63: .from('projects')
+  L102: const { data: { user: authUser } } = await supabase.auth.getUser();
+  L106: const { error } = await supabase
+  L107: .from('projects')
+  L120: const { data: existing } = await supabase
+  L121: .from('projects')
+  L132: const { error } = await supabase
+  L133: .from('projects')
+  L185: const { error } = await supabase.from('projects').delete().eq('id', id);
+  L211: await supabase.from('projects').delete().eq('id', id);
+  L286: const { data: { user: authUser } } = await supabase.auth.getUser();
+  L304: const { data: existing } = await supabase
+  L305: .from('projects')
+  L311: await supabase
+  L312: .from('projects')
+  L321: await supabase
+  L322: .from('projects')
+
+===== src\components\categories\UserManagement.tsx =====
+
+===== src\components\categories\WarehouseManagement.tsx =====
+  L1: //Quáº£n lĂ½ danh má»¥c -> kho (ÄĂƒ Sá»¬A DĂ™NG SUPABASE - CAMELCASE)
+  L6: import { Badge } from '@/components/ui/badge';
+  L7: import { Button } from '@/components/ui/button';
+  L8: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L9: import { Checkbox } from '@/components/ui/checkbox';
+  L10: import { Input } from '@/components/ui/input';
+  L11: import { Label } from '@/components/ui/label';
+  L12: import { Textarea } from '@/components/ui/textarea';
+  L13: import { supabase } from '@/supabase';
+  L14: import { useAuth } from '@/contexts/AuthContext';
+  L15: import { usePermission } from '@/hooks/usePermission';
+  L43: // Táº£i dá»¯ liá»‡u tá»« Supabase
+  L48: const { data, error } = await supabase
+  L49: .from('warehouses')
+  L77: const { count } = await supabase
+  L78: .from('warehouses')
+  L95: const { error } = await supabase
+  L96: .from('warehouses')
+  L108: const { error } = await supabase
+  L109: .from('warehouses')
+  L142: const { error } = await supabase.from('warehouses').delete().eq('id', id);
+  L161: await supabase.from('warehouses').delete().eq('id', id);
+  L201: const { count: currentCount } = await supabase
+  L202: .from('warehouses')
+  L229: const { data: existing } = await supabase
+  L230: .from('warehouses')
+  L237: await supabase
+  L238: .from('warehouses')
+  L247: await supabase.from('warehouses').insert({
+
+===== src\components\inventory\CategoryManagement.tsx =====
+  L1: import { CategoryManagementTabs } from '@/components/categories/CategoryManagementTabs';
+
+===== src\components\inventory\InventoryCountForm.tsx =====
+
+===== src\components\inventory\LowStockBadge.tsx =====
+  L4: import { getLowStockAlert, type LowStockRow } from '@/api/stockInsights';
+
+===== src\components\inventory\OilExport.tsx =====
+  L2: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L7: import { Textarea } from '@/components/ui/textarea';
+  L8: import { Calendar } from '@/components/ui/calendar';
+  L9: import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+  L13: import { cn } from '@/lib/utils';
+  L14: import { Category, Warehouse, User, Machine, Employee } from '@/types/categories';
+  L53: const savedCategories = localStorage.getItem('categoryTypes');
+  L61: const savedWarehouses = localStorage.getItem('warehouses');
+  L67: const savedUsers = localStorage.getItem('users');
+  L73: const savedMachines = localStorage.getItem('machines');
+  L79: const savedEmployees = localStorage.getItem('employees');
+  L161: const existingOilExports = JSON.parse(localStorage.getItem('oilExports') || '[]');
+  L163: localStorage.setItem('oilExports', JSON.stringify(existingOilExports));
+
+===== src\components\inventory\SimpleOilExport.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L3: import { Input } from '@/components/ui/input';
+  L4: import { Label } from '@/components/ui/label';
+  L5: import { Textarea } from '@/components/ui/textarea';
+  L6: import type { WarehouseTransaction } from '@/types/inventory';
+
+===== src\components\inventory\StockDocumentPage.tsx =====
+  L6: } from '@/api/stockDocument';
+  L7: import { getWarehouses, getProducts, type WarehouseRow, type ToolRow } from '@/api/warehouse';
+
+===== src\components\inventory\WarehouseExport.tsx =====
+
+===== src\components\inventory\WarehouseImport.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { DateInput } from '@/components/ui/DateInput';
+  L6: import { Label } from '@/components/ui/label';
+  L7: import { Textarea } from '@/components/ui/textarea';
+  L8: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L11: import { WarehouseTransaction } from '@/types/inventory';
+  L12: import { useAuth } from '@/contexts/AuthContext';
+  L13: import { Category, Warehouse, Employee } from '@/types/categories';
+  L14: import { getSavedCategories } from '@/lib/utils';
+  L15: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L16: import { Combobox } from '@/components/ui/combobox';
+  L17: import { getSystemUsers, type SystemUser } from '@/hooks/useSystemUsers';
+  L75: const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
+  L89: const savedEmployees = localStorage.getItem('employees');
+  L124: localStorage.setItem('category_items', JSON.stringify(updated.map(cat => ({
+  L235: const existing = JSON.parse(localStorage.getItem('warehouseTransactions') || '[]');
+  L237: localStorage.setItem('warehouseTransactions', JSON.stringify([...existing, ...newTransactions]));
+  L239: const existingImports = JSON.parse(localStorage.getItem('warehouseImports') || '[]');
+  L246: localStorage.setItem('warehouseImports', JSON.stringify(existingImports));
+
+===== src\components\inventory\WarehouseTransfer.tsx =====
+
+===== src\components\ui\alert.tsx =====
+  L4: import { cn } from '@/lib/utils';
+
+===== src\components\ui\avatar.tsx =====
+  L3: import { cn } from "@/lib/utils";
+
+===== src\components\ui\badge.tsx =====
+  L4: import { cn } from "@/lib/utils"
+
+===== src\components\ui\button.tsx =====
+  L5: import { cn } from '@/lib/utils';
+
+===== src\components\ui\calendar.tsx =====
+  L5: import { cn } from '@/lib/utils';
+  L6: import { buttonVariants } from '@/components/ui/button';
+
+===== src\components\ui\card.tsx =====
+  L3: import { cn } from '@/lib/utils';
+
+===== src\components\ui\chart.tsx =====
+  L4: import { cn } from '@/lib/utils';
+
+===== src\components\ui\checkbox.tsx =====
+  L5: import { cn } from '@/lib/utils';
+
+===== src\components\ui\collapsible.tsx =====
+  L6: import { cn } from "@/lib/utils"
+
+===== src\components\ui\combobox.tsx =====
+  L3: import { cn } from "@/lib/utils";
+  L4: import { Button } from "@/components/ui/button";
+  L11: } from "@/components/ui/command";
+  L16: } from "@/components/ui/popover";
+
+===== src\components\ui\command.tsx =====
+  L8: import { cn } from "@/lib/utils"
+  L9: import { Dialog, DialogContent } from "@/components/ui/dialog"
+
+===== src\components\ui\DateInput.tsx =====
+
+===== src\components\ui\dialog.tsx =====
+  L5: import { cn } from "@/lib/utils"
+
+===== src\components\ui\dropdown-menu.tsx =====
+  L5: import { cn } from "@/lib/utils"
+
+===== src\components\ui\form.tsx =====
+  L6: import { cn } from '@/lib/utils';
+  L7: import { Label } from '@/components/ui/label';
+
+===== src\components\ui\input.tsx =====
+  L3: import { cn } from '@/lib/utils';
+
+===== src\components\ui\label.tsx =====
+  L5: import { cn } from '@/lib/utils';
+
+===== src\components\ui\popover.tsx =====
+  L4: import { cn } from '@/lib/utils';
+
+===== src\components\ui\scroll-area.tsx =====
+  L4: import { cn } from "@/lib/utils";
+
+===== src\components\ui\select.tsx =====
+  L5: import { cn } from '@/lib/utils';
+
+===== src\components\ui\separator.tsx =====
+  L4: import { cn } from '@/lib/utils';
+
+===== src\components\ui\sheet-custom.tsx =====
+  L4: import { cn } from "@/lib/utils";
+
+===== src\components\ui\sheet.tsx =====
+  L6: import { cn } from '@/lib/utils';
+
+===== src\components\ui\sidebar.tsx =====
+  L5: import { useIsMobile } from '@/hooks/use-mobile';
+  L6: import { cn } from '@/lib/utils';
+  L7: import { Button } from '@/components/ui/button';
+  L8: import { Input } from '@/components/ui/input';
+  L9: import { Separator } from '@/components/ui/separator';
+  L10: import { Sheet, SheetContent } from '@/components/ui/sheet';
+  L11: import { Skeleton } from '@/components/ui/skeleton';
+  L12: import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+===== src\components\ui\skeleton.tsx =====
+  L1: import { cn } from "@/lib/utils"
+
+===== src\components\ui\sonner.tsx =====
+
+===== src\components\ui\switch.tsx =====
+  L4: import { cn } from '@/lib/utils';
+
+===== src\components\ui\table.tsx =====
+  L3: import { cn } from '@/lib/utils';
+
+===== src\components\ui\tabs.tsx =====
+  L4: import { cn } from '@/lib/utils';
+
+===== src\components\ui\textarea.tsx =====
+  L3: import { cn } from '@/lib/utils';
+
+===== src\components\ui\toast.tsx =====
+  L6: import { cn } from '@/lib/utils';
+
+===== src\components\ui\toaster.tsx =====
+  L1: import { useToast } from '@/hooks/use-toast';
+  L2: import { Toast, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastViewport } from '@/components/ui/toast';
+
+===== src\components\ui\toggle.tsx =====
+  L5: import { cn } from '@/lib/utils';
+
+===== src\components\ui\tooltip.tsx =====
+  L4: import { cn } from "@/lib/utils"
+
+===== src\components\ui\use-toast.ts =====
+  L1: import { useToast, toast } from '@/hooks/use-toast';
+
+===== src\components\DailyNews.tsx =====
+  L3: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L60: const response = await fetch(apiUrl);
+
+===== src\components\ErrorBoundary.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+
+===== src\components\ErrorFallback.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+
+===== src\components\Header.tsx =====
+
+===== src\components\Layout.tsx =====
+  L1: import { MainLayout } from '@/shared/layout/MainLayout';
+
+===== src\components\LoadingSpinner.tsx =====
+  L3: import { cn } from '@/lib/utils';
+
+===== src\components\LoginForm.tsx =====
+  L5: import { loginSchema, LoginFormData } from '@/schemas/auth.schema';
+  L6: import { useAuthStore } from '@/store/authStore';
+  L7: import { Button } from '@/components/ui/button';
+  L8: import { Input } from '@/components/ui/input';
+  L9: import { Label } from '@/components/ui/label';
+  L10: import { Checkbox } from '@/components/ui/checkbox';
+  L11: import { useMutation } from '@tanstack/react-query';
+  L12: import { toast } from '@/hooks/use-toast';
+  L20: const loginMutation = useMutation({
+
+===== src\components\MachineQRCode.tsx =====
+
+===== src\components\MobileSidebar.tsx =====
+
+===== src\components\NutQuayLai.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+
+===== src\components\OptimizedTimeInput.tsx =====
+  L6: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L7: import { Label } from '@/components/ui/label';
+  L8: import { Input } from '@/components/ui/input';
+  L9: import { Button } from '@/components/ui/button';
+  L13: import type { WorkTimeEntry } from '@/types/production';
+
+===== src\components\ProtectedRoute.tsx =====
+
+===== src\components\QRCodeScanner.tsx =====
+
+===== src\components\ReportsPage.tsx =====
+  L4: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L5: import { Badge } from '@/components/ui/badge';
+  L6: import { Button } from '@/components/ui/button';
+  L7: import { Input } from '@/components/ui/input';
+  L8: import { Label } from '@/components/ui/label';
+  L9: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L10: import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  L19: import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+  L20: import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+  L21: import { WarehouseTransaction } from '@/types/inventory';
+  L71: const categoryTypes = JSON.parse(localStorage.getItem('categoryTypes') || '[]');
+  L72: const categoryItems = JSON.parse(localStorage.getItem('category_items') || '[]');
+
+===== src\components\ReportTable.tsx =====
+  L3: import { Input } from '@/components/ui/input';
+  L4: import { Button } from '@/components/ui/button';
+
+===== src\components\sheet-custom.tsx =====
+  L4: import { cn } from "@/lib/utils";
+
+===== src\components\Sidebar.tsx =====
+  L25: import { ERP_NAVIGATION, ERPNavItem, type ERPNavGroup } from '@/modules/erp/routes';
+  L26: import { useAuth } from '@/contexts/AuthContext';
+  L27: import { usePermission } from '@/hooks/usePermission';
+  L28: import { useTheme } from '@/hooks/useTheme';
+  L29: import { cn } from '@/lib/utils';
+  L30: import { Badge } from '@/components/ui/badge';
+  L31: import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+  L32: import { Input } from '@/components/ui/input';
+  L33: import { ScrollArea } from '@/components/ui/scroll-area';
+  L34: import { Button } from '@/components/ui/button';
+
+===== src\components\SyncStatus.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L3: import { Badge } from '@/components/ui/badge';
+  L4: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L7: import { dataSync } from '@/lib/dataSync';
+
+===== src\components\WarehouseFilter.tsx =====
+  L3: import { Card, CardContent } from '@/components/ui/card';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+  L7: import { Button } from '@/components/ui/button';
+
+===== src\contexts\AuthContext.tsx =====
+  L57: // Load user permissions from Supabase
+  L64: // Refresh user data and permissions from Supabase
+  L73: const storage = localStorage.getItem('rememberedUser') ? localStorage : sessionStorage;
+  L85: const storedMsnv = localStorage.getItem('rememberedUser');
+  L86: const storedSession = localStorage.getItem('sessionUser') || sessionStorage.getItem('sessionUser');
+  L97: localStorage.removeItem('sessionUser');
+  L134: localStorage.setItem('rememberedUser', msnv);
+  L136: localStorage.removeItem('rememberedUser');
+  L152: localStorage.removeItem('sessionUser');
+
+===== src\core\inventory-engine\index.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L6: } from '@/core/stock-ledger/types';
+  L38: const client = getSupabase();
+  L41: let query = client.from('v_stock_on_hand').select('*');
+  L68: const client = getSupabase();
+  L71: const { data, error } = await client.from('v_stock_on_hand_product').select('*');
+  L88: const client = getSupabase();
+  L92: .from('stock_ledger')
+
+===== src\core\stock-ledger\index.ts =====
+
+===== src\core\stock-ledger\legacyMigration.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L2: import type { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
+  L84: if (localStorage.getItem(MIGRATION_FLAG) === 'done') {
+  L88: const client = getSupabase();
+  L95: const saved = localStorage.getItem('warehouseTransactions');
+  L157: localStorage.setItem(MIGRATION_FLAG, 'done');
+  L164: localStorage.removeItem(MIGRATION_FLAG);
+
+===== src\core\stock-ledger\postingApi.ts =====
+  L1: import { getSupabase } from '@/supabase';
+  L6: const client = getSupabase();
+  L16: /** Direct insert fallback when RPC/migration not yet applied on Supabase */
+  L20: const client = getSupabase();
+  L111: const { error } = await client.from('stock_ledger').upsert(rows, {
+
+===== src\core\stock-ledger\resolveIds.ts =====
+  L1: import { getSavedCategories } from '@/lib/utils';
+  L12: const saved = localStorage.getItem(key);
+
+===== src\core\stock-ledger\types.ts =====
+
+===== src\core\bootstrap.ts =====
+  L1: import { migrateLegacyTransactionsToLedger } from '@/core/stock-ledger/legacyMigration';
+
+===== src\features\ocr\components\AILearningProgress.tsx =====
+
+===== src\features\ocr\components\AITrainingPanel.tsx =====
+  L3: import { ocrTrainer } from '@/features/ocr/services/ocrTrainer';
+  L4: import { ParsedReportData } from '@/features/ocr/services/ocrService';
+
+===== src\features\ocr\components\OCREngineSelector.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L5: import { Badge } from '@/components/ui/badge';
+
+===== src\features\ocr\components\OCRUpload.tsx =====
+  L3: import { ocrService, OCRResult, OCRBatchResult, ParsedReportData } from '@/features/ocr/services/ocrService';
+
+===== src\features\ocr\components\OCRUploadButton.tsx =====
+
+===== src\features\ocr\components\StructuredOCRDisplay.tsx =====
+
+===== src\features\ocr\hooks\useAutoLearn.ts =====
+  L3: import { ocrTrainer } from '@/features/ocr/services/ocrTrainer';
+  L4: import { ParsedReportData } from '@/features/ocr/services/ocrService';
+
+===== src\features\ocr\hooks\useOCRFormIntegration.ts =====
+  L3: import { ParsedReportData } from '@/features/ocr/services/ocrService';
+
+===== src\features\ocr\pages\ProductionFormWithOCR.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+  L6: import OCRUpload from '@/features/ocr/components/OCRUpload';
+  L7: import { OCRResult, ParsedReportData } from '@/features/ocr/services/ocrService';
+
+===== src\features\ocr\pages\SomePage.tsx =====
+  L3: import OCRUpload from '@/features/ocr/components/OCRUpload';
+  L4: import { OCRResult } from '@/features/ocr/services/ocrService';
+  L5: import { supabase } from '@/lib/supabase';  // âœ… Sá»­a import supabase
+  L29: * LÆ°u dá»¯ liá»‡u bĂ¡o cĂ¡o vĂ o Supabase
+  L31: const saveReportToSupabase = async (data: ReportData): Promise<boolean> => {
+  L33: console.log('đŸ”„ Äang lÆ°u dá»¯ liá»‡u vĂ o Supabase...');
+  L46: const { data: result, error } = await supabase
+  L47: .from('reports')
+  L55: console.log('âœ… ÄĂ£ lÆ°u bĂ¡o cĂ¡o thĂ nh cĂ´ng vĂ o Supabase:', result);
+  L58: console.error('âŒ Lá»—i khi lÆ°u vĂ o Supabase:', error);
+  L62: const pendingReports = JSON.parse(localStorage.getItem('pending_reports') || '[]');
+  L67: localStorage.setItem('pending_reports', JSON.stringify(pendingReports));
+  L82: const pendingReports = JSON.parse(localStorage.getItem('pending_reports') || '[]');
+  L88: await saveReportToSupabase(report);
+  L91: localStorage.removeItem('pending_reports');
+  L181: const success = await saveReportToSupabase({
+  L214: const { data, error } = await supabase
+  L215: .from('reports')
+  L268: <p className="text-xs text-green-600 mt-1">Dá»¯ liá»‡u Ä‘Ă£ Ä‘Æ°á»£c lÆ°u vĂ o Supabase</p>
+
+===== src\features\ocr\services\aiEnhancer.ts =====
+
+===== src\features\ocr\services\documentClassifier.ts =====
+
+===== src\features\ocr\services\imageProcessor.ts =====
+
+===== src\features\ocr\services\ocrApiClient.ts =====
+  L23: const response = await fetch(`${API_BASE}/api/ai/document/parse`, {
+  L38: const response = await fetch(`${API_BASE}/api/ai/learn`, {
+  L52: const response = await fetch(`${API_BASE}/api/ai/stats`);
+
+===== src\features\ocr\services\ocrService.ts =====
+  L212: return fetch(`${API_BASE}/api/ai/learn`, {
+  L234: const response = await fetch(`${API_BASE}/api/ai/import`, {
+
+===== src\features\ocr\services\ocrTrainer.ts =====
+  L34: localStorage.setItem(this.STORAGE_KEY, JSON.stringify(this.samples));
+  L35: localStorage.setItem(this.PATTERN_KEY, JSON.stringify(this.patterns));
+  L47: const samplesData = localStorage.getItem(this.STORAGE_KEY);
+  L53: const patternsData = localStorage.getItem(this.PATTERN_KEY);
+  L263: * âœ… LÆ°u lĂªn Supabase
+  L265: async saveToSupabase(userId?: string): Promise<number> {
+  L267: console.log('đŸ’¾ Saving to Supabase...', { userId, count: this.samples.length });
+  L270: console.error('âŒ Failed to save to Supabase:', error);
+  L276: * âœ… Táº£i tá»« Supabase
+  L278: async loadFromSupabase(userId?: string): Promise<number> {
+  L280: console.log('đŸ“¥ Loading from Supabase...', { userId });
+  L283: console.error('âŒ Failed to load from Supabase:', error);
+
+===== src\features\ocr\services\pdfToImage.ts =====
+
+===== src\features\ocr\services\smartOCRParser.ts =====
+
+===== src\features\ocr\services\structureAnalyzer.ts =====
+
+===== src\features\ocr\services\tesseractService.ts =====
+
+===== src\features\ocr\services\textFormatter.ts =====
+
+===== src\features\ocr\types\documentTypes.ts =====
+
+===== src\features\production-plan\domain\machineCatalog.ts =====
+
+===== src\features\production-plan\domain\planConflict.ts =====
+
+===== src\features\production-plan\domain\types.ts =====
+  L1: import type { ProductionPlanEntry } from '@/types/manufacturing';
+
+===== src\features\production-plan\utils\excelParser.ts =====
+
+===== src\hooks\use-mobile.tsx =====
+
+===== src\hooks\use-toast.ts =====
+  L3: import type { ToastActionElement, ToastProps } from '@/components/ui/toast';
+
+===== src\hooks\useAppMutation.ts =====
+  L1: // src/hooks/useAppMutation.ts
+  L2: import { useMutation, UseMutationOptions } from '@tanstack/react-query';
+  L4: import { trackEvent } from '@/lib/analytics';
+  L6: interface UseAppMutationOptions<TData, TVariables, TContext = unknown>
+  L7: extends UseMutationOptions<TData, Error, TVariables, TContext> {
+  L16: export function useAppMutation<TData, TVariables = void, TContext = unknown>(
+  L17: options: UseAppMutationOptions<TData, TVariables, TContext>
+  L26: return useMutation({
+
+===== src\hooks\useAppQuery.ts =====
+  L1: // src/hooks/useAppQuery.ts
+  L2: import { useQuery, UseQueryOptions } from '@tanstack/react-query';
+  L5: interface UseAppQueryOptions<TData, TError> extends Omit<UseQueryOptions<TData, TError>, 'onError'> {
+  L11: export function useAppQuery<TData, TError = Error>(
+  L12: options: UseAppQueryOptions<TData, TError>
+  L16: return useQuery({
+
+===== src\hooks\useAuth.tsx =====
+
+===== src\hooks\useMasterData.ts =====
+  L49: const savedData = localStorage.getItem('masterData');
+  L55: localStorage.setItem('masterData', JSON.stringify(defaultMasterData));
+  L59: localStorage.setItem('masterData', JSON.stringify(defaultMasterData));
+
+===== src\hooks\useOCRWithForm.ts =====
+
+===== src\hooks\usePermission.ts =====
+  L2: import { useAuth } from '@/contexts/AuthContext';
+  L3: import { PERMISSION_KEYS, type PermissionLevel } from '@/lib/permissions';
+
+===== src\hooks\useProductionReports.ts =====
+  L3: import { supabase } from '@/supabase';
+  L4: import { mapReportFromDb } from '@/lib/reportSyncMapping';
+  L38: const { data, error: supabaseError } = await supabase
+  L39: .from('production_reports')
+  L44: if (supabaseError) throw supabaseError;
+  L46: console.log('đŸ” Dá»¯ liá»‡u thĂ´ tá»« Supabase (useProductionReports):', data);
+  L61: const subscription = supabase
+
+===== src\hooks\useRealtime.ts =====
+  L3: import { supabase } from '@/lib/supabase';
+  L4: import { RealtimeChannel } from '@supabase/supabase-js';
+  L72: const { data: initialData, error: fetchError } = await supabase
+  L89: const channel = supabase
+  L119: supabase.removeChannel(channelRef.current);
+
+===== src\hooks\useSystemUsers.ts =====
+  L4: * Uses Supabase as source of truth
+  L8: import { supabase } from '@/supabase';
+  L26: * Automatically syncs with Supabase
+  L33: // Load users from Supabase
+  L37: const { data, error: fetchError } = await supabase
+  L60: // Save users to Supabase
+  L65: const { error: upsertError } = await supabase
+  L115: // Cáº­p nháº­t trĂªn Supabase
+  L116: const { error: upsertError } = await supabase
+  L136: const { error: deleteError } = await supabase
+  L174: const stored = localStorage.getItem(TABLE_NAME);
+
+===== src\hooks\useTheme.tsx =====
+  L65: const stored = window.localStorage.getItem(STORAGE_KEYS.THEME);
+  L79: window.localStorage.setItem(STORAGE_KEYS.THEME, config.mode);
+  L80: window.localStorage.setItem(STORAGE_KEYS.COLOR, config.color);
+  L81: window.localStorage.setItem(STORAGE_KEYS.FONT_SIZE, config.fontSize);
+  L82: window.localStorage.setItem(STORAGE_KEYS.DENSITY, config.density);
+  L98: const storedColor = window.localStorage.getItem(STORAGE_KEYS.COLOR) as ThemeColor | null;
+  L99: const storedFontSize = window.localStorage.getItem(STORAGE_KEYS.FONT_SIZE) as ThemeConfig['fontSize'] | null;
+  L100: const storedDensity = window.localStorage.getItem(STORAGE_KEYS.DENSITY) as ThemeConfig['density'] | null;
+
+===== src\hooks\useWarehouseReports.ts =====
+  L3: import { warehouseEntries } from '@/modules/reports/mock/warehouseReportData';
+  L24: // Giáº£ láº­p async (sau nĂ y thay báº±ng supabase)
+
+===== src\i18n\index.ts =====
+
+===== src\lib\analytics.ts =====
+
+===== src\lib\dataSync.ts =====
+  L3: getSupabase,
+  L4: syncDataToSupabase,
+  L5: loadDataFromSupabase
+  L6: } from '../supabase';
+  L16: // Map camelCase (localStorage) -> snake_case (Supabase) for users table
+  L66: const client = getSupabase();
+  L75: .from('employees')
+  L81: console.error('âŒ Supabase connection error: 401 Unauthorized. Please check your Anon Key in .env');
+  L84: console.warn('â ï¸ Supabase schema not ready. Running in offline mode. Please apply migrations.');
+  L86: console.error('âŒ Supabase connection error:', error.message);
+  L91: console.log('âœ… Supabase connected');
+  L114: const client = getSupabase();
+  L123: // NOTE: users sync is intentionally skipped until migrations are applied to live Supabase
+  L137: const localData = localStorage.getItem(key);
+  L150: const success = await syncDataToSupabase(table, data);
+  L173: const client = getSupabase();
+  L184: // NOTE: users sync is intentionally skipped until migrations are applied to live Supabase
+  L199: const cloudData = await loadDataFromSupabase(table);
+  L204: localStorage.setItem(key, JSON.stringify(cloudData.map(reverseMapper)));
+  L206: localStorage.setItem(key, JSON.stringify(cloudData));
+  L245: const originalSetItem = localStorage.setItem;
+  L247: localStorage.setItem = (key: string, value: string) => {
+
+===== src\lib\db.ts =====
+  L1: import { supabase, loadDataFromSupabase, syncDataToSupabase } from '@/supabase'
+  L2: import type { RawRecord } from '@/types/common'
+  L6: return await loadDataFromSupabase(table)
+  L10: return await syncDataToSupabase(table, [item])
+  L18: // For update, we can still use upsert via syncDataToSupabase
+  L20: return await syncDataToSupabase(table, [{ ...item, id }])
+  L24: if (!supabase) return false;
+  L25: const { error } = await supabase
+
+===== src\lib\localStorage.ts =====
+  L1: // src/lib/localStorage.ts
+  L45: const raw = localStorage.getItem(key);
+  L60: localStorage.setItem(key, JSON.stringify(records));
+  L78: return localStorage.getItem(key) !== null;
+  L87: localStorage.removeItem(key);
+  L103: const raw = localStorage.getItem(key);
+  L118: localStorage.setItem(key, JSON.stringify(users));
+  L275: localStorage.removeItem(key);
+
+===== src\lib\passwordUtils.ts =====
+  L163: const status = localStorage.getItem('passwordsMigratedToBcrypt');
+  L171: localStorage.setItem('passwordsMigratedToBcrypt', String(migrated));
+  L172: localStorage.setItem('passwordsMigrationTimestamp', new Date().toISOString());
+  L200: const usersStr = localStorage.getItem('users');
+  L233: localStorage.setItem('users', JSON.stringify(users));
+
+===== src\lib\permissions.ts =====
+
+===== src\lib\permissionUtils.ts =====
+  L47: const wmsPermissionsStr = localStorage.getItem('wms_permissions');
+
+===== src\lib\react-query.ts =====
+
+===== src\lib\reportsStorage.ts =====
+  L1: import { syncDataToSupabase, loadDataFromSupabase, getSupabase } from '@/supabase';
+  L2: import type { ProductionReport } from '@/types/production';
+  L3: import type { MaintenanceReport } from '@/types/maintenance';
+  L4: import type { QcReport } from '@/types/qc';
+  L31: const raw = localStorage.getItem(key);
+  L59: /** Äá»c localStorage trÆ°á»›c, sau Ä‘Ă³ merge tá»« Supabase náº¿u cĂ³ káº¿t ná»‘i. */
+  L64: if (!navigator.onLine || !getSupabase()) {
+  L69: const cloud = await loadDataFromSupabase(table);
+  L72: localStorage.setItem(storageKey, JSON.stringify(merged));
+  L74: void syncDataToSupabase(table, merged as unknown as Record<string, unknown>[]);
+  L85: /** Ghi localStorage vĂ  Ä‘áº©y lĂªn Supabase (best-effort). */
+  L91: localStorage.setItem(storageKey, JSON.stringify(reports));
+  L93: if (!navigator.onLine || !getSupabase()) return;
+  L96: await syncDataToSupabase(table, reports as unknown as Record<string, unknown>[]);
+
+===== src\lib\reportSyncMapping.test.ts =====
+  L5: test('buildProductionReportDbPayload uses the column names accepted by the current Supabase schema', () => {
+
+===== src\lib\reportSyncMapping.ts =====
+  L1: import type { RawRecord } from '@/types/common';
+  L68: /** Map bĂ¡o cĂ¡o local (camelCase) â†’ cá»™t Supabase (snake_case). Giá»¯ `id` lĂ m PK. */
+  L112: /** Map cá»™t Supabase â†’ object local (camelCase). */
+
+===== src\lib\supabase.d.ts =====
+  L1: // src/lib/supabase.d.ts
+  L2: import { SupabaseClient } from '@supabase/supabase-js';
+  L4: export const supabase: SupabaseClient;
+
+===== src\lib\supabase.ts =====
+  L1: // src/lib/supabase.ts
+  L2: import { createClient, SupabaseClient } from '@supabase/supabase-js';
+  L4: const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+  L5: const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+  L6: const isDeadSupabaseHost = /oxolhlkfezihtvtyjyxf|your-project-id/i.test(supabaseUrl);
+  L8: export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey && !isDeadSupabaseHost);
+  L10: if (!hasSupabaseConfig) {
+  L11: console.warn('â ï¸ Supabase is disabled until a valid project URL and anon key are configured.');
+  L14: export const supabase = hasSupabaseConfig
+  L15: ? createClient(supabaseUrl, supabaseAnonKey)
+  L16: : null as unknown as SupabaseClient;
+  L18: export type { SupabaseClient };
+
+===== src\lib\utils.ts =====
+  L3: import { Category } from '@/types/categories';
+  L4: import type { RawRecord } from '@/types/common';
+  L11: const raw = localStorage.getItem(key);
+
+===== src\lib\warehousePermissions.ts =====
+
+===== src\modules\account\pages\ChangePassword.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L5: import { Input } from '@/components/ui/input';
+  L6: import { Label } from '@/components/ui/label';
+  L7: import { useAuth } from '@/contexts/AuthContext';
+  L8: import { EmployeeService } from '@/services/employeeService';
+  L10: import { hashPassword, verifyPassword } from '@/lib/passwordUtils';
+  L89: // Get current employee from Supabase
+
+===== src\modules\account\pages\Profile.tsx =====
+  L12: import { Button } from '@/components/ui/button';
+  L13: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L14: import { Input } from '@/components/ui/input';
+  L15: import { Label } from '@/components/ui/label';
+  L17: import { useAuth } from '@/contexts/AuthContext';
+
+===== src\modules\erp\PlaceholderPage.tsx =====
+  L2: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L3: import { Badge } from '@/components/ui/badge';
+
+===== src\modules\erp\routes.ts =====
+  L3: import { hasPermissionFlag, type UserPermissions } from '@/lib/permissions';
+
+===== src\modules\manufacturing\pages\ProductionPlan.tsx =====
+  L13: import { Badge } from '@/components/ui/badge';
+  L14: import { Button } from '@/components/ui/button';
+  L15: import { Card, CardContent } from '@/components/ui/card';
+  L21: } from '@/components/ui/dialog';
+  L22: import { Input } from '@/components/ui/input';
+  L23: import { Label } from '@/components/ui/label';
+  L32: } from '@/components/ui/select';
+  L40: } from '@/components/ui/table';
+  L41: import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  L42: import { Textarea } from '@/components/ui/textarea';
+  L67: } from '@/lib/localStorage';
+  L68: import { usePermission } from '@/hooks/usePermission';
+  L73: } from '@/features/production-plan/domain/types';
+  L81: } from '@/features/production-plan/domain/planConflict';
+  L82: import { parseExcelDate, parseExcelNumber } from '@/features/production-plan/utils/excelParser';
+  L92: } from '@/features/production-plan/domain/machineCatalog';
+
+===== src\modules\manufacturing\pages\ProgressTracking.tsx =====
+  L3: import { Badge } from '@/components/ui/badge';
+  L4: import { Button } from '@/components/ui/button';
+  L5: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L6: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L7: import { Input } from '@/components/ui/input';
+  L8: import { Label } from '@/components/ui/label';
+  L9: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L10: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L11: import { Textarea } from '@/components/ui/textarea';
+  L14: import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+  L15: import type { ProgressUpdateEntry } from '@/types/manufacturing';
+  L16: import { usePermission } from '@/hooks/usePermission';
+
+===== src\modules\manufacturing\index.ts =====
+
+===== src\modules\master-data\pages\CategoriesPage.tsx =====
+  L1: import { CategoryTypeManagement } from '@/components/categories/CategoryTypeManagement';
+  L2: import { Button } from '@/components/ui/button';
+
+===== src\modules\master-data\pages\EmployeesPage.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L4: import { EmployeeManagement } from '@/components/categories/EmployeeManagement';
+
+===== src\modules\master-data\pages\MachinesPage.tsx =====
+  L2: import { MachineManagement } from '@/components/categories/MachineManagement';
+  L3: import { Button } from '@/components/ui/button';
+
+===== src\modules\master-data\pages\MaterialsPage.tsx =====
+  L1: import { PlaceholderPage } from '@/modules/erp/PlaceholderPage';
+
+===== src\modules\master-data\pages\ProjectsPage.tsx =====
+  L1: import { ProjectManagement } from '@/components/categories/ProjectManagement';
+  L2: import { Button } from '@/components/ui/button';
+
+===== src\modules\master-data\pages\WarehousesPage.tsx =====
+  L1: import { WarehouseManagement } from '@/components/categories/WarehouseManagement';
+  L2: import { Button } from '@/components/ui/button';
+
+===== src\modules\master-data\index.ts =====
+
+===== src\modules\reports\machining\CostBreakdown.tsx =====
+  L3: import { useProductionReports } from '@/hooks/useProductionReports';
+  L4: import { ReportTable, Column } from '@/components/ReportTable';
+  L5: import { supabase } from '@/supabase';
+  L67: const { data, error } = await supabase.from(tableName).select('*').limit(1);
+  L88: const { data, error } = await supabase.from(tableName).select('*');
+  L114: const { data, error } = await supabase.from(tableName).select('*');
+
+===== src\modules\reports\machining\index.ts =====
+
+===== src\modules\reports\machining\ProductionSummary.tsx =====
+  L3: import { Badge } from '@/components/ui/badge';
+  L4: import { Button } from '@/components/ui/button';
+  L6: import { useProductionReports } from '@/hooks/useProductionReports';
+  L7: import { ReportTable, Column } from '@/components/ReportTable';
+  L8: import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+===== src\modules\reports\machining\ToolsDamage.tsx =====
+  L3: import { useProductionReports } from '@/hooks/useProductionReports';
+  L4: import { ReportTable, Column } from '@/components/ReportTable';
+  L5: import { supabase } from '@/supabase';
+  L59: const { data, error } = await supabase.from(tableName).select('*').limit(1);
+  L85: const { data, error } = await supabase.from(tableName).select('*');
+
+===== src\modules\reports\machining\ToolsUsage.tsx =====
+  L3: import { useProductionReports } from '@/hooks/useProductionReports';
+  L4: import { ReportTable, Column } from '@/components/ReportTable';
+  L5: import { supabase } from '@/supabase';
+  L72: const { data, error } = await supabase
+  L88: const { data: tables, error } = await supabase
+  L89: .from('information_schema.tables')
+  L132: const { data, error } = await supabase
+
+===== src\modules\reports\mock\dashboardSummaryData.ts =====
+  L8: } from '@/types/reports';
+
+===== src\modules\reports\mock\qcReportData.ts =====
+  L1: import type { QaReportEntry } from '@/types/reports';
+
+===== src\modules\reports\mock\warehouseReportData.ts =====
+
+===== src\modules\reports\pages\DashboardSummary.tsx =====
+  L3: import { Badge } from '@/components/ui/badge';
+  L4: import { Button } from '@/components/ui/button';
+  L5: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L6: import { ChartContainer, ChartLegendContent, ChartTooltipContent } from '@/components/ui/chart';
+  L7: import { Skeleton } from '@/components/ui/skeleton';
+  L8: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L10: import { LowStockBadge } from '@/components/inventory/LowStockBadge';
+  L18: } from '@/modules/reports/mock/dashboardSummaryData';
+
+===== src\modules\reports\pages\MaintenanceReport.tsx =====
+  L3: import { Card, CardContent } from "@/components/ui/card";
+  L4: import { Button } from "@/components/ui/button";
+  L5: import { Input } from "@/components/ui/input";
+  L6: import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+  L7: import { Label } from "@/components/ui/label";
+  L8: import { Textarea } from "@/components/ui/textarea";
+  L9: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+  L11: import { usePermission } from '@/hooks/usePermission';
+
+===== src\modules\reports\pages\QCReport.tsx =====
+  L4: import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { Input } from '@/components/ui/input';
+  L7: import { Label } from '@/components/ui/label';
+  L8: import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select';
+  L9: import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
+  L10: import { Badge } from '@/components/ui/badge';
+  L11: import { Skeleton } from '@/components/ui/skeleton';
+  L13: import { qcEntries, defectCategories } from '@/modules/reports/mock/qcReportData';
+
+===== src\modules\reports\warehouse\index.ts =====
+
+===== src\modules\reports\index.ts =====
+
+===== src\modules\reports\InventoryPage.tsx =====
+  L4: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { useAuth } from '@/contexts/AuthContext';
+  L10: import { loadArrayFromStorage, saveArrayToStorage, STORAGE_KEYS } from '@/lib/localStorage';
+  L11: import type { Category, Transaction, ImportTransaction, ExportTransaction, TransferTransaction, ConsumableTransaction, AdjustmentTransaction, InventoryCountEntry } from '@/types/warehouse';
+
+===== src\modules\reports\MachinePerformancePage.tsx =====
+  L4: import { supabase } from '@/supabase';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L7: import { Input } from '@/components/ui/input';
+  L8: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L9: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L12: import { Badge } from '@/components/ui/badge';
+  L52: const { data: reports, error } = await supabase
+  L53: .from('production_reports')
+
+===== src\modules\reports\MachiningReportsPage.tsx =====
+  L26: import { Badge } from '@/components/ui/badge';
+  L27: import { Button } from '@/components/ui/button';
+  L28: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L29: import { Input } from '@/components/ui/input';
+  L30: import { Separator } from '@/components/ui/separator';
+  L36: } from '@/components/ui/dialog';
+  L42: } from '@/components/ui/dropdown-menu';
+  L124: const saved = localStorage.getItem(MACHINE_STORAGE_KEY);
+  L172: const raw = localStorage.getItem(STORAGE_KEY);
+
+===== src\modules\reports\MaintenanceForm.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L3: import { Input } from '@/components/ui/input';
+  L4: import { DateInput } from '@/components/ui/DateInput';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Textarea } from '@/components/ui/textarea';
+  L7: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L10: import type { MaintenanceReport, PostMaintenanceStatus } from '@/types/maintenance';
+  L11: import { POST_MAINTENANCE_STATUS_LABELS } from '@/types/maintenance';
+
+===== src\modules\reports\MaintenanceReportPage.tsx =====
+  L4: import { Card, CardContent } from "@/components/ui/card";
+  L5: import { Button } from "@/components/ui/button";
+  L6: import { Input } from "@/components/ui/input";
+  L7: import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+  L8: import { Label } from "@/components/ui/label";
+  L9: import { Textarea } from "@/components/ui/textarea";
+  L11: import { usePermission } from '@/hooks/usePermission';
+
+===== src\modules\reports\PendingApprovalList.tsx =====
+  L2: import { Card, CardContent } from "@/components/ui/card";
+  L3: import { Button } from "@/components/ui/button";
+  L4: import { Input } from "@/components/ui/input";
+  L5: import { Badge } from "@/components/ui/badge";
+  L33: const targetData = localStorage.getItem('PRODUCTION_LOGS_DATA');
+  L40: localStorage.setItem('PRODUCTION_LOGS_DATA', JSON.stringify(defaultData));
+  L74: localStorage.setItem('PRODUCTION_LOGS_DATA', JSON.stringify(updated));
+  L110: localStorage.setItem('PRODUCTION_LOGS_DATA', JSON.stringify(updated));
+
+===== src\modules\reports\ProductionForm.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L3: import { Input } from '@/components/ui/input';
+  L4: import { DateInput } from '@/components/ui/DateInput';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Textarea } from '@/components/ui/textarea';
+  L7: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L8: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L9: import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+  L10: import { Badge } from '@/components/ui/badge';
+  L13: import { ProductionReport, ToolEntry, WorkTimeEntry } from '@/types/production';
+  L14: import { useMasterData } from '@/hooks/useMasterData';
+  L15: import { useAuth } from '@/contexts/AuthContext';
+  L16: import { OptimizedTimeInput } from '@/components/OptimizedTimeInput';
+  L17: import { supabase } from '@/supabase';
+  L24: } from '@/components/ui/command';
+  L29: } from '@/components/ui/popover';
+  L30: import { cn } from '@/lib/utils';
+  L290: // LOAD Dá»® LIá»†U Tá»ª SUPABASE
+  L293: const loadMachinesFromSupabase = useCallback(async () => {
+  L295: const { data, error } = await supabase
+  L296: .from('machines')
+  L306: const loadProjectsFromSupabase = useCallback(async () => {
+  L308: const { data, error } = await supabase
+  L309: .from('projects')
+  L332: const stored = localStorage.getItem(key);
+  L366: const loadCategoriesFromSupabase = useCallback(async () => {
+  L370: const { data, error } = await supabase
+  L371: .from('categories')
+  L405: const { data, error } = await supabase
+  L406: .from('employees')
+  L432: loadMachinesFromSupabase(),
+  L433: loadProjectsFromSupabase(),
+  L434: loadCategoriesFromSupabase(),
+  L442: }, [loadMachinesFromSupabase, loadProjectsFromSupabase, loadCategoriesFromSupabase, loadEmployees]);
+
+===== src\modules\reports\ProductionReportPage.tsx =====
+  L5: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L6: import { Button } from '@/components/ui/button';
+  L7: import { Input } from '@/components/ui/input';
+  L8: import { Label } from '@/components/ui/label';
+  L9: import { Badge } from '@/components/ui/badge';
+  L10: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L11: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L18: import { supabase } from '@/supabase';
+  L19: import { useAuth } from '@/contexts/AuthContext';
+  L20: import { usePermission } from '@/hooks/usePermission';
+  L21: import { buildProductionReportDbPayload, buildProductionReportStatusUpdatePayload, mapReportFromDb, parseImportedToolEntries } from '@/lib/reportSyncMapping';
+  L512: const { data: allLogs, error: allError } = await supabase
+  L513: .from('production_reports')
+  L575: const { error } = await supabase
+  L576: .from('production_reports')
+  L601: const { error } = await supabase
+  L602: .from('production_reports')
+  L665: const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(newLog));
+  L727: const { error } = await supabase
+  L728: .from('production_reports')
+  L751: const { error } = await supabase.from('production_reports').delete().eq('id', id);
+  L778: const { error } = await supabase.from('production_reports').delete().eq('id', id);
+  L820: const { error } = await supabase.from('production_reports').insert(buildProductionReportDbPayload(insertData));
+
+===== src\modules\reports\QaReportsAnalyticsPage.tsx =====
+  L2: import { Badge } from '@/components/ui/badge';
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L5: import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+  L6: import { Input } from '@/components/ui/input';
+  L7: import { Label } from '@/components/ui/label';
+  L8: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L9: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L10: import { Textarea } from '@/components/ui/textarea';
+  L13: import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+  L14: import type { QaReportEntry } from '@/types/reports';
+
+===== src\modules\reports\QcForm.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L3: import { Input } from '@/components/ui/input';
+  L4: import { DateInput } from '@/components/ui/DateInput';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Textarea } from '@/components/ui/textarea';
+  L7: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L10: import type { QcReport, QcResult } from '@/types/qc';
+  L38: const saved = localStorage.getItem('projects');
+  L44: const savedEmployees = localStorage.getItem('employees');
+
+===== src\modules\reports\QcReportPage.tsx =====
+  L3: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L4: import { Button } from '@/components/ui/button';
+  L5: import { Input } from '@/components/ui/input';
+  L6: import { Badge } from '@/components/ui/badge';
+  L7: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L8: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L9: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L10: import { QcForm } from '@/modules/reports/QcForm';
+  L11: import type { QcReport } from '@/types/qc';
+  L12: import { useAuth } from '@/contexts/AuthContext';
+  L15: import { loadReports, saveReports } from '@/lib/reportsStorage';
+  L16: import { usePermission } from '@/hooks/usePermission';
+
+===== src\modules\reports\WarehouseReportsPage.tsx =====
+
+===== src\modules\system\pages\AuditLog.tsx =====
+  L2: import { Badge } from '@/components/ui/badge';
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+  L5: import { Input } from '@/components/ui/input';
+  L6: import { Label } from '@/components/ui/label';
+  L7: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L8: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L10: import { AuditLogEntry } from '@/types/system';
+  L11: import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+  L12: import { usePermission } from '@/hooks/usePermission';
+
+===== src\modules\system\pages\BackupRestore.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L3: import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L7: import { Badge } from '@/components/ui/badge';
+  L8: import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L10: import { BackupRestoreRecord } from '@/types/system';
+  L11: import { buildLocalId, loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+  L12: import { usePermission } from '@/hooks/usePermission';
+  L18: for (let i = 0; i < localStorage.length; i += 1) {
+  L19: const key = localStorage.key(i);
+  L21: const value = localStorage.getItem(key);
+  L143: for (let i = 0; i < localStorage.length; i += 1) {
+  L144: const key = localStorage.key(i);
+  L146: localStorage.removeItem(key);
+  L153: localStorage.setItem(key, value);
+  L155: localStorage.setItem(key, JSON.stringify(value));
+
+===== src\modules\system\pages\Roles.tsx =====
+  L3: import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+  L4: import { Button } from '@/components/ui/button';
+  L5: import { Input } from '@/components/ui/input';
+  L6: import { Badge } from '@/components/ui/badge';
+  L23: import { supabase } from '@/supabase';
+  L34: } from '@/lib/permissions';
+  L35: import { PermissionService } from '@/services/permissionService';
+  L36: import { useAuth } from '@/contexts/AuthContext';
+  L66: localStorage.setItem(getUserPermissionsStorageKey(msnv), serialized);
+  L67: localStorage.setItem(getLegacyWmsUserPermissionsStorageKey(msnv), serialized);
+  L92: const hasSupabaseConfig = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+  L93: const [useFallback, setUseFallback] = useState<boolean>(!hasSupabaseConfig);
+  L141: localStorage.getItem(getUserPermissionsStorageKey(msnv)) ||
+  L142: localStorage.getItem(getLegacyWmsUserPermissionsStorageKey(msnv));
+  L166: localStorage.getItem(getUserPermissionsStorageKey(msnv)) ||
+  L167: localStorage.getItem(getLegacyWmsUserPermissionsStorageKey(msnv));
+  L205: const storedUsers = localStorage.getItem('wms_users');
+  L220: const { data: employees, error } = await supabase
+  L221: .from('employees')
+  L229: const storedUsers = localStorage.getItem('wms_users');
+  L309: const { data, error } = await supabase
+  L310: .from('employees')
+
+===== src\modules\system\pages\SystemSettings.tsx =====
+  L3: import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  L4: import { Button } from '@/components/ui/button';
+  L5: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L6: import { Input } from '@/components/ui/input';
+  L7: import { Label } from '@/components/ui/label';
+  L8: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L10: import { loadArrayFromStorage, saveArrayToStorage } from '@/lib/localStorage';
+  L11: import { usePermission } from '@/hooks/usePermission';
+
+===== src\modules\warehouse\components\CategoryManagement.tsx =====
+  L1: import { CategoryManagementTabs } from '@/components/categories/CategoryManagementTabs';
+
+===== src\modules\warehouse\components\ConsumableExport.tsx =====
+  L2: import { Button } from '@/components/ui/button';
+  L3: import { Input } from '@/components/ui/input';
+  L4: import { DateInput } from '@/components/ui/DateInput';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Textarea } from '@/components/ui/textarea';
+  L7: import { Combobox } from '@/components/ui/combobox';
+  L10: import { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
+  L11: import { useAuth } from '@/contexts/AuthContext';
+  L12: import { Category, Machine, Employee } from '@/types/categories';
+  L13: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L14: import { getSavedCategories } from '@/lib/utils';
+  L15: import { getSystemUsers, type SystemUser } from '@/hooks/useSystemUsers';
+  L70: const savedMachines = localStorage.getItem('machines') || localStorage.getItem('category_machines');
+  L84: const savedEmployees = localStorage.getItem('employees');
+  L110: localStorage.setItem('category_items', JSON.stringify(updated.map(cat => ({
+  L223: const existing = JSON.parse(localStorage.getItem('warehouseTransactions') || '[]');
+  L225: localStorage.setItem('warehouseTransactions', JSON.stringify([...existing, newTransaction]));
+  L226: const existingConsumable = JSON.parse(localStorage.getItem('consumableExports') || '[]');
+  L234: localStorage.setItem('consumableExports', JSON.stringify(existingConsumable));
+
+===== src\modules\warehouse\components\SimpleOilExport.tsx =====
+
+===== src\modules\warehouse\components\WarehouseExport.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { DateInput } from '@/components/ui/DateInput';
+  L6: import { Label } from '@/components/ui/label';
+  L7: import { Textarea } from '@/components/ui/textarea';
+  L8: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L9: import { Combobox } from '@/components/ui/combobox';
+  L12: import { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
+  L13: import { useAuth } from '@/contexts/AuthContext';
+  L14: import { Category, Warehouse, Project, Employee } from '@/types/categories';
+  L15: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L16: import { getSystemUsers, type SystemUser } from '@/hooks/useSystemUsers';
+  L21: } from '@/lib/warehousePermissions';
+  L22: import { useOnHandByProduct } from '@/shared/hooks/useInventory';
+  L23: import { getWarehouses, getProducts } from '@/api/warehouse';
+  L24: import { getSupabase } from '@/supabase';
+  L83: const client = getSupabase();
+  L85: const { data: projData } = await client.from('projects').select('*');
+  L90: const savedEmployees = localStorage.getItem('employees');
+
+===== src\modules\warehouse\components\WarehouseImport.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { DateInput } from '@/components/ui/DateInput';
+  L6: import { Label } from '@/components/ui/label';
+  L7: import { Textarea } from '@/components/ui/textarea';
+  L8: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L11: import { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
+  L12: import { useAuth } from '@/contexts/AuthContext';
+  L13: import { Category } from '@/types/categories';
+  L14: import { Combobox } from '@/components/ui/combobox';
+  L15: import { getSystemUsers, type SystemUser } from '@/hooks/useSystemUsers';
+  L16: import { getWarehouses, getProducts } from '@/api/warehouse';
+
+===== src\modules\warehouse\components\WarehouseTransfer.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { DateInput } from '@/components/ui/DateInput';
+  L6: import { Label } from '@/components/ui/label';
+  L7: import { Textarea } from '@/components/ui/textarea';
+  L8: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L9: import { Combobox } from '@/components/ui/combobox';
+  L12: import { WarehouseTransaction } from '@/types/inventory';
+  L13: import { useAuth } from '@/contexts/AuthContext';
+  L14: import { Category, Warehouse, Employee } from '@/types/categories';
+  L15: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L16: import { getSavedCategories } from '@/lib/utils';
+  L17: import { getSystemUsers, type SystemUser } from '@/hooks/useSystemUsers';
+  L18: import { useOnHandByProduct } from '@/shared/hooks/useInventory';
+  L84: const savedWarehouses = localStorage.getItem('warehouses') || localStorage.getItem('category_warehouses');
+  L106: const savedEmployees = localStorage.getItem('employees');
+  L139: localStorage.setItem('category_items', JSON.stringify(updated.map(cat => ({
+  L249: const existing = JSON.parse(localStorage.getItem('warehouseTransactions') || '[]');
+  L251: localStorage.setItem('warehouseTransactions', JSON.stringify([...existing, ...newTransactions]));
+  L252: const existingTransfers = JSON.parse(localStorage.getItem('warehouseTransfers') || '[]');
+  L259: localStorage.setItem('warehouseTransfers', JSON.stringify(existingTransfers));
+
+===== src\modules\warehouse\pages\ChuyenKho.tsx =====
+  L3: import { WarehouseTransfer } from '@/modules/warehouse/components/WarehouseTransfer';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L8: import { useAuth } from '@/contexts/AuthContext';
+  L9: import { usePermission } from '@/hooks/usePermission';
+  L11: import { Badge } from '@/components/ui/badge';
+  L12: import { Input } from '@/components/ui/input';
+  L13: import { Label } from '@/components/ui/label';
+  L14: import { Textarea } from '@/components/ui/textarea';
+  L15: import { listDocuments, deleteDocument, createDocument, postDocument } from '@/api/stockDocument';
+  L16: import { getSupabase } from '@/supabase';
+  L17: import { WarehouseTransaction } from '@/types/inventory';
+  L76: // ===== LOAD DATA Tá»ª SUPABASE =====
+  L82: const client = getSupabase();
+  L88: const { data } = await client.from('stock_document_lines').select('*').eq('document_id', doc.id).order('line_no');
+  L130: const client = getSupabase();
+  L151: const { error } = await client.from('stock_documents').update(patch).eq('id', id);
+  L172: await getSupabase()?.from('stock_documents').update({ workflow_status: 'approved', approved_by: user?.name, approved_at: now }).eq('id', id);
+  L202: await getSupabase()?.from('stock_documents').update({ workflow_status: 'received', received_by: user?.name, received_at: now }).eq('id', id);
+  L219: await getSupabase()?.from('stock_documents').update({ workflow_status: 'rejected', rejected_by: user?.name, rejected_at: now, rejected_reason: rejectReason }).eq('id', id);
+  L233: const client = getSupabase();
+  L236: await client.from('stock_documents').update({
+  L244: await client.from('stock_document_lines').delete().eq('document_id', editFormData.id);
+  L248: await client.from('stock_document_lines').insert(lines);
+
+===== src\modules\warehouse\pages\InventoryCount.tsx =====
+  L4: import { Badge } from '@/components/ui/badge';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L7: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L8: import { Input } from '@/components/ui/input';
+  L9: import { Label } from '@/components/ui/label';
+  L10: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L11: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L12: import { Textarea } from '@/components/ui/textarea';
+  L16: import { buildLocalId, loadArrayFromStorage, saveArrayToStorage, STORAGE_KEYS } from '@/lib/localStorage';
+  L17: import { usePermission } from '@/hooks/usePermission';
+  L18: import type { InventoryCountEntry, AdjustmentTransaction, Category } from '@/types/warehouse';
+
+===== src\modules\warehouse\pages\InventoryValuationReport.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L5: import { Input } from '@/components/ui/input';
+  L6: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L7: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L8: import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  L14: } from '@/api/valuation';
+  L15: import { getWarehouses, type WarehouseRow } from '@/api/warehouse';
+
+===== src\modules\warehouse\pages\NhapKho.tsx =====
+  L3: import { WarehouseImport } from '@/modules/warehouse/components/WarehouseImport';
+  L5: import { listDocuments, deleteDocument, createDocument, postDocument } from '@/api/stockDocument';
+  L6: import { getSupabase } from '@/supabase';
+  L7: import type { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
+  L8: import { useQueryClient } from '@tanstack/react-query';
+  L9: import { Button } from '@/components/ui/button';
+  L10: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L12: import { usePermission } from '@/hooks/usePermission';
+  L14: import { Badge } from '@/components/ui/badge';
+  L15: import { Input } from '@/components/ui/input';
+  L16: import { Label } from '@/components/ui/label';
+  L17: import { Textarea } from '@/components/ui/textarea';
+  L85: const queryClient = useQueryClient();
+  L125: // Fetch kĂ¨m lines cho tá»«ng document (Supabase nested hoáº·c query riĂªng)
+  L126: const client = getSupabase();
+  L133: .from('stock_document_lines')
+  L274: const client = getSupabase();
+  L275: if (!client) throw new Error('Supabase not available');
+  L278: .from('stock_documents')
+
+===== src\modules\warehouse\pages\StockCard.tsx =====
+  L4: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L7: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L8: import { Badge } from '@/components/ui/badge';
+  L12: import { loadArrayFromStorage, STORAGE_KEYS } from '@/lib/localStorage';
+  L13: import type { Category, Transaction, ImportTransaction, ExportTransaction, TransferTransaction, ConsumableTransaction, AdjustmentTransaction } from '@/types/warehouse';
+
+===== src\modules\warehouse\pages\ToolConsumptionReport.tsx =====
+  L10: } from '@/api/toolReturn';
+
+===== src\modules\warehouse\pages\ToolReturns.tsx =====
+  L3: import { getToolReturns, type ToolReturnRow, type ToolReturnItemRow } from '@/api/toolReturn';
+  L4: import { getWarehouses } from '@/api/warehouse';
+
+===== src\modules\warehouse\pages\TransactionHistory.tsx =====
+  L4: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { Input } from '@/components/ui/input';
+  L7: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L8: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L9: import { Badge } from '@/components/ui/badge';
+  L13: import { loadArrayFromStorage, STORAGE_KEYS } from '@/lib/localStorage';
+  L14: import type { Category, Transaction, ImportTransaction, ExportTransaction, TransferTransaction, ConsumableTransaction, AdjustmentTransaction } from '@/types/warehouse';
+  L15: import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+===== src\modules\warehouse\pages\XuatKho.tsx =====
+  L3: import { WarehouseExport } from '@/modules/warehouse/components/WarehouseExport';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L8: import { useAuth } from '@/contexts/AuthContext';
+  L9: import { usePermission } from '@/hooks/usePermission';
+  L11: import { Badge } from '@/components/ui/badge';
+  L12: import { Input } from '@/components/ui/input';
+  L13: import { Label } from '@/components/ui/label';
+  L14: import { Textarea } from '@/components/ui/textarea';
+  L15: import { listDocuments, deleteDocument, createDocument } from '@/api/stockDocument';
+  L16: import { validateStock } from '@/api/warehouse';
+  L17: import { postStockDocument } from '@/api/stock';
+  L18: import { getSupabase } from '@/supabase';
+  L19: import { WarehouseTransaction } from '@/types/inventory';
+  L79: // ===== LOAD DATA Tá»ª SUPABASE =====
+  L85: const client = getSupabase();
+  L91: const { data } = await client.from('stock_document_lines').select('*').eq('document_id', doc.id).order('line_no');
+  L146: const client = getSupabase();
+  L170: const { error } = await client.from('stock_documents').update(patch).eq('id', id);
+  L187: await getSupabase()?.from('stock_documents').update({ workflow_status: 'approved', approved_by: user?.name, approved_at: now }).eq('id', id);
+  L217: await getSupabase()?.from('stock_documents').update({ workflow_status: 'received', received_by: user?.name, received_at: now }).eq('id', id);
+  L234: await getSupabase()?.from('stock_documents').update({ workflow_status: 'rejected', rejected_by: user?.name, rejected_at: now, rejected_reason: rejectReason }).eq('id', id);
+  L248: const client = getSupabase();
+  L251: await client.from('stock_documents').update({
+  L258: await client.from('stock_document_lines').delete().eq('document_id', editFormData.id);
+  L262: await client.from('stock_document_lines').insert(lines);
+
+===== src\modules\warehouse\pages\XuatVatTuTieuHao.tsx =====
+  L3: import { ConsumableExport } from '@/modules/warehouse/components/ConsumableExport';
+  L5: import { Button } from '@/components/ui/button';
+  L6: import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+  L8: import { useAuth } from '@/contexts/AuthContext';
+  L9: import { usePermission } from '@/hooks/usePermission';
+  L11: import { Badge } from '@/components/ui/badge';
+  L12: import { Input } from '@/components/ui/input';
+  L13: import { Label } from '@/components/ui/label';
+  L14: import { Textarea } from '@/components/ui/textarea';
+  L90: const data = localStorage.getItem('consumableExports');
+  L100: localStorage.setItem('consumableExports', JSON.stringify(withStatus));
+  L145: localStorage.setItem('consumableExports', JSON.stringify(updatedList));
+  L200: localStorage.setItem('consumableExports', JSON.stringify(updatedExports));
+  L326: localStorage.setItem('consumableExports', JSON.stringify(updatedList));
+  L380: localStorage.setItem('consumableExports', JSON.stringify(updatedList));
+  L434: localStorage.setItem('consumableExports', JSON.stringify(updatedList));
+  L493: localStorage.setItem('consumableExports', JSON.stringify(updatedList));
+  L632: const existingExports = JSON.parse(localStorage.getItem('consumableExports') || '[]');
+  L634: localStorage.setItem('consumableExports', JSON.stringify(updatedExports));
+  L683: localStorage.setItem('consumableExports', JSON.stringify(remainingExports));
+
+===== src\modules\warehouse\index.ts =====
+
+===== src\modules\warehouse\WarehouseReport.tsx =====
+  L6: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L7: import { Button } from '@/components/ui/button';
+  L8: import { Input } from '@/components/ui/input';
+  L9: import { Label } from '@/components/ui/label';
+  L10: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L11: import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+  L13: import { ReportTable, Column } from '@/components/ReportTable';
+  L14: import { Badge } from '@/components/ui/badge';
+  L66: const imports = JSON.parse(localStorage.getItem(STORAGE_KEYS.imports) || '[]');
+  L67: const exports = JSON.parse(localStorage.getItem(STORAGE_KEYS.exports) || '[]');
+  L68: const transfers = JSON.parse(localStorage.getItem(STORAGE_KEYS.transfers) || '[]');
+  L69: const consumables = JSON.parse(localStorage.getItem(STORAGE_KEYS.consumables) || '[]');
+
+===== src\pages\ChuyenKho.tsx =====
+
+===== src\pages\Index.tsx =====
+  L4: import { DailyNews } from '@/components/DailyNews';
+  L5: import { Card, CardContent } from '@/components/ui/card';
+  L6: import { Button } from '@/components/ui/button';
+  L23: import { useAuth } from '@/contexts/AuthContext';
+  L24: import { usePermission } from '@/hooks/usePermission';
+  L25: import OCRUploadButton from '@/features/ocr/components/OCRUploadButton';
+  L26: import { ParsedReportData } from '@/features/ocr/services/ocrService';
+  L33: } from '@/components/ui/sheet';
+  L34: import { Input } from '@/components/ui/input';
+  L35: import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+  L36: import { useToast } from '@/hooks/use-toast';
+  L37: import { ERP_ROUTE } from '@/modules/erp/routes';
+  L330: const savedTheme = window.localStorage.getItem('theme');
+  L339: const saved = localStorage.getItem('erp_bookmarks');
+  L369: window.localStorage.setItem('theme', isDarkMode ? 'dark' : 'light');
+  L385: localStorage.setItem('erp_bookmarks', JSON.stringify(bookmarks));
+
+===== src\pages\InventoryCount.tsx =====
+  L3: import { InventoryCountForm } from '@/components/inventory/InventoryCountForm';
+  L10: } from '@/api/inventoryCount';
+  L11: import { getSupabase } from '@/supabase';
+  L17: const client = getSupabase();
+  L19: const { data } = await client.from('warehouses').select('id, name').order('name');
+  L23: const client = getSupabase();
+  L25: const { data } = await client.from('products').select('id, name, sku').order('name');
+  L29: const client = getSupabase();
+  L32: .from('stock_ledger')
+
+===== src\pages\LoginPage.tsx =====
+  L3: import { Button } from '@/components/ui/button';
+  L4: import { Input } from '@/components/ui/input';
+  L5: import { Label } from '@/components/ui/label';
+  L6: import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+  L7: import { Alert, AlertDescription } from '@/components/ui/alert';
+  L8: import { useAuth } from '@/contexts/AuthContext';
+  L9: import { ERP_ROUTE } from '@/modules/erp/routes';
+  L32: localStorage.setItem('rememberedUser', msnv);
+  L34: localStorage.removeItem('rememberedUser');
+  L49: const rememberedUser = localStorage.getItem('rememberedUser');
+
+===== src\pages\NhapKho.tsx =====
+
+===== src\pages\QuanLyDanhMuc.tsx =====
+  L1: import { CategoriesPage } from '@/modules/master-data';
+
+===== src\pages\ReportForm.tsx =====
+
+===== src\pages\ReportPage.tsx =====
+
+===== src\pages\StockCard.tsx =====
+  L3: import { getStockCard, type LedgerRow } from '@/api/stockLedger';
+  L4: import { getWarehouses, getProducts } from '@/api/warehouse';
+
+===== src\pages\TonKho.tsx =====
+  L3: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L4: import { Badge } from '@/components/ui/badge';
+  L5: import { Sidebar } from '@/components/Sidebar';
+  L6: import { MobileSidebar } from '@/components/MobileSidebar';
+  L7: import { useAuth } from '@/contexts/AuthContext';
+  L8: import { WarehouseTransaction } from '@/types/inventory';
+  L30: const saved = localStorage.getItem('warehouseTransactions');
+  L43: const categoryTypes = JSON.parse(localStorage.getItem('categoryTypes') || '[]');
+  L44: const categoryItems = JSON.parse(localStorage.getItem('category_items') || '[]');
+
+===== src\pages\ToolConsumptionReport.tsx =====
+  L8: } from '@/api/toolReturn';
+
+===== src\pages\ToolReturns.tsx =====
+  L3: import { listToolReturns, type ToolReturnRow, type ToolReturnItemRow } from '@/api/toolReturn';
+  L4: import { getWarehouses } from '@/api/warehouse';
+
+===== src\pages\TransactionHistory.tsx =====
+  L3: import { listMovements, type LedgerRow } from '@/api/stockLedger';
+  L4: import { getWarehouses } from '@/api/warehouse';
+
+===== src\pages\UserManagement.tsx =====
+  L3: import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+  L4: import { Button } from '@/components/ui/button';
+  L5: import { Input } from '@/components/ui/input';
+  L6: import { Label } from '@/components/ui/label';
+  L7: import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+  L8: import { Badge } from '@/components/ui/badge';
+  L9: import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+  L26: import { hashPassword } from '@/lib/passwordUtils';
+  L27: import { EmployeeService, type Employee as ServiceEmployee } from '@/services/employeeService';
+  L28: import { PermissionService } from '@/services/permissionService';
+  L29: import { useAuth } from '@/contexts/AuthContext';
+
+===== src\pages\WarehouseReport.tsx =====
+  L3: import { getNxtReport, type NxtRow } from '@/api/stockLedger';
+  L4: import { getWarehouses } from '@/api/warehouse';
+
+===== src\pages\XuatDau.tsx =====
+  L2: import { SimpleOilExport } from '@/components/inventory/SimpleOilExport';
+  L7: const savedTransactions = JSON.parse(localStorage.getItem('warehouseTransactions') || '[]');
+  L13: localStorage.setItem('warehouseTransactions', JSON.stringify([newTransaction, ...savedTransactions]));
+
+===== src\pages\XuatKho.tsx =====
+
+===== src\schemas\auth.schema.ts =====
+
+===== src\services\advancedTrainer.ts =====
+  L233: localStorage.setItem('advanced_trainer_knowledge',
+  L246: const data = localStorage.getItem('advanced_trainer_knowledge');
+  L269: localStorage.removeItem('advanced_trainer_knowledge');
+
+===== src\services\employeeService.ts =====
+  L3: import { supabase } from '../lib/supabase';
+  L15: const raw = localStorage.getItem(key);
+  L49: localStorage.setItem('employees', JSON.stringify(merged));
+  L95: const query = supabase?.from('employees')?.select('*')?.order('msnv', { ascending: true });
+  L99: console.warn('â ï¸ Supabase employee query failed, using local fallback:', error);
+  L121: const query = supabase?.from('employees')?.select('*')?.eq('msnv', msnv);
+  L127: console.warn('â ï¸ Supabase employee lookup failed, using local fallback:', error);
+  L144: const query = supabase?.from('employees')?.select('*')?.eq('msnv', msnv)?.eq('status', 'active');
+  L150: console.warn('â ï¸ Supabase active employee lookup failed, using local fallback:', error);
+  L172: const { data, error } = await supabase
+  L173: .from('employees')
+  L188: const { data, error } = await supabase
+  L189: .from('employees')
+  L207: const { error } = await supabase
+  L208: .from('employees')
+  L222: const { error } = await supabase
+  L223: .from('employees')
+
+===== src\services\permissionService.ts =====
+  L2: import { supabase } from '../lib/supabase';
+  L37: const storedPermissions = localStorage.getItem(`permissions_${msnv}`) || localStorage.getItem(`wms_permissions_${msnv}`);
+  L78: const query = supabase?.from('user_permissions')?.select('*')?.eq('msnv', msnv);
+  L84: console.warn('â ï¸ Supabase permission lookup failed, using local fallback:', error);
+  L127: const { data, error } = await supabase.from('user_permissions').select('*');
+  L159: const { error: deleteError } = await supabase
+  L160: .from('user_permissions')
+  L184: const { error: insertError } = await supabase
+  L185: .from('user_permissions')
+  L237: localStorage.removeItem(key);
+  L249: localStorage.removeItem(key);
+
+===== src\shared\hooks\useInventory.ts =====
+  L1: import { useQuery } from '@tanstack/react-query';
+  L8: } from '@/core/inventory-engine';
+  L9: import { migrateLegacyTransactionsToLedger } from '@/core/stock-ledger/legacyMigration';
+  L21: return useQuery({
+  L30: return useQuery({
+  L38: return useQuery({
+  L53: return useQuery({
+  L61: return useQuery({
+  L68: return useQuery({
+
+===== src\shared\layout\ErpBootstrap.tsx =====
+  L2: import { useQueryClient } from '@tanstack/react-query';
+  L3: import { bootstrapErpInventory } from '@/core/bootstrap';
+  L4: import { inventoryQueryKeys } from '@/shared/hooks/useInventory';
+  L8: const queryClient = useQueryClient();
+
+===== src\shared\layout\index.ts =====
+
+===== src\shared\layout\MainLayout.tsx =====
+  L3: import { useAuth } from '@/contexts/AuthContext';
+  L4: import { Sidebar } from '@/components/Sidebar';
+
+===== src\shared\layout\ProtectedRoute.tsx =====
+  L4: import { useAuth } from '@/contexts/AuthContext';
+
+===== src\store\authStore.ts =====
+  L4: import type { User, UserPermissions } from '@/types/user';
+  L5: import { EmployeeService } from '@/services/employeeService';
+  L6: import { PermissionService } from '@/services/permissionService';
+  L7: import { verifyPassword } from '@/lib/passwordUtils';
+  L76: localStorage.setItem('rememberedUser', msnv);
+  L88: localStorage.removeItem('sessionUser');
+  L90: localStorage.removeItem('rememberedUser');
+
+===== src\types\categories.ts =====
+
+===== src\types\common.ts =====
+
+===== src\types\global.d.ts =====
+  L7: // Supabase
+  L8: __SUPABASE_URL?: string;
+  L9: __SUPABASE_CLIENT?: unknown;
+  L35: VITE_SUPABASE_URL: string;
+  L36: VITE_SUPABASE_ANON_KEY: string;
+  L47: // Supabase
+  L48: VITE_SUPABASE_URL: string;
+  L49: VITE_SUPABASE_ANON_KEY: string;
+
+===== src\types\html5-qrcode.d.ts =====
+
+===== src\types\inventory.ts =====
+
+===== src\types\maintenance.ts =====
+
+===== src\types\manufacturing.ts =====
+
+===== src\types\production.ts =====
+
+===== src\types\qc.ts =====
+
+===== src\types\reports.ts =====
+
+===== src\types\system.ts =====
+  L1: import type { PermissionLevel } from '@/lib/permissions';
+
+===== src\types\user.ts =====
+
+===== src\types\warehouse.ts =====
+
+===== src\types\workbox-core.d.ts =====
+
+===== src\types\workbox.d.ts =====
+
+===== src\App.tsx =====
+  L4: import { Toaster } from '@/components/ui/sonner';
+  L5: import { TooltipProvider } from '@/components/ui/tooltip';
+  L9: import { ErrorBoundary } from '@/components/ErrorBoundary';
+  L10: import { LoadingSpinner } from '@/components/LoadingSpinner';
+  L11: import ProtectedRoute from '@/shared/layout/ProtectedRoute';
+  L12: import Layout from '@/components/Layout';
+  L13: import { ERP_ROUTE } from '@/modules/erp/routes';
+  L14: import { ErpBootstrap } from '@/shared/layout/ErpBootstrap';
+  L15: import './supabase';
+
+===== src\main.tsx =====
+
+===== src\service-worker.ts =====
+  L101: const response = await fetch(event.request);
+
+===== src\supabase.ts =====
+  L1: // src/supabase.ts
+  L2: import { createClient } from '@supabase/supabase-js'
+  L5: const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || ''
+  L7: const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+  L9: const isDeadSupabaseHost = /your-project-id/i.test(supabaseUrl)
+  L11: export const hasSupabaseConfig = Boolean(supabaseUrl && supabaseAnonKey && !isDeadSupabaseHost)
+  L13: console.log('🔍 Supabase Config:')
+  L14: console.log('  URL:', supabaseUrl ? '✅ exists' : '❌ missing')
+  L15: console.log('  Key:', supabaseAnonKey ? '✅ exists' : '❌ missing')
+  L17: if (!hasSupabaseConfig) {
+  L18: console.warn('⚠️ Supabase is disabled until a valid project URL and anon key are configured.')
+  L21: export const supabase = hasSupabaseConfig
+  L22: ? createClient(supabaseUrl, supabaseAnonKey)
+  L25: export const getSupabase = () => supabase
+  L27: export const loadDataFromSupabase = async (tableName: string) => {
+  L28: if (!supabase) return []
+  L30: const { data, error } = await supabase.from(tableName).select('*')
+  L39: // Filter out columns that don't exist in Supabase
+  L61: export const syncDataToSupabase = async (tableName: string, data: any[]) => {
+  L62: if (!supabase) return false
+  L81: const { error } = await supabase.from(tableName).upsert(sanitizedData, {
+  L107: export default supabase
+
+===== src\vite-env.d.ts =====
+

@@ -1,0 +1,206 @@
+﻿===== src\pages\NhapKho.tsx — 0.1 KB, 1 dòng =====
+--- 30 dòng đầu ---
+export { NhapKho, NhapKho as default } from '@/modules/warehouse/pages/NhapKho';
+
+===== src\pages\XuatKho.tsx — 0.1 KB, 1 dòng =====
+--- 30 dòng đầu ---
+export { XuatKho, XuatKho as default } from '@/modules/warehouse/pages/XuatKho';
+
+===== src\pages\ChuyenKho.tsx — 0.1 KB, 1 dòng =====
+--- 30 dòng đầu ---
+export { ChuyenKho, ChuyenKho as default } from '@/modules/warehouse/pages/ChuyenKho';
+
+===== src\pages\TonKho.tsx — 11 KB, 252 dòng =====
+--- 30 dòng đầu ---
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Sidebar } from '@/components/Sidebar';
+import { MobileSidebar } from '@/components/MobileSidebar';
+import { useAuth } from '@/contexts/AuthContext';
+import { WarehouseTransaction } from '@/types/inventory';
+import { Package, AlertTriangle } from 'lucide-react';
+
+const SECTION_PATHS: Record<string, string> = {
+  import: '/nhap-kho',
+  export: '/xuat-kho',
+  transfer: '/chuyen-kho',
+  oil: '/xuat-dau',
+  reports: '/trang-chu',
+  categories: '/quan-ly-danh-muc',
+  users: '/user-management',
+  inventory: '/ton-kho',
+};
+
+export function TonKho() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [warehouseTransactions, setWarehouseTransactions] = useState<WarehouseTransaction[]>([]);
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('warehouseTransactions');
+
+===== src\pages\XuatDau.tsx — 0.9 KB, 26 dòng =====
+--- 30 dòng đầu ---
+import React from 'react';
+import { SimpleOilExport } from '@/components/inventory/SimpleOilExport';
+import { toast } from 'sonner';
+
+export const XuatDau: React.FC = () => {
+  const handleSubmit = (transaction: any) => {
+    const savedTransactions = JSON.parse(localStorage.getItem('warehouseTransactions') || '[]');
+    const newTransaction = {
+      ...transaction,
+      id: Date.now().toString(),
+      createdAt: new Date().toISOString()
+    };
+    localStorage.setItem('warehouseTransactions', JSON.stringify([newTransaction, ...savedTransactions]));
+    toast.success('ÄĂ£ lÆ°u phiáº¿u xuáº¥t dáº§u thĂ nh cĂ´ng!');
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-gray-900">Xuáº¥t Dáº§u</h1>
+      </div>
+
+      <SimpleOilExport onSubmit={handleSubmit} />
+    </div>
+  );
+};
+
+===== src\pages\InventoryCount.tsx — 8.4 KB, 227 dòng =====
+--- 30 dòng đầu ---
+import { useEffect, useState, useCallback } from 'react';
+import { toast } from 'sonner';
+import { InventoryCountForm } from '@/components/inventory/InventoryCountForm';
+import {
+  createSession,
+  listSessions,
+  applyVariance,
+  getSessionById,
+  type InventoryCountLineRow,
+} from '@/api/inventoryCount';
+import { getSupabase } from '@/supabase';
+
+const currentUser = { id: 'TODO:auth-user-id' }; // TODO: láº¥y tá»« auth context
+
+// ============ HELPERS ============
+async function loadWarehouses() {
+  const client = getSupabase();
+  if (!client) return [];
+  const { data } = await client.from('warehouses').select('id, name').order('name');
+  return data ?? [];
+}
+async function loadProducts() {
+  const client = getSupabase();
+  if (!client) return [];
+  const { data } = await client.from('products').select('id, name, sku').order('name');
+  return data ?? [];
+}
+async function getSystemQty(warehouseId: string, productId: string): Promise<number> {
+  const client = getSupabase();
+  if (!client) return 0;
+
+===== src\pages\ReportForm.tsx — 1.7 KB, 52 dòng =====
+--- 30 dòng đầu ---
+// src/pages/ReportForm.tsx
+import React from 'react';
+import OCRUploadButton from '../features/ocr/components/OCRUploadButton';
+import { useOCRFormIntegration } from '../features/ocr/hooks/useOCRFormIntegration';
+import { ParsedReportData } from '../features/ocrService';
+
+const ReportForm = () => {
+  const { formData, fillFormFromOCR, hasData } = useOCRFormIntegration();
+
+  const handleOCRParsed = (data: ParsedReportData) => {
+    fillFormFromOCR(data);
+    // Dá»¯ liá»‡u Ä‘Ă£ Ä‘Æ°á»£c tá»± Ä‘á»™ng Ä‘iá»n vĂ o form
+  };
+
+  return (
+    <div className="report-form">
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xl font-bold">đŸ“‹ BĂ¡o cĂ¡o sáº£n xuáº¥t</h2>
+        <OCRUploadButton 
+          onParsedData={handleOCRParsed}
+          autoFillForm={true}
+          variant="default"
+        />
+      </div>
+      
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label>NgĂ y</label>
+          <input type="date" value={formData.date || ''} />
+        </div>
+
+===== src\pages\ReportPage.tsx — 2.6 KB, 79 dòng =====
+--- 30 dòng đầu ---
+// src/pages/ReportPage.tsx
+import React, { useState } from 'react';
+import OCRUpload from '../features/ocr/components/OCRUpload';
+import { OCRResult } from '../features/ocrService';
+
+const ReportPage = () => {
+  const [showOCR, setShowOCR] = useState(false);
+  // âŒ XĂ³a dĂ²ng nĂ y: const [ocrResult, setOcrResult] = useState('');
+
+  const handleTextExtracted = (text: string, result: OCRResult) => {
+    console.log('đŸ“ Káº¿t quáº£ OCR:', text);
+    // setOcrResult(text);  // âŒ XĂ³a dĂ²ng nĂ y
+    
+    // Parse dá»¯ liá»‡u tá»« text
+    const lines = text.split('\n');
+    let productCode = '';
+    let quantity = '';
+    
+    lines.forEach(line => {
+      const trimmedLine = line.trim();
+      if (trimmedLine.includes('MĂ£ SP') || trimmedLine.includes('MĂ£ sáº£n pháº©m')) {
+        const parts = trimmedLine.split(':');
+        if (parts.length > 1) {
+          productCode = parts[1].trim();
+          console.log('đŸ“¦ MĂ£ sáº£n pháº©m:', productCode);
+        }
+      }
+      if (trimmedLine.includes('Sá»‘ lÆ°á»£ng') || trimmedLine.includes('SL')) {
+        const parts = trimmedLine.split(':');
+        if (parts.length > 1) {
+
+===== src\pages\TransactionHistory.tsx — 4.2 KB, 102 dòng =====
+--- 30 dòng đầu ---
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import { listMovements, type LedgerRow } from '@/api/stockLedger';
+import { getWarehouses } from '@/api/warehouse';
+
+const TYPE_LABEL: Record<string, string> = {
+  IN: 'Nháº­p', OUT: 'Xuáº¥t', OIL_OUT: 'Xuáº¥t dáº§u',
+  TRANSFER_IN: 'Chuyá»ƒn Ä‘áº¿n', TRANSFER_OUT: 'Chuyá»ƒn Ä‘i',
+  ADJUSTMENT: 'Äiá»u chá»‰nh',
+};
+
+export default function TransactionHistory() {
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [warehouseId, setWarehouseId] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  const [movementType, setMovementType] = useState('');
+  const [rows, setRows] = useState<LedgerRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    (async () => {
+      const w = await getWarehouses();
+      if (w.ok) setWarehouses(w.data);
+    })();
+  }, []);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+

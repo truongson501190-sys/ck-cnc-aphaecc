@@ -1,10 +1,17 @@
 import { getSavedCategories } from '@/lib/utils';
 
-/** Resolve warehouse id from stored id, code, or display name */
+/**
+ * QUAN TRỌNG: Throw error thay vì fallback để tránh ghi data rác vào stock_ledger.
+ * Nếu user gặp error này → cần load Master Data trước khi nhập/xuất kho.
+ */
 export function resolveWarehouseId(raw: string | undefined | null): string {
-  if (!raw) return 'default';
+  if (!raw) {
+    throw new Error('warehouse_id là bắt buộc. Vui lòng chọn kho trước khi nhập/xuất.');
+  }
   const trimmed = String(raw).trim();
-  if (!trimmed) return 'default';
+  if (!trimmed) {
+    throw new Error('warehouse_id là bắt buộc. Vui lòng chọn kho trước khi nhập/xuất.');
+  }
 
   try {
     const keys = ['warehouses', 'category_warehouses'];
@@ -25,16 +32,23 @@ export function resolveWarehouseId(raw: string | undefined | null): string {
       if (match?.tenKho) return String(match.tenKho);
     }
   } catch {
-    /* use raw */
+    // Continue to the explicit not-found error below.
   }
-  return trimmed;
+  throw new Error(`Không tìm thấy kho "${raw}". Vui lòng vào Master Data → Kho để load danh sách kho.`);
 }
 
-/** Resolve product id from category id, code, or display name */
+/**
+ * QUAN TRỌNG: Throw error thay vì fallback để tránh ghi data rác vào stock_ledger.
+ * Nếu user gặp error này → cần load Master Data trước khi nhập/xuất kho.
+ */
 export function resolveProductId(raw: string | undefined | null): string {
-  if (!raw) return '';
+  if (!raw) {
+    throw new Error('product_id là bắt buộc. Vui lòng chọn sản phẩm.');
+  }
   const trimmed = String(raw).trim();
-  if (!trimmed) return '';
+  if (!trimmed) {
+    throw new Error('product_id là bắt buộc. Vui lòng chọn sản phẩm.');
+  }
 
   const categories = getSavedCategories();
   const match = categories.find(
@@ -47,5 +61,5 @@ export function resolveProductId(raw: string | undefined | null): string {
   );
   if (match?.id) return match.id;
   if (match?.maLoai) return match.maLoai;
-  return trimmed;
+  throw new Error(`Không tìm thấy sản phẩm "${raw}". Vui lòng vào Master Data → Chủng loại để load danh sách.`);
 }

@@ -27,6 +27,8 @@ function readLocalEmployeeRecords(): Employee[] {
 }
 
 function syncLocalEmployeeSeed(): Employee[] {
+  // Chỉ seed admin trong DEV. Production phải có admin thật trong Supabase employees table.
+  if (!import.meta.env.DEV) return [];
   const seed: Employee = {
     msnv: '1118',
     ho_ten: 'Nguyễn Trường Sơn',

@@ -1,0 +1,157 @@
+﻿===== backend_ai\main.py =====
+# backend_ai/main.py
+
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from config.settings import settings
+from api.ai import router as ai_router
+from api.learn import router as learn_router
+from api.import_erp import router as import_router
+from api.assistant import router as assistant_router
+
+# ============================================================
+# APP
+# ============================================================
+
+app = FastAPI(
+    title="đŸ¤– ERP AI",
+    description="ERP AI - Vision, OCR, Brain, Memory, Learning, Knowledge, Automation, Analytics, Assistant",
+    version="1.0.0"
+)
+
+# CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# ============================================================
+# ROUTERS
+# ============================================================
+
+app.include_router(ai_router)
+app.include_router(learn_router)
+app.include_router(import_router)
+app.include_router(assistant_router)
+
+# ============================================================
+# ROOT & HEALTH
+# ============================================================
+
+@app.get("/")
+async def root():
+    return {
+        "name": "đŸ¤– ERP AI",
+        "version": "1.0.0",
+        "status": "running",
+        "endpoints": {
+            "health": "/health",
+            "parse": "/api/ai/document/parse",
+            "learn": "/api/ai/learn",
+            "import": "/api/ai/import",
+            "assistant_chat": "/assistant/chat",
+            "assistant_stats": "/assistant/stats"
+        }
+    }
+
+@app.get("/health")
+async def health():
+    return {"status": "healthy", "version": "1.0.0"}
+
+# ============================================================
+# RUN
+# ============================================================
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host=settings.host,
+        port=settings.port,
+        reload=True
+    )
+
+    from fastapi import FastAPI
+from auth.routes import router as auth_router
+
+app = FastAPI(title="Backend AI Gateway")
+app.include_router(auth_router)
+
+
+===== backend_ai\requirements.txt =====
+# Core
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+python-dotenv==1.0.1
+pydantic==2.10.4
+pydantic-settings==2.6.0
+
+# OCR
+paddlepaddle==2.5.2
+paddleocr==2.7.3
+opencv-python-headless==4.10.0.84
+pillow==10.4.0
+pytesseract==0.3.13
+
+# PDF
+PyPDF2==3.0.1
+pdf2image==1.16.3
+
+# Database
+sqlalchemy==2.0.36
+chromadb==0.5.5
+
+# AI / ML
+numpy==1.26.4
+transformers==4.44.2
+torch==2.4.0
+sentence-transformers==3.0.1
+
+# Utilities
+python-magic==0.4.27
+
+===== backend_ai\.env (CHỈ TÊN BIẾN) =====
+# backend_ai/.env
+
+# 
+OCR_ENGINE
+OCR_LANG
+OCR_USE_GPU
+
+# 
+VISION_MODEL
+OLLAMA_URL
+QWEN_MODEL_NAME
+
+# 
+ERP_ADAPTER
+SUPABASE_URL
+SUPABASE_ANON_KEY
+
+# 
+CONFIDENCE_AUTO
+CONFIDENCE_SUGGEST
+CONFIDENCE_MANUAL
+
+# 
+ERP_ADAPTER
+LOG_LEVEL
+HOST
+PORT
+CORS_ORIGINS
+
+# 
+LOG_LEVEL
+
+# 
+ENABLE_AUTO_IMPORT
+ENABLE_LEARNING
+ENABLE_ASSISTANT
+ENABLE_ANALYTICS
+
+

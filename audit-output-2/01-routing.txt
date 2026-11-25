@@ -1,0 +1,783 @@
+﻿===== src\App.tsx =====
+// src/App.tsx
+import React, { Suspense, lazy } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { AuthProvider } from './contexts/AuthContext';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { LoadingSpinner } from '@/components/LoadingSpinner';
+import ProtectedRoute from '@/shared/layout/ProtectedRoute';
+import Layout from '@/components/Layout';
+import { ERP_ROUTE } from '@/modules/erp/routes';
+import { ErpBootstrap } from '@/shared/layout/ErpBootstrap';
+import './supabase';
+import './i18n';
+
+// ============================================================
+// 1. LAZY LOAD COMPONENTS (Tá»‘i Æ°u performance)
+// ============================================================
+
+// Pages
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const Index = lazy(() => import('./pages/Index'));
+const UserManagement = lazy(() => import('./pages/UserManagement'));
+
+// Warehouse
+const NhapKho = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.NhapKho })));
+const XuatKho = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.XuatKho })));
+const ChuyenKho = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.ChuyenKho })));
+const XuatDau = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.XuatDau })));
+const InventoryCount = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.InventoryCount })));
+const StockCard = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.StockCard })));
+const TransactionHistory = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.TransactionHistory })));
+const WarehouseReport = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.WarehouseReport })));
+const InventoryValuationReport = lazy(() => import('@/modules/warehouse/pages/InventoryValuationReport'));
+
+// Manufacturing
+const ProductionPlan = lazy(() => import('@/modules/manufacturing').then(m => ({ default: m.ProductionPlan })));
+const ProgressTracking = lazy(() => import('@/modules/manufacturing').then(m => ({ default: m.ProgressTracking })));
+
+// Reports
+const ProductionSummary = lazy(() => import('@/modules/reports/machining').then(m => ({ default: m.ProductionSummary })));
+const ToolsUsage = lazy(() => import('@/modules/reports/machining').then(m => ({ default: m.ToolsUsage })));
+const ToolsDamage = lazy(() => import('@/modules/reports/machining').then(m => ({ default: m.ToolsDamage })));
+const CostBreakdown = lazy(() => import('@/modules/reports/machining').then(m => ({ default: m.CostBreakdown })));
+const DashboardSummary = lazy(() => import('@/modules/reports').then(m => ({ default: m.DashboardSummary })));
+const InventoryPage = lazy(() => import('@/modules/reports').then(m => ({ default: m.InventoryPage })));
+const ProductionReportPage = lazy(() => import('@/modules/reports').then(m => ({ default: m.ProductionReportPage })));
+const MaintenanceReport = lazy(() => import('@/modules/reports').then(m => ({ default: m.MaintenanceReport })));
+const QcReportPage = lazy(() => import('@/modules/reports').then(m => ({ default: m.QcReportPage })));
+const MachinePerformancePage = lazy(() => import('@/modules/reports').then(m => ({ default: m.MachinePerformancePage })));
+const PendingApprovalList = lazy(() => import('@/modules/reports').then(m => ({ default: m.PendingApprovalList })));
+const QCReport = lazy(() => import('@/modules/reports').then(m => ({ default: m.QCReport })));
+
+// Master Data
+const CategoriesPage = lazy(() => import('@/modules/master-data').then(m => ({ default: m.CategoriesPage })));
+const WarehousesPage = lazy(() => import('@/modules/master-data').then(m => ({ default: m.WarehousesPage })));
+const MachinesPage = lazy(() => import('@/modules/master-data').then(m => ({ default: m.MachinesPage })));
+const ProjectsPage = lazy(() => import('@/modules/master-data').then(m => ({ default: m.ProjectsPage })));
+
+// System
+const Roles = lazy(() => import('@/modules/system/pages/Roles'));
+const BackupRestore = lazy(() => import('@/modules/system/pages/BackupRestore'));
+const AuditLog = lazy(() => import('@/modules/system/pages/AuditLog'));
+const SystemSettings = lazy(() => import('@/modules/system/pages/SystemSettings'));
+
+// Account
+const Profile = lazy(() => import('@/modules/account/pages/Profile'));
+const ChangePassword = lazy(() => import('@/modules/account/pages/ChangePassword'));
+
+// Placeholder
+const PlaceholderPage = lazy(() => import('@/modules/erp/PlaceholderPage'));
+
+// ============================================================
+// 2. QUERY CLIENT CONFIG
+// ============================================================
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,
+      gcTime: 1000 * 60 * 60,
+      refetchOnWindowFocus: false,
+      refetchOnReconnect: true,
+      retry: 2,
+    },
+    mutations: {
+      retry: 1,
+    },
+  },
+});
+
+// ============================================================
+// 3. APP COMPONENT
+// ============================================================
+const App: React.FC = () => {
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster 
+            richColors 
+            position="top-right" 
+            expand={true}
+            closeButton
+            toastOptions={{
+              style: {
+                borderRadius: '12px',
+                padding: '16px',
+              },
+              duration: 4000,
+            }}
+          />
+          <AuthProvider>
+            <div className="min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 dark:bg-gray-900 dark:text-gray-100">
+              <ErpBootstrap />
+              <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+                <Suspense fallback={<LoadingSpinner fullScreen />}>
+                  <Routes>
+                    {/* Authentication */}
+                    <Route path={ERP_ROUTE.login} element={<LoginPage />} />
+                    <Route path="/login" element={<Navigate to={ERP_ROUTE.login} replace />} />
+                    
+                    {/* Protected Routes with Layout */}
+                    <Route path="/" element={<Layout />}>
+                      {/* Dashboard */}
+                      <Route
+                        path={ERP_ROUTE.dashboard}
+                        element={
+                          <ProtectedRoute>
+                            <Index />
+                          </ProtectedRoute>
+                        }
+                      />
+                      
+                      {/* User Management */}
+                      <Route
+                        path={ERP_ROUTE.system.users}
+                        element={
+                          <ProtectedRoute requiredRole="admin">
+                            <UserManagement />
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      {/* Master Data */}
+                      <Route
+                        path={ERP_ROUTE.masterData.categories}
+                        element={
+                          <ProtectedRoute requiredModule="chung_loai">
+                            <CategoriesPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.masterData.locations}
+                        element={
+                          <ProtectedRoute requiredModule="kho">
+                            <WarehousesPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.masterData.machines}
+                        element={
+                          <ProtectedRoute requiredModule="may_moc">
+                            <MachinesPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.masterData.projects}
+                        element={
+                          <ProtectedRoute requiredModule="du_an">
+                            <ProjectsPage />
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      {/* Warehouse */}
+                      <Route
+                        path={ERP_ROUTE.warehouse.import}
+                        element={
+                          <ProtectedRoute requiredModule="nhap_kho">
+                            <NhapKho />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.warehouse.export}
+                        element={
+                          <ProtectedRoute requiredModule="xuat_kho">
+                            <XuatKho />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.warehouse.transfer}
+                        element={
+                          <ProtectedRoute requiredModule="chuyen_kho">
+                            <ChuyenKho />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.warehouse.oil}
+                        element={
+                          <ProtectedRoute requiredModule="xuat_dau">
+                            <XuatDau />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.warehouse.inventoryCount}
+                        element={
+                          <ProtectedRoute requiredModule="kiem_ke_kho">
+                            <InventoryCount />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.warehouse.stockCard}
+                        element={
+                          <ProtectedRoute requiredModule="the_kho">
+                            <StockCard />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.warehouse.transactionHistory}
+                        element={
+                          <ProtectedRoute requiredModule="lich_su_giao_dich">
+                            <TransactionHistory />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.valuation}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_kho">
+                            <InventoryValuationReport />
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      {/* Manufacturing */}
+                      <Route
+                        path={ERP_ROUTE.manufacturing.machiningLog}
+                        element={
+                          <ProtectedRoute requiredModule="nhat_ky_gia_cong">
+                            <ProductionReportPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.manufacturing.qcLog}
+                        element={
+                          <ProtectedRoute requiredModule="nhat_ky_qc">
+                            <QcReportPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.manufacturing.maintenanceLog}
+                        element={
+                          <ProtectedRoute requiredModule="nhat_ky_bao_tri">
+                            <MaintenanceReport />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.manufacturing.plan}
+                        element={
+                          <ProtectedRoute requiredModule="ke_hoach_san_xuat">
+                            <ProductionPlan />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.manufacturing.progress}
+                        element={
+                          <ProtectedRoute requiredModule="theo_doi_tien_do">
+                            <ProgressTracking />
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      {/* Reports */}
+                      <Route
+                        path={ERP_ROUTE.reports.summary}
+                        element={
+                          <ProtectedRoute requiredModule="dashboard_tong_hop">
+                            <DashboardSummary />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.inventory}
+                        element={
+                          <ProtectedRoute requiredModule="ton_kho">
+                            <InventoryPage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.warehouse}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_kho">
+                            <WarehouseReport />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.machining.production}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                            <ProductionSummary />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.machining.tools}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                            <ToolsUsage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.machining.damage}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                            <ToolsDamage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.machining.cost}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_gia_cong">
+                            <CostBreakdown />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.qc}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_qc">
+                            <QCReport />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.maintenance}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_bao_tri">
+                            <PlaceholderPage
+                              title="BĂ¡o cĂ¡o báº£o trĂ¬"
+                              description="Thá»‘ng kĂª báº£o trĂ¬, MTBF vĂ  chi phĂ­ phá»¥ tĂ¹ng (tá»•ng há»£p tá»« nháº­t kĂ½ báº£o trĂ¬)."
+                            />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.machinePerformance}
+                        element={
+                          <ProtectedRoute requiredModule="hieu_suat_may">
+                            <MachinePerformancePage />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.pendingApproval}
+                        element={
+                          <ProtectedRoute requiredModule="cho_duyet">
+                            <PendingApprovalList />
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      {/* System */}
+                      <Route
+                        path={ERP_ROUTE.system.roles}
+                        element={
+                          <ProtectedRoute requiredRole="admin">
+                            <Roles />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.system.auditLog}
+                        element={
+                          <ProtectedRoute requiredRole="admin">
+                            <AuditLog />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.system.backupRestore}
+                        element={
+                          <ProtectedRoute requiredRole="admin">
+                            <BackupRestore />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.system.settings}
+                        element={
+                          <ProtectedRoute requiredRole="admin">
+                            <SystemSettings />
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      {/* Account */}
+                      <Route
+                        path={ERP_ROUTE.account.profile}
+                        element={
+                          <ProtectedRoute>
+                            <Profile />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.account.changePassword}
+                        element={
+                          <ProtectedRoute>
+                            <ChangePassword />
+                          </ProtectedRoute>
+                        }
+                      />
+
+                      {/* Redirects */}
+                      <Route path="/pending-approval" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
+                      <Route path="/pending" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
+                      <Route path="/reports/pending" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
+                      <Route path="/reports/pending-approval" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
+                      <Route path="/reports/pendingApproval" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
+                      <Route path="/cho-duyet" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
+                      <Route path="/reports/cho-duyet" element={<Navigate to={ERP_ROUTE.reports.pendingApproval} replace />} />
+
+                      {/* 404 */}
+                      <Route path="*" element={<Navigate to={ERP_ROUTE.dashboard} replace />} />
+                    </Route>
+                  </Routes>
+                </Suspense>
+              </Router>
+            </div>
+          </AuthProvider>
+        </TooltipProvider>
+        {import.meta.env.DEV && <ReactQueryDevtools initialIsOpen={false} />}
+      </QueryClientProvider>
+    </ErrorBoundary>
+  );
+};
+
+export default App;
+
+===== src\main.tsx =====
+// src/main.tsx
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+import './index.css';
+// import './styles.css';  // Táº¡m thá»i comment
+
+console.log('đŸ“ Application starting...');
+
+const rootElement = document.getElementById('root');
+
+if (!rootElement) {
+  console.error('âŒ Root element not found!');
+} else {
+  console.log('âœ… Root element found, rendering App...');
+  createRoot(rootElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>
+  );
+}
+
+===== src\modules\erp\routes.ts =====
+// src/modules/erp/routes.ts
+import type { LucideIcon } from 'lucide-react';
+import { hasPermissionFlag, type UserPermissions } from '@/lib/permissions';
+
+import {
+  Home,
+  Package,
+  PackageOpen,
+  Droplets,
+  ArrowRightLeft,
+  FolderTree,
+  BarChart3,
+  Factory,
+  Wrench,
+  ClipboardCheck,
+  Users,
+  Settings,
+  ShieldCheck,
+  FileText,
+  Database,
+  UserCircle,
+  Key,
+  ListChecks,
+  ClipboardList,
+  Activity,
+  Cpu,
+  LayoutDashboard,
+  Layers,
+  MapPin,
+  Hourglass,
+  Clock,
+  HardDrive,
+  LogOut,
+  NotebookPen,
+  BarChart2,
+  Drill,
+  Microscope,
+  Gauge,
+  TrendingUp,
+  FileWarning,
+  DollarSign,
+} from 'lucide-react';
+
+// Äá»‹nh nghÄ©a Ä‘Æ¡n giáº£n, cho phĂ©p má»i key string
+export type ERPNavAuthUser = {
+  role?: string;
+  permissions?: UserPermissions;
+} | null | undefined;
+
+export const ERP_ROUTE = {
+  login: '/login',
+  dashboard: '/',
+  warehouse: {
+    import: '/warehouse/import',
+    export: '/warehouse/export',
+    transfer: '/warehouse/transfer',
+    oil: '/warehouse/oil',
+    inventoryCount: '/warehouse/inventory-count',
+    stockCard: '/warehouse/stock-card',
+    transactionHistory: '/warehouse/transaction-history',
+  },
+  manufacturing: {
+    plan: '/manufacturing/plan',
+    machiningLog: '/manufacturing/machining-log',
+    qcLog: '/manufacturing/qc-log',
+    maintenanceLog: '/manufacturing/maintenance-log',
+    progress: '/manufacturing/progress',
+  },
+  reports: {
+    summary: '/reports/summary',
+    warehouse: '/reports/warehouse',
+    valuation: '/reports/warehouse-valuation',
+    machining: {
+      production: '/reports/machining/production',  // Tá»”NG Há»¢P Sáº¢N XUáº¤T
+      tools: '/reports/machining/tools',            // DAO Cá»¤ Sá»¬ Dá»¤NG
+      damage: '/reports/machining/damage',          // HAO Há»¤T DAO Cá»¤
+      cost: '/reports/machining/cost',              // CHI PHĂ GIA CĂ”NG
+    },
+    qc: '/reports/qc',
+    maintenance: '/reports/maintenance',
+    machinePerformance: '/reports/machine-performance',
+    pendingApproval: '/reports/pending-approval',
+    inventory: '/reports/inventory',
+  },
+  masterData: {
+    categories: '/master-data/categories',
+    locations: '/master-data/locations',
+    machines: '/master-data/machines',
+    projects: '/master-data/projects',
+  },
+  system: {
+    users: '/system/users',
+    roles: '/system/roles',
+    auditLog: '/system/audit-log',
+    backupRestore: '/system/backup-restore',
+    settings: '/system/settings',
+  },
+  account: {
+    profile: '/account/profile',
+    changePassword: '/account/change-password',
+  },
+};
+
+export type ERPNavItem = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  path?: string;
+  permissionKey?: string;
+  adminOnly?: boolean;
+  action?: 'logout';
+  children?: ERPNavItem[];  // ThĂªm children Ä‘á»ƒ há»— trá»£ sub-menu
+};
+
+// Äá»NH NGHÄ¨A CHUáº¨N: ÄĂ£ sá»­a 'xport' vĂ  cho phĂ©p nháº­n 'path', áº©n báº¯t buá»™c 'items'
+export type ERPNavGroup = {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  path?: string;        // ÄÆ°á»ng dáº«n trá»±c tiáº¿p cho má»¥c pháº³ng nhÆ° Trang chá»§
+  items?: ERPNavItem[]; // Dáº¥u ? Ä‘á»ƒ khĂ´ng báº¯t buá»™c pháº£i khai bĂ¡o cá»¥m con
+};
+
+export const ERP_NAVIGATION: ERPNavGroup[] = [
+  // =========================================================================
+  // TRANG CHá»¦: Äá»‹nh dáº¡ng pháº³ng hoĂ n toĂ n, náº±m im má»™t chá»—, báº¥m Äƒn ngay
+  // =========================================================================
+  {
+    id: 'main',
+    label: 'Trang chá»§',
+    icon: Home,
+    path: ERP_ROUTE.dashboard,
+  },
+  
+  // =========================================================================
+  // PHĂ‚N Há»† Sáº¢N XUáº¤T
+  // =========================================================================
+  {
+    id: 'manufacturing',
+    label: 'Sáº£n xuáº¥t (Manufacturing)',
+    icon: Factory,
+    items: [
+      { id: 'plan', label: 'Káº¿ hoáº¡ch sáº£n xuáº¥t', icon: ClipboardList, path: ERP_ROUTE.manufacturing.plan, permissionKey: 'ke_hoach_san_xuat' },
+      { id: 'machining-log', label: 'Nháº­t kĂ½ gia cĂ´ng', icon: NotebookPen, path: ERP_ROUTE.manufacturing.machiningLog, permissionKey: 'nhat_ky_gia_cong' },
+      { id: 'qc-log', label: 'Nháº­t kĂ½ QC', icon: ClipboardCheck, path: ERP_ROUTE.manufacturing.qcLog, permissionKey: 'nhat_ky_qc' },
+      { id: 'maintenance-log', label: 'Nháº­t kĂ½ báº£o trĂ¬', icon: Wrench, path: ERP_ROUTE.manufacturing.maintenanceLog, permissionKey: 'nhat_ky_bao_tri' },
+      { id: 'progress', label: 'Theo dĂµi tiáº¿n Ä‘á»™', icon: Activity, path: ERP_ROUTE.manufacturing.progress, permissionKey: 'theo_doi_tien_do' },
+    ],
+  },
+
+  // =========================================================================
+  // PHĂ‚N Há»† KHO BĂƒI
+  // =========================================================================
+  {
+    id: 'warehouse',
+    label: 'Kho bĂ£i (WMS)',
+    icon: Package,
+    items: [
+      { id: 'import', label: 'Nháº­p kho', icon: Package, path: ERP_ROUTE.warehouse.import, permissionKey: 'nhap_kho' },
+      { id: 'export', label: 'Xuáº¥t kho', icon: PackageOpen, path: ERP_ROUTE.warehouse.export, permissionKey: 'xuat_kho' },
+      { id: 'transfer', label: 'Chuyá»ƒn kho', icon: ArrowRightLeft, path: ERP_ROUTE.warehouse.transfer, permissionKey: 'chuyen_kho' },
+      { id: 'oil', label: 'Xuáº¥t dáº§u', icon: Droplets, path: ERP_ROUTE.warehouse.oil, permissionKey: 'xuat_dau' },
+      { id: 'inventory-count', label: 'Kiá»ƒm kĂª kho', icon: ListChecks, path: ERP_ROUTE.warehouse.inventoryCount, permissionKey: 'kiem_ke_kho' },
+      { id: 'inventory', label: 'Tá»“n kho', icon: HardDrive, path: ERP_ROUTE.reports.inventory, permissionKey: 'ton_kho' },
+      { id: 'stock-card', label: 'Tháº» kho', icon: ClipboardList, path: ERP_ROUTE.warehouse.stockCard, permissionKey: 'the_kho' },
+      { id: 'inventory-valuation', label: 'GiĂ¡ trá»‹ tá»“n kho', icon: DollarSign, path: ERP_ROUTE.reports.valuation, permissionKey: 'bao_cao_kho' },
+      { id: 'transaction-history', label: 'Lá»‹ch sá»­ giao dá»‹ch', icon: Clock, path: ERP_ROUTE.warehouse.transactionHistory, permissionKey: 'lich_su_giao_dich' },
+    ],
+  },
+  
+  // =========================================================================
+  // BĂO CĂO & DASHBOARD
+  // =========================================================================
+  {
+    id: 'reports',
+    label: ' BĂ¡o cĂ¡o & Dashboard',
+    icon: LayoutDashboard,
+    items: [
+      { 
+        id: 'dashboard-summary', 
+        label: 'Dashboard tá»•ng há»£p', 
+        icon: LayoutDashboard, 
+        path: ERP_ROUTE.reports.summary, 
+        permissionKey: 'dashboard_tong_hop' 
+      },
+      { 
+        id: 'warehouse-report', 
+        label: 'BĂ¡o cĂ¡o kho', 
+        icon: Package, 
+        path: ERP_ROUTE.reports.warehouse, 
+        permissionKey: 'bao_cao_kho' 
+      },
+      { 
+        id: 'machining-report', 
+        label: 'BĂ¡o cĂ¡o gia cĂ´ng', 
+        icon: Drill, 
+        permissionKey: 'bao_cao_gia_cong',
+        children: [
+          { id: 'machining-production', label: 'Tá»•ng há»£p sáº£n xuáº¥t', icon: BarChart2, path: ERP_ROUTE.reports.machining.production, permissionKey: 'bao_cao_gia_cong' },
+          { id: 'machining-tools', label: 'Dao cá»¥ sá»­ dá»¥ng', icon: Drill, path: ERP_ROUTE.reports.machining.tools, permissionKey: 'bao_cao_gia_cong' },
+          { id: 'machining-damage', label: 'Hao há»¥t dao cá»¥', icon: FileWarning, path: ERP_ROUTE.reports.machining.damage, permissionKey: 'bao_cao_gia_cong' },
+          { id: 'machining-cost', label: 'Chi phĂ­ gia cĂ´ng', icon: DollarSign, path: ERP_ROUTE.reports.machining.cost, permissionKey: 'bao_cao_gia_cong' },
+        ]
+      },
+      { 
+        id: 'qc-report', 
+        label: 'BĂ¡o cĂ¡o QC', 
+        icon: Microscope, 
+        path: ERP_ROUTE.reports.qc, 
+        permissionKey: 'bao_cao_qc' 
+      },
+      { 
+        id: 'maintenance-report', 
+        label: 'BĂ¡o cĂ¡o báº£o trĂ¬', 
+        icon: Wrench, 
+        path: ERP_ROUTE.reports.maintenance, 
+        permissionKey: 'bao_cao_bao_tri' 
+      },
+      { 
+        id: 'machine-performance', 
+        label: 'Hiá»‡u suáº¥t mĂ¡y', 
+        icon: Gauge, 
+        path: ERP_ROUTE.reports.machinePerformance, 
+        permissionKey: 'hieu_suat_may' 
+      },
+      { 
+        id: 'pending-approval', 
+        label: 'Chá» duyá»‡t', 
+        icon: Hourglass, 
+        path: ERP_ROUTE.reports.pendingApproval, 
+        permissionKey: 'cho_duyet' 
+      },
+    ],
+  },
+
+  // =========================================================================
+  // DANH Má»¤C
+  // =========================================================================
+  {
+    id: 'masterData',
+    label: 'Quáº£n lĂ½ Danh má»¥c',
+    icon: Layers,
+    items: [
+      { id: 'categories', label: 'Chá»§ng loáº¡i', icon: FolderTree, path: ERP_ROUTE.masterData.categories, permissionKey: 'chung_loai' },
+      { id: 'locations', label: 'Kho', icon: MapPin, path: ERP_ROUTE.masterData.locations, permissionKey: 'kho' },
+      { id: 'machines', label: 'MĂ¡y mĂ³c', icon: Cpu, path: ERP_ROUTE.masterData.machines, permissionKey: 'may_moc' },
+      { id: 'projects', label: 'Dá»± Ă¡n', icon: ClipboardList, path: ERP_ROUTE.masterData.projects, permissionKey: 'du_an' },
+    ],
+  },
+
+  // =========================================================================
+  // Há»† THá»NG
+  // =========================================================================
+  {
+    id: 'system',
+    label: 'Há»‡ thá»‘ng',
+    icon: Settings,
+    items: [
+      { id: 'users', label: 'Quáº£n lĂ½ ngÆ°á»i dĂ¹ng', icon: Users, path: ERP_ROUTE.system.users, permissionKey: 'quan_ly_nguoi_dung' },
+      { id: 'roles', label: 'PhĂ¢n quyá»n', icon: ShieldCheck, path: ERP_ROUTE.system.roles, permissionKey: 'phan_quyen' },
+      { id: 'audit-log', label: 'Audit Log', icon: FileText, path: ERP_ROUTE.system.auditLog, permissionKey: 'audit_log' },
+      { id: 'backup-restore', label: 'Backup & Restore', icon: Database, path: ERP_ROUTE.system.backupRestore, permissionKey: 'backup_restore' },
+      { id: 'settings', label: 'CĂ i Ä‘áº·t há»‡ thá»‘ng', icon: Settings, path: ERP_ROUTE.system.settings, permissionKey: 'cai_dat_he_thong' },
+    ],
+  },
+
+  // =========================================================================
+  // TĂ€I KHOáº¢N
+  // =========================================================================
+  {
+    id: 'account',
+    label: 'TĂ i khoáº£n',
+    icon: UserCircle,
+    items: [
+      { id: 'profile', label: 'Há»“ sÆ¡ cĂ¡ nhĂ¢n', icon: UserCircle, path: ERP_ROUTE.account.profile },
+      { id: 'change-password', label: 'Äá»•i máº­t kháº©u', icon: Key, path: ERP_ROUTE.account.changePassword },
+      { id: 'logout', label: 'ÄÄƒng xuáº¥t', icon: LogOut, action: 'logout' },
+    ],
+  },
+];
+
+export const isNavItemVisible = (
+  item: ERPNavItem | undefined,
+  user?: ERPNavAuthUser
+) => {
+  if (!user || !item) return false;
+  
+  // Admin full access
+  if (user.role === 'admin') return true;
+  
+  // KhĂ´ng cĂ³ permission key = má»i ngÆ°á»i Ä‘á»u tháº¥y
+  if (!item.permissionKey) return true;
+
+  // Kiá»ƒm tra trá»±c tiáº¿p tá»« user.permissions[permissionKey]
+  const hasPermission = hasPermissionFlag(user.permissions?.[item.permissionKey], 'view');
+  
+  return hasPermission;
+};
+
+
