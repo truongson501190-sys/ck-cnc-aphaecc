@@ -49,7 +49,15 @@ function buildLines(tx: StockDocumentInput): PostMovementLineInput[] {
   ];
 }
 
-/** UI → API → stock_ledger (ONLY mutation path for inventory quantity) */
+/**
+ * UI → API → stock_ledger (ONLY mutation path for inventory quantity)
+ *
+ * ⚠️ Thứ tự quan trọng:
+ *   1. POST LEDGER trước — đây là nguồn chân lý của tồn kho
+ *   2. Nếu ledger OK → mới upsert stock_documents (metadata phiếu)
+ *   3. Ghi stock_document_lines (chi tiết items)
+ *   4. Nếu ledger fail → KHÔNG ghi document (tránh orphan)
+ */
 export async function postStockDocument(
   document: StockDocumentInput
 ): Promise<{ ok: boolean; documentId: string }> {
@@ -68,30 +76,15 @@ export async function postStockDocument(
     return { ok: false, documentId };
   }
 
-  const client = getSupabase();
-  if (client) {
-    await client.from('stock_documents').upsert(
-      {
-        id: documentId,
-        document_type: kind,
-        reference_number: document.referenceNumber || documentId,
-        status: 'posted',
-        transaction_date: document.transactionDate || new Date().toISOString().slice(0, 10),
-        warehouse_id: resolveWarehouseId(document.warehouse_id || document.toLocation),
-        from_warehouse_id: resolveWarehouseId(
-          document.from_warehouse_id || document.fromLocation
-        ),
-        to_warehouse_id: resolveWarehouseId(document.to_warehouse_id || document.toLocation),
-        total_value: document.totalValue || 0,
-        created_by: document.created_by || document.operator || null,
-        notes: document.notes || null,
-        posted_at: new Date().toISOString(),
-        legacy_payload: document,
-      },
-      { onConflict: 'reference_number', ignoreDuplicates: false }
-    );
-  }
+  // Tính total_value từ lines (fallback nếu UI không set)
+  const computedTotal = lines.reduce(
+    (s, l) => s + l.quantity * (l.unitCost ?? 0),
+    0
+  );
 
+  // ─────────────────────────────────────────────────────────────
+  // BƯỚC 1: POST LEDGER TRƯỚC
+  // ─────────────────────────────────────────────────────────────
   const posted = await postWarehouseMovementToLedger({
     kind,
     lines,
@@ -104,6 +97,7 @@ export async function postStockDocument(
     ),
     reference: document.referenceNumber || documentId,
     legacyTransactionId: documentId,
+    documentId,
     createdBy: document.created_by || document.operator,
     notes: document.notes,
     occurredAt: document.transactionDate
@@ -111,7 +105,101 @@ export async function postStockDocument(
       : undefined,
   });
 
-  return { ok: posted, documentId };
+  if (!posted) {
+    console.error('postStockDocument: ledger post failed, document NOT written', documentId);
+    return { ok: false, documentId };
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // BƯỚC 2: GHI DOCUMENT HEADER (metadata)
+  // ─────────────────────────────────────────────────────────────
+  const client = getSupabase();
+  if (client) {
+    const { error } = await client.from('stock_documents').upsert(
+      {
+        id: documentId,
+        document_type: kind,
+        reference_number: document.referenceNumber || documentId,
+        status: 'posted',
+        transaction_date:
+          document.transactionDate || new Date().toISOString().slice(0, 10),
+        warehouse_id: resolveWarehouseId(
+          document.warehouse_id || document.toLocation
+        ),
+        from_warehouse_id: resolveWarehouseId(
+          document.from_warehouse_id || document.fromLocation
+        ),
+        to_warehouse_id: resolveWarehouseId(
+          document.to_warehouse_id || document.toLocation
+        ),
+        total_value: document.totalValue || computedTotal,
+        created_by: document.created_by || document.operator || null,
+        notes: document.notes || null,
+        posted_at: new Date().toISOString(),
+        legacy_payload: document,
+      },
+      { onConflict: 'reference_number', ignoreDuplicates: false }
+    );
+
+    if (error) {
+      console.error(
+        'postStockDocument: stock_documents upsert failed (ledger OK):',
+        error.message
+      );
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // BƯỚC 3: GHI STOCK_DOCUMENT_LINES (chi tiết items)
+  // ─────────────────────────────────────────────────────────────
+  if (client) {
+    const rawItems = document.items && document.items.length > 0
+      ? document.items
+      : [];
+
+    const docLines = rawItems
+      .map((item, idx) => {
+        const productId = resolveProductId(
+          item.category_id || item.itemId || item.itemName || ''
+        );
+        const qty = Number(item.quantity) || 0;
+        const price = Number(item.price) || 0;
+        return {
+          document_id: documentId,
+          line_no: idx + 1,
+          product_id: productId,
+          quantity: qty,
+          unit: item.unit || null,
+          unit_cost: price,
+          total_value: Number(item.totalValue) || qty * price,
+          notes: item.ghiChu || null,
+          machine_id: null,
+          project_id: document.project_id || null,
+        };
+      })
+      .filter((l) => l.product_id && l.quantity > 0);
+
+    if (docLines.length > 0) {
+      // Xóa lines cũ (nếu upsert lại cùng document_id) rồi insert mới
+      await client
+        .from('stock_document_lines')
+        .delete()
+        .eq('document_id', documentId);
+
+      const { error: linesErr } = await client
+        .from('stock_document_lines')
+        .insert(docLines);
+
+      if (linesErr) {
+        console.error(
+          'postStockDocument: stock_document_lines insert failed (ledger OK):',
+          linesErr.message
+        );
+      }
+    }
+  }
+
+  return { ok: true, documentId };
 }
 
 export async function listLedgerMovements(
@@ -167,8 +255,9 @@ export function matchesMovementFilter(
 export function ledgerStatsFromMovements(movements: StockLedgerRow[]) {
   return {
     totalLines: movements.length,
-    ins: movements.filter((m) => m.movement_type === 'IN' || m.movement_type === 'TRANSFER_IN')
-      .length,
+    ins: movements.filter(
+      (m) => m.movement_type === 'IN' || m.movement_type === 'TRANSFER_IN'
+    ).length,
     outs: movements.filter(
       (m) =>
         m.movement_type === 'OUT' ||

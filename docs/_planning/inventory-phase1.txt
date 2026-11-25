@@ -1,0 +1,1394 @@
+
+
+========== FILE: src/core/stock-ledger/types.ts ==========
+
+export type MovementType =
+  | 'IN'
+  | 'OUT'
+  | 'TRANSFER_OUT'
+  | 'TRANSFER_IN'
+  | 'ADJUSTMENT'
+  | 'OIL_OUT';
+
+export type WarehouseMovementKind = 'IN' | 'OUT' | 'TRANSFER' | 'OIL_OUT';
+
+export interface StockLedgerRow {
+  id: string;
+  occurred_at: string;
+  posted_at: string;
+  warehouse_id: string;
+  product_id: string;
+  movement_type: MovementType;
+  qty_delta: number;
+  unit_cost: number | null;
+  document_type: string | null;
+  document_id: string | null;
+  document_line_id: string | null;
+  reference: string | null;
+  legacy_transaction_id: string | null;
+  created_by: string | null;
+  notes: string | null;
+  idempotency_key: string;
+}
+
+export interface StockOnHandRow {
+  warehouse_id: string;
+  product_id: string;
+  quantity_on_hand: number;
+  valuation_amount: number;
+}
+
+export interface StockOnHandProductRow {
+  product_id: string;
+  quantity_on_hand: number;
+  valuation_amount: number;
+}
+
+export interface PostMovementLineInput {
+  productId: string;
+  quantity: number;
+  unitCost?: number;
+  lineId?: string;
+}
+
+export interface PostWarehouseMovementInput {
+  kind: WarehouseMovementKind;
+  lines: PostMovementLineInput[];
+  warehouseId?: string;
+  fromWarehouseId?: string;
+  toWarehouseId?: string;
+  reference: string;
+  legacyTransactionId: string;
+  createdBy?: string;
+  notes?: string;
+  occurredAt?: string;
+}
+
+
+========== FILE: src/core/stock-ledger/postingApi.ts ==========
+
+import { getSupabase } from '@/supabase';
+import { resolveProductId, resolveWarehouseId } from './resolveIds';
+import type { PostWarehouseMovementInput, WarehouseMovementKind } from './types';
+
+async function rpcPostMovement(params: Record<string, unknown>): Promise<boolean> {
+  const client = getSupabase();
+  if (!client) return false;
+  const { error } = await client.rpc('post_warehouse_movement', params);
+  if (error) {
+    console.error('post_warehouse_movement RPC failed:', error.message);
+    return false;
+  }
+  return true;
+}
+
+/** Direct insert fallback when RPC/migration not yet applied on Supabase */
+async function fallbackInsertLedger(
+  input: PostWarehouseMovementInput
+): Promise<boolean> {
+  const client = getSupabase();
+  if (!client) return false;
+
+  const occurredAt = input.occurredAt || new Date().toISOString();
+  const rows: Array<Record<string, unknown>> = [];
+
+  for (const line of input.lines) {
+    const productId = resolveProductId(line.productId);
+    const qty = Math.abs(line.quantity);
+    if (!productId || qty <= 0) continue;
+
+    const base = {
+      product_id: productId,
+      unit_cost: line.unitCost ?? 0,
+      document_type: input.kind,
+      reference: input.reference,
+      legacy_transaction_id: input.legacyTransactionId,
+      created_by: input.createdBy ?? null,
+      notes: input.notes ?? null,
+      occurred_at: occurredAt,
+    };
+
+    if (input.kind === 'IN') {
+      const wh = resolveWarehouseId(input.warehouseId || input.toWarehouseId);
+      rows.push({
+        ...base,
+        warehouse_id: wh,
+        movement_type: 'IN',
+        qty_delta: qty,
+        idempotency_key: `in:${input.legacyTransactionId}:${line.lineId || productId}`,
+      });
+    } else if (input.kind === 'OUT' || input.kind === 'OIL_OUT') {
+      const wh = resolveWarehouseId(input.warehouseId || input.fromWarehouseId);
+      rows.push({
+        ...base,
+        warehouse_id: wh,
+        movement_type: input.kind === 'OIL_OUT' ? 'OIL_OUT' : 'OUT',
+        qty_delta: -qty,
+        idempotency_key: `out:${input.legacyTransactionId}:${line.lineId || productId}`,
+      });
+    } else if (input.kind === 'TRANSFER') {
+      const fromWh = resolveWarehouseId(input.fromWarehouseId);
+      const toWh = resolveWarehouseId(input.toWarehouseId);
+      rows.push({
+        ...base,
+        warehouse_id: fromWh,
+        movement_type: 'TRANSFER_OUT',
+        qty_delta: -qty,
+        idempotency_key: `trf-out:${input.legacyTransactionId}:${line.lineId || productId}`,
+      });
+      rows.push({
+        ...base,
+        warehouse_id: toWh,
+        movement_type: 'TRANSFER_IN',
+        qty_delta: qty,
+        idempotency_key: `trf-in:${input.legacyTransactionId}:${line.lineId || productId}`,
+      });
+    }
+  }
+
+  if (rows.length === 0) return false;
+
+  const { error } = await client.from('stock_ledger').upsert(rows, {
+    onConflict: 'idempotency_key',
+    ignoreDuplicates: true,
+  });
+
+  if (error) {
+    console.error('stock_ledger fallback insert failed:', error.message);
+    return false;
+  }
+  return true;
+}
+
+export async function postWarehouseMovementToLedger(
+  input: PostWarehouseMovementInput
+): Promise<boolean> {
+  if (input.lines.length === 0) return false;
+
+  let allOk = true;
+
+  for (const line of input.lines) {
+    const productId = resolveProductId(line.productId);
+    const qty = Math.abs(line.quantity);
+    if (!productId || qty <= 0) continue;
+
+    const params: Record<string, unknown> = {
+      p_movement_kind: input.kind,
+      p_product_id: productId,
+      p_quantity: qty,
+      p_unit_cost: line.unitCost ?? 0,
+      p_reference: input.reference,
+      p_legacy_transaction_id: `${input.legacyTransactionId}:${line.lineId || productId}`,
+      p_created_by: input.createdBy ?? null,
+      p_notes: input.notes ?? null,
+      p_occurred_at: input.occurredAt || new Date().toISOString(),
+    };
+
+    if (input.kind === 'IN') {
+      params.p_warehouse_id = resolveWarehouseId(
+        input.warehouseId || input.toWarehouseId
+      );
+    } else if (input.kind === 'OUT' || input.kind === 'OIL_OUT') {
+      params.p_warehouse_id = resolveWarehouseId(
+        input.warehouseId || input.fromWarehouseId
+      );
+    } else if (input.kind === 'TRANSFER') {
+      params.p_from_warehouse_id = resolveWarehouseId(input.fromWarehouseId);
+      params.p_to_warehouse_id = resolveWarehouseId(input.toWarehouseId);
+    }
+
+    const ok = await rpcPostMovement(params);
+    if (!ok) {
+      const fallbackOk = await fallbackInsertLedger({
+        ...input,
+        lines: [line],
+      });
+      if (!fallbackOk) allOk = false;
+    }
+  }
+
+  return allOk;
+}
+
+export function mapTransactionTypeToKind(type: string): WarehouseMovementKind | null {
+  switch (type) {
+    case 'import':
+      return 'IN';
+    case 'export':
+      return 'OUT';
+    case 'transfer':
+      return 'TRANSFER';
+    case 'oil_export':
+      return 'OIL_OUT';
+    default:
+      return null;
+  }
+}
+
+
+========== FILE: src/core/stock-ledger/index.ts ==========
+
+export * from './types';
+export * from './postingApi';
+export * from './resolveIds';
+export * from './legacyMigration';
+
+
+========== FILE: src/core/stock-ledger/resolveIds.ts ==========
+
+import { getSavedCategories } from '@/lib/utils';
+
+/** Resolve warehouse id from stored id, code, or display name */
+export function resolveWarehouseId(raw: string | undefined | null): string {
+  if (!raw) return 'default';
+  const trimmed = String(raw).trim();
+  if (!trimmed) return 'default';
+
+  try {
+    const keys = ['warehouses', 'category_warehouses'];
+    for (const key of keys) {
+      const saved = localStorage.getItem(key);
+      if (!saved) continue;
+      const list = JSON.parse(saved) as Array<Record<string, unknown>>;
+      if (!Array.isArray(list)) continue;
+      const match = list.find(
+        (w) =>
+          String(w.id) === trimmed ||
+          String(w.maKho) === trimmed ||
+          String(w.tenKho) === trimmed ||
+          String(w.loaiKho) === trimmed
+      );
+      if (match?.id) return String(match.id);
+      if (match?.maKho) return String(match.maKho);
+      if (match?.tenKho) return String(match.tenKho);
+    }
+  } catch {
+    /* use raw */
+  }
+  return trimmed;
+}
+
+/** Resolve product id from category id, code, or display name */
+export function resolveProductId(raw: string | undefined | null): string {
+  if (!raw) return '';
+  const trimmed = String(raw).trim();
+  if (!trimmed) return '';
+
+  const categories = getSavedCategories();
+  const match = categories.find(
+    (c) =>
+      c.id === trimmed ||
+      c.maLoai === trimmed ||
+      c.maChungLoai === trimmed ||
+      c.tenLoai === trimmed ||
+      c.tenChungLoai === trimmed
+  );
+  if (match?.id) return match.id;
+  if (match?.maLoai) return match.maLoai;
+  return trimmed;
+}
+
+
+========== FILE: src/core/stock-ledger/legacyMigration.ts ==========
+
+import { getSupabase } from '@/supabase';
+import type { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
+import { resolveProductId, resolveWarehouseId } from './resolveIds';
+import type { WarehouseMovementKind } from './types';
+
+const MIGRATION_FLAG = 'erp_stock_ledger_migrated_v1';
+
+type LegacyTx = WarehouseTransaction & {
+  itemName?: string;
+  itemId?: string;
+  toLocation?: string;
+  fromLocation?: string;
+  operator?: string;
+};
+
+function isPostedStatus(status: string | undefined): boolean {
+  return status === 'approved' || status === 'completed';
+}
+
+function movementKind(type: string): WarehouseMovementKind | null {
+  switch (type) {
+    case 'import':
+      return 'IN';
+    case 'export':
+      return 'OUT';
+    case 'transfer':
+      return 'TRANSFER';
+    case 'oil_export':
+      return 'OIL_OUT';
+    default:
+      return null;
+  }
+}
+
+function expandLines(tx: LegacyTx): Array<{
+  productId: string;
+  quantity: number;
+  unitCost: number;
+  lineId: string;
+}> {
+  const lines: Array<{
+    productId: string;
+    quantity: number;
+    unitCost: number;
+    lineId: string;
+  }> = [];
+
+  if (tx.items && tx.items.length > 0) {
+    tx.items.forEach((item: WarehouseTransactionItem, idx) => {
+      const productId = resolveProductId(
+        item.category_id || item.itemName || ''
+      );
+      if (!productId) return;
+      lines.push({
+        productId,
+        quantity: Number(item.quantity) || 0,
+        unitCost: Number(item.price) || 0,
+        lineId: item.id || `${tx.id}-line-${idx}`,
+      });
+    });
+    return lines;
+  }
+
+  const productId = resolveProductId(
+    tx.category_id || tx.itemId || tx.itemName || ''
+  );
+  const qty = Number(tx.quantity) || 0;
+  if (productId && qty > 0) {
+    lines.push({
+      productId,
+      quantity: qty,
+      unitCost: Number(tx.price) || 0,
+      lineId: `${tx.id}-line-0`,
+    });
+  }
+  return lines;
+}
+
+/** One-time migration: localStorage warehouseTransactions → stock_ledger via RPC */
+export async function migrateLegacyTransactionsToLedger(): Promise<{
+  migrated: number;
+  skipped: number;
+}> {
+  if (localStorage.getItem(MIGRATION_FLAG) === 'done') {
+    return { migrated: 0, skipped: 0 };
+  }
+
+  const client = getSupabase();
+  if (!client) {
+    return { migrated: 0, skipped: 0 };
+  }
+
+  let raw: LegacyTx[] = [];
+  try {
+    const saved = localStorage.getItem('warehouseTransactions');
+    if (saved) raw = JSON.parse(saved) as LegacyTx[];
+  } catch {
+    raw = [];
+  }
+
+  let migrated = 0;
+  let skipped = 0;
+
+  for (const tx of raw) {
+    if (!isPostedStatus(tx.status)) {
+      skipped++;
+      continue;
+    }
+    const kind = movementKind(tx.type);
+    if (!kind) {
+      skipped++;
+      continue;
+    }
+
+    const lines = expandLines(tx);
+    if (lines.length === 0) {
+      skipped++;
+      continue;
+    }
+
+    const warehouseId = resolveWarehouseId(
+      tx.warehouse_id || tx.toLocation || tx.fromLocation
+    );
+    const fromWh = resolveWarehouseId(tx.from_warehouse_id || tx.fromLocation);
+    const toWh = resolveWarehouseId(tx.to_warehouse_id || tx.toLocation);
+    const occurredAt = tx.transactionDate
+      ? new Date(tx.transactionDate).toISOString()
+      : new Date().toISOString();
+
+    for (const line of lines) {
+      const { error } = await client.rpc('post_warehouse_movement', {
+        p_movement_kind: kind,
+        p_product_id: line.productId,
+        p_quantity: line.quantity,
+        p_warehouse_id:
+          kind === 'IN' ? toWh || warehouseId : kind === 'OUT' || kind === 'OIL_OUT' ? fromWh || warehouseId : null,
+        p_from_warehouse_id: kind === 'TRANSFER' ? fromWh : null,
+        p_to_warehouse_id: kind === 'TRANSFER' ? toWh : kind === 'IN' ? toWh || warehouseId : null,
+        p_unit_cost: line.unitCost,
+        p_reference: tx.referenceNumber || tx.id,
+        p_legacy_transaction_id: `${tx.id}:${line.lineId}`,
+        p_created_by: tx.created_by || tx.operator || null,
+        p_notes: tx.notes || null,
+        p_occurred_at: occurredAt,
+      });
+
+      if (error) {
+        console.warn('Legacy migration row failed:', error.message, tx.id);
+        skipped++;
+      } else {
+        migrated++;
+      }
+    }
+  }
+
+  if (migrated > 0 || raw.length === 0) {
+    localStorage.setItem(MIGRATION_FLAG, 'done');
+  }
+
+  return { migrated, skipped };
+}
+
+export function resetLegacyMigrationFlag(): void {
+  localStorage.removeItem(MIGRATION_FLAG);
+}
+
+
+========== FILE: src/core/inventory-engine/index.ts ==========
+
+import { getSupabase } from '@/supabase';
+import type {
+  StockLedgerRow,
+  StockOnHandProductRow,
+  StockOnHandRow,
+} from '@/core/stock-ledger/types';
+
+export interface OnHandDisplayRow {
+  productId: string;
+  warehouseId: string;
+  quantityOnHand: number;
+  valuationAmount: number;
+}
+
+export interface MovementFilter {
+  warehouseId?: string;
+  productId?: string;
+  fromDate?: string;
+  toDate?: string;
+  movementTypes?: string[];
+  limit?: number;
+}
+
+function toNumber(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') {
+    const n = parseFloat(v);
+    return Number.isNaN(n) ? 0 : n;
+  }
+  return 0;
+}
+
+/** On-hand per warehouse × product — reads v_stock_on_hand only */
+export async function getOnHand(filters?: {
+  warehouseId?: string;
+  productId?: string;
+}): Promise<OnHandDisplayRow[]> {
+  const client = getSupabase();
+  if (!client) return [];
+
+  let query = client.from('v_stock_on_hand').select('*');
+
+  if (filters?.warehouseId) {
+    query = query.eq('warehouse_id', filters.warehouseId);
+  }
+  if (filters?.productId) {
+    query = query.eq('product_id', filters.productId);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn('getOnHand:', error.message);
+    return [];
+  }
+
+  return (data as StockOnHandRow[]).map((row) => ({
+    productId: row.product_id,
+    warehouseId: row.warehouse_id,
+    quantityOnHand: toNumber(row.quantity_on_hand),
+    valuationAmount: toNumber(row.valuation_amount),
+  }));
+}
+
+/** Global on-hand per product (all warehouses) */
+export async function getOnHandByProduct(): Promise<
+  Array<{ productId: string; quantityOnHand: number; valuationAmount: number }>
+> {
+  const client = getSupabase();
+  if (!client) return [];
+
+  const { data, error } = await client.from('v_stock_on_hand_product').select('*');
+  if (error) {
+    console.warn('getOnHandByProduct:', error.message);
+    return [];
+  }
+
+  return (data as StockOnHandProductRow[]).map((row) => ({
+    productId: row.product_id,
+    quantityOnHand: toNumber(row.quantity_on_hand),
+    valuationAmount: toNumber(row.valuation_amount),
+  }));
+}
+
+/** Ledger movements — read-only */
+export async function getMovements(
+  filter: MovementFilter = {}
+): Promise<StockLedgerRow[]> {
+  const client = getSupabase();
+  if (!client) return [];
+
+  let query = client
+    .from('stock_ledger')
+    .select('*')
+    .order('occurred_at', { ascending: false });
+
+  if (filter.warehouseId) query = query.eq('warehouse_id', filter.warehouseId);
+  if (filter.productId) query = query.eq('product_id', filter.productId);
+  if (filter.fromDate) query = query.gte('occurred_at', filter.fromDate);
+  if (filter.toDate) query = query.lte('occurred_at', filter.toDate);
+  if (filter.movementTypes?.length) {
+    query = query.in('movement_type', filter.movementTypes);
+  }
+  if (filter.limit) query = query.limit(filter.limit);
+
+  const { data, error } = await query;
+  if (error) {
+    console.warn('getMovements:', error.message);
+    return [];
+  }
+
+  return (data || []) as StockLedgerRow[];
+}
+
+/** Valuation from ledger (SUM qty × unit_cost per warehouse/product) */
+export async function getValuation(filters?: {
+  warehouseId?: string;
+}): Promise<{ totalValue: number; rows: OnHandDisplayRow[] }> {
+  const rows = await getOnHand(filters);
+  const totalValue = rows.reduce((s, r) => s + r.valuationAmount, 0);
+  return { totalValue, rows };
+}
+
+/** On-hand for one product in one warehouse (forms validation) */
+export async function getProductOnHandInWarehouse(
+  productId: string,
+  warehouseId?: string
+): Promise<number> {
+  if (warehouseId) {
+    const rows = await getOnHand({ productId, warehouseId });
+    return rows.reduce((s, r) => s + r.quantityOnHand, 0);
+  }
+  const rows = await getOnHandByProduct();
+  const match = rows.find((r) => r.productId === productId);
+  return match?.quantityOnHand ?? 0;
+}
+
+
+========== FILE: src/api/stock.ts ==========
+
+import { getSupabase } from '@/supabase';
+import {
+  mapTransactionTypeToKind,
+  postWarehouseMovementToLedger,
+} from '@/core/stock-ledger/postingApi';
+import { resolveProductId, resolveWarehouseId } from '@/core/stock-ledger/resolveIds';
+import type { PostMovementLineInput, WarehouseMovementKind } from '@/core/stock-ledger/types';
+import type { WarehouseTransaction } from '@/types/inventory';
+import type { StockLedgerRow } from '@/core/stock-ledger/types';
+import {
+  getMovements,
+  getOnHand,
+  getOnHandByProduct,
+  getValuation,
+  type MovementFilter,
+} from '@/core/inventory-engine';
+
+export type StockDocumentInput = WarehouseTransaction & {
+  itemName?: string;
+  itemId?: string;
+  toLocation?: string;
+  fromLocation?: string;
+  operator?: string;
+};
+
+function buildLines(tx: StockDocumentInput): PostMovementLineInput[] {
+  if (tx.items && tx.items.length > 0) {
+    return tx.items
+      .map((item, idx) => ({
+        productId: resolveProductId(item.category_id || item.itemId || item.itemName || ''),
+        quantity: Number(item.quantity) || 0,
+        unitCost: Number(item.price) || 0,
+        lineId: item.id || `line-${idx}`,
+      }))
+      .filter((l) => l.productId && l.quantity > 0);
+  }
+
+  const productId = resolveProductId(tx.category_id || tx.itemId || tx.itemName || '');
+  const qty = Number(tx.quantity) || 0;
+  if (!productId || qty <= 0) return [];
+
+  return [
+    {
+      productId,
+      quantity: qty,
+      unitCost: Number(tx.price) || 0,
+      lineId: 'line-0',
+    },
+  ];
+}
+
+/** UI → API → stock_ledger (ONLY mutation path for inventory quantity) */
+export async function postStockDocument(
+  document: StockDocumentInput
+): Promise<{ ok: boolean; documentId: string }> {
+  const documentId =
+    document.id || `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+  const status = document.status || 'approved';
+  const shouldPost = status === 'approved' || status === 'completed';
+
+  if (!shouldPost) {
+    return { ok: false, documentId };
+  }
+
+  const kind = mapTransactionTypeToKind(document.type);
+  const lines = buildLines(document);
+  if (!kind || lines.length === 0) {
+    return { ok: false, documentId };
+  }
+
+  const client = getSupabase();
+  if (client) {
+    await client.from('stock_documents').upsert(
+      {
+        id: documentId,
+        document_type: kind,
+        reference_number: document.referenceNumber || documentId,
+        status: 'posted',
+        transaction_date: document.transactionDate || new Date().toISOString().slice(0, 10),
+        warehouse_id: resolveWarehouseId(document.warehouse_id || document.toLocation),
+        from_warehouse_id: resolveWarehouseId(
+          document.from_warehouse_id || document.fromLocation
+        ),
+        to_warehouse_id: resolveWarehouseId(document.to_warehouse_id || document.toLocation),
+        total_value: document.totalValue || 0,
+        created_by: document.created_by || document.operator || null,
+        notes: document.notes || null,
+        posted_at: new Date().toISOString(),
+        legacy_payload: document,
+      },
+      { onConflict: 'reference_number', ignoreDuplicates: false }
+    );
+  }
+
+  const posted = await postWarehouseMovementToLedger({
+    kind,
+    lines,
+    warehouseId: resolveWarehouseId(document.warehouse_id),
+    fromWarehouseId: resolveWarehouseId(
+      document.from_warehouse_id || document.fromLocation
+    ),
+    toWarehouseId: resolveWarehouseId(
+      document.to_warehouse_id || document.toLocation
+    ),
+    reference: document.referenceNumber || documentId,
+    legacyTransactionId: documentId,
+    createdBy: document.created_by || document.operator,
+    notes: document.notes,
+    occurredAt: document.transactionDate
+      ? new Date(document.transactionDate).toISOString()
+      : undefined,
+  });
+
+  return { ok: posted, documentId };
+}
+
+export async function listLedgerMovements(
+  filter: MovementFilter = {}
+): Promise<StockLedgerRow[]> {
+  return getMovements(filter);
+}
+
+export async function listOnHandByProduct() {
+  return getOnHandByProduct();
+}
+
+export async function listOnHand(filters?: { warehouseId?: string; productId?: string }) {
+  return getOnHand(filters);
+}
+
+export async function getStockValuation(filters?: { warehouseId?: string }) {
+  return getValuation(filters);
+}
+
+export function movementTypeLabel(type: string): string {
+  switch (type) {
+    case 'IN':
+    case 'TRANSFER_IN':
+      return 'Nhập';
+    case 'OUT':
+      return 'Xuất';
+    case 'OIL_OUT':
+      return 'Xuất dầu';
+    case 'TRANSFER_OUT':
+      return 'Chuyển (xuất)';
+    case 'ADJUSTMENT':
+      return 'Điều chỉnh';
+    default:
+      return type;
+  }
+}
+
+export function matchesMovementFilter(
+  movementType: string,
+  filter: string
+): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'import') return movementType === 'IN' || movementType === 'TRANSFER_IN';
+  if (filter === 'export') return movementType === 'OUT';
+  if (filter === 'oil_export') return movementType === 'OIL_OUT';
+  if (filter === 'transfer') {
+    return movementType === 'TRANSFER_OUT' || movementType === 'TRANSFER_IN';
+  }
+  return true;
+}
+
+export function ledgerStatsFromMovements(movements: StockLedgerRow[]) {
+  return {
+    totalLines: movements.length,
+    ins: movements.filter((m) => m.movement_type === 'IN' || m.movement_type === 'TRANSFER_IN')
+      .length,
+    outs: movements.filter(
+      (m) =>
+        m.movement_type === 'OUT' ||
+        m.movement_type === 'OIL_OUT' ||
+        m.movement_type === 'TRANSFER_OUT'
+    ).length,
+    transfers: movements.filter((m) => m.movement_type.startsWith('TRANSFER')).length,
+    oilExports: movements.filter((m) => m.movement_type === 'OIL_OUT').length,
+  };
+}
+
+export type { WarehouseMovementKind, MovementFilter };
+
+
+========== FILE: src/api/index.ts ==========
+
+export * from './stock';
+
+
+========== FILE: src/types/inventory.ts ==========
+
+export interface InventoryItem {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  unit: string;
+  currentStock: number;
+  minStock: number;
+  maxStock: number;
+  location: string;
+  price: number;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WarehouseTransaction {
+  id: string;
+  type: 'import' | 'export' | 'transfer' | 'oil_export';
+  /** Set when posting to ledger; optional on legacy / ExactLayout form payloads */
+  category_id?: string;
+  quantity?: number;
+  unit?: string;
+  price?: number;
+  totalValue?: number;
+  warehouse_id?: string; // For import/export
+  from_warehouse_id?: string; // For transfer
+  to_warehouse_id?: string; // For transfer
+  project_id?: string; // For export
+  machine_id?: string; // For oil export
+  created_by?: string; // User foreign key
+  received_by?: string; // User foreign key when goods are received
+  approved_by?: string; // User foreign key for approval
+  reason?: string;
+  referenceNumber: string;
+  status: 'draft' | 'pending' | 'approved' | 'rejected' | 'completed';
+  transactionDate: string;
+  createdAt: string;
+  notes?: string;
+  approvedAt?: string;
+  // Support for bulk line items in complex layouts
+  items?: WarehouseTransactionItem[];
+  trangThaiBanDau?: string;
+  /** ExactLayout / legacy single-line form fields (see postStockDocument mapping) */
+  itemId?: string;
+  itemName?: string;
+  toLocation?: string;
+  fromLocation?: string;
+  operator?: string;
+  machineId?: string;
+  /** Legacy form fields */
+  recipient?: string;
+  supplier?: string;
+  projectId?: string;
+}
+
+export interface WarehouseTransactionItem {
+  id: string;
+  category_id?: string;
+  /** UI selection key (often same as category id or code) */
+  itemId?: string;
+  itemName?: string; // Optional denormalized display name
+  quantity: number;
+  unit: string;
+  price?: number;
+  totalValue?: number;
+  ghiChu?: string;
+}
+
+export type { Category } from './categories';
+
+export interface WarehouseLocation {
+  id: string;
+  name: string;
+  code: string;
+  type: 'warehouse' | 'production' | 'office' | 'external';
+  address?: string;
+  manager?: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+
+========== FILE: src/types/warehouse.ts ==========
+
+// src/types/warehouse.ts
+
+export interface Category {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+  minStock: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface TransactionItem {
+  categoryId: string;
+  quantity: number;
+  price?: number;
+}
+
+export interface BaseTransaction {
+  id: string;
+  type: 'import' | 'export' | 'transfer' | 'consumable' | 'adjustment';
+  date: string;
+  items: TransactionItem[];
+  status: 'pending' | 'approved' | 'completed' | 'rejected';
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface ImportTransaction extends BaseTransaction {
+  type: 'import';
+  supplier?: string;
+  warehouse: string;
+}
+
+export interface ExportTransaction extends BaseTransaction {
+  type: 'export';
+  project?: string;
+  warehouse: string;
+  receiver?: string;
+}
+
+export interface TransferTransaction extends BaseTransaction {
+  type: 'transfer';
+  fromWarehouse: string;
+  toWarehouse: string;
+}
+
+export interface ConsumableTransaction extends BaseTransaction {
+  type: 'consumable';
+  project?: string;
+  warehouse: string;
+  receiver?: string;
+}
+
+export interface AdjustmentTransaction extends BaseTransaction {
+  type: 'adjustment';
+  warehouse: string;
+  reason: string;
+  inventoryCountId?: string;
+}
+
+export interface InventoryCountEntry {
+  id: string;
+  categoryId: string;      // Bắt buộc
+  itemCode: string;
+  itemName: string;
+  warehouse: string;
+  countedQuantity: number;
+  expectedQuantity: number;
+  difference: number;
+  countedAt: string;
+  status: 'pending' | 'matched' | 'mismatch' | 'applied';
+  notes?: string;
+  adjustedTransactionId?: string;
+}
+
+export type Transaction = 
+  | ImportTransaction 
+  | ExportTransaction 
+  | TransferTransaction 
+  | ConsumableTransaction 
+  | AdjustmentTransaction;
+
+
+========== FILE: src/types/categories.ts ==========
+
+// Category Types (Chủng loại)
+export interface Category {
+  id: string;
+  name?: string;
+  maLoai?: string;
+  /** Legacy / Excel alias for `maLoai` (product code) */
+  maChungLoai?: string;
+  tenLoai?: string;
+  /** Legacy display name; prefer `tenLoai` when both exist */
+  tenChungLoai?: string;
+  donVi: string;
+  gia?: number;
+  minimumStock?: number;
+  moTa?: string;
+  ghiChu?: string;
+  createdAt: string;
+}
+
+// Machine Types (Máy móc)
+export interface Machine {
+  id: string;
+  name?: string;
+  maMay?: string;
+  tenMay: string;
+  loaiMay?: string;
+  giaGioSang?: number;
+  giaGioChieu?: number;
+  giaGioToi?: number;
+  moTa?: string;
+  ghiChu?: string;
+  qrData?: string;
+  createdAt: string;
+}
+
+// Warehouse Types (Kho)
+export interface Warehouse {
+  id: string;
+  name?: string;
+  maKho?: string;
+  tenKho: string;
+  loaiKho?: string;
+  ghiChu?: string;
+  createdAt: string;
+}
+
+// User Types (Người Nhập - Xuất)
+export interface User {
+  id: string;
+  employee_code: string; // Mã số nhân viên
+  full_name: string;
+  fullName?: string;
+  role: 'nhap' | 'xuat' | 'nhan' | 'admin' | 'manager' | 'user';
+  note?: string;
+  // compatibility / legacy fields used across UI
+  hoTen?: string;
+  msnv?: string;
+  name?: string;
+  username?: string;
+  chucDanh?: string;
+  boPhan?: string;
+  matKhau?: string;
+  vaiTro?: string;
+  trangThai?: 'active' | 'inactive';
+  email?: string;
+  lastLogin?: string | Date;
+  soDienThoai?: string;
+  createdAt: string;
+}
+
+// Project Types (Dự Án)
+export interface Project {
+  id: string;
+  project_code?: string;
+  maDuAn?: string;
+  name?: string;
+  tenDuAn: string;
+  /** Legacy field used by some localStorage exports */
+  tenKhachHang?: string;
+  ghiChu?: string;
+  createdAt: string;
+}
+
+// Employee Types (Nhân viên)
+export interface Employee {
+  id: string;
+  msnv: string;
+  ten_nhan_vien: string;
+  ghiChu?: string;
+  createdAt: string;
+}
+
+
+========== FILE: supabase/migrations/001_stock_ledger_erp.sql ==========
+
+-- ERP/WMS: Stock Ledger as single source of truth
+-- Run in Supabase SQL Editor or via CLI
+
+-- ---------------------------------------------------------------------------
+-- stock_ledger (append-only)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.stock_ledger (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  occurred_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  posted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  warehouse_id TEXT NOT NULL,
+  product_id TEXT NOT NULL,
+  movement_type TEXT NOT NULL CHECK (
+    movement_type IN (
+      'IN', 'OUT', 'TRANSFER_OUT', 'TRANSFER_IN', 'ADJUSTMENT', 'OIL_OUT'
+    )
+  ),
+  qty_delta NUMERIC(18, 4) NOT NULL CHECK (qty_delta <> 0),
+  unit_cost NUMERIC(18, 4) DEFAULT 0,
+  document_type TEXT,
+  document_id TEXT,
+  document_line_id TEXT,
+  reference TEXT,
+  legacy_transaction_id TEXT,
+  created_by TEXT,
+  notes TEXT,
+  idempotency_key TEXT NOT NULL,
+  CONSTRAINT stock_ledger_idempotency_unique UNIQUE (idempotency_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_ledger_wh_product
+  ON public.stock_ledger (warehouse_id, product_id);
+CREATE INDEX IF NOT EXISTS idx_stock_ledger_occurred
+  ON public.stock_ledger (occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_stock_ledger_legacy
+  ON public.stock_ledger (legacy_transaction_id)
+  WHERE legacy_transaction_id IS NOT NULL;
+
+-- ---------------------------------------------------------------------------
+-- stock_documents (optional header for future workflow)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.stock_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_type TEXT NOT NULL,
+  reference_number TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'draft'
+    CHECK (status IN ('draft', 'pending', 'approved', 'rejected', 'posted')),
+  transaction_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  warehouse_id TEXT,
+  from_warehouse_id TEXT,
+  to_warehouse_id TEXT,
+  total_value NUMERIC(18, 4) DEFAULT 0,
+  created_by TEXT,
+  notes TEXT,
+  legacy_payload JSONB,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  posted_at TIMESTAMPTZ,
+  CONSTRAINT stock_documents_ref_unique UNIQUE (reference_number)
+);
+
+CREATE TABLE IF NOT EXISTS public.stock_document_lines (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  document_id UUID NOT NULL REFERENCES public.stock_documents(id) ON DELETE CASCADE,
+  line_no INT NOT NULL DEFAULT 1,
+  product_id TEXT NOT NULL,
+  quantity NUMERIC(18, 4) NOT NULL,
+  unit TEXT,
+  unit_cost NUMERIC(18, 4) DEFAULT 0,
+  total_value NUMERIC(18, 4) DEFAULT 0,
+  notes TEXT
+);
+
+-- ---------------------------------------------------------------------------
+-- inventory_count_sessions
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.inventory_count_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  warehouse_id TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'planned'
+    CHECK (status IN ('planned', 'in_progress', 'posted', 'cancelled')),
+  counted_at TIMESTAMPTZ,
+  posted_at TIMESTAMPTZ,
+  created_by TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS public.inventory_count_lines (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES public.inventory_count_sessions(id) ON DELETE CASCADE,
+  product_id TEXT NOT NULL,
+  counted_qty NUMERIC(18, 4) NOT NULL,
+  system_qty NUMERIC(18, 4) NOT NULL DEFAULT 0,
+  variance_qty NUMERIC(18, 4) GENERATED ALWAYS AS (counted_qty - system_qty) STORED
+);
+
+-- ---------------------------------------------------------------------------
+-- production_reports (BC-app module)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.production_reports (
+  id TEXT PRIMARY KEY,
+  ngay_thang DATE,
+  may_san_xuat TEXT,
+  du_an TEXT,
+  khach_hang TEXT,
+  ban_ve_so TEXT,
+  chi_tiet_so TEXT,
+  ten_chi_tiet TEXT,
+  noi_dung_gia_cong TEXT,
+  so_luong_hoan_thanh NUMERIC(18, 4) DEFAULT 0,
+  vat_lieu TEXT,
+  nguyen_cong_so TEXT,
+  tool_entries JSONB DEFAULT '[]'::jsonb,
+  ca TEXT,
+  cp_may NUMERIC(18, 4) DEFAULT 0,
+  cp_dao_cu NUMERIC(18, 4) DEFAULT 0,
+  nguoi_van_hanh TEXT,
+  nguoi_kiem_tra TEXT,
+  tg_tren_ca TEXT,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- ---------------------------------------------------------------------------
+-- roles_permissions (optional DB-backed RBAC)
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.roles_permissions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  role_key TEXT NOT NULL,
+  module_key TEXT NOT NULL,
+  can_view BOOLEAN DEFAULT false,
+  can_add BOOLEAN DEFAULT false,
+  can_edit BOOLEAN DEFAULT false,
+  can_delete BOOLEAN DEFAULT false,
+  can_approve BOOLEAN DEFAULT false,
+  can_export BOOLEAN DEFAULT false,
+  UNIQUE (role_key, module_key)
+);
+
+-- ---------------------------------------------------------------------------
+-- On-hand view (read model)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW public.v_stock_on_hand AS
+SELECT
+  warehouse_id,
+  product_id,
+  SUM(qty_delta)::NUMERIC(18, 4) AS quantity_on_hand,
+  SUM(qty_delta * COALESCE(unit_cost, 0))::NUMERIC(18, 4) AS valuation_amount
+FROM public.stock_ledger
+GROUP BY warehouse_id, product_id
+HAVING SUM(qty_delta) <> 0;
+
+-- Global on-hand (all warehouses) for product-level screens
+CREATE OR REPLACE VIEW public.v_stock_on_hand_product AS
+SELECT
+  product_id,
+  SUM(qty_delta)::NUMERIC(18, 4) AS quantity_on_hand,
+  SUM(qty_delta * COALESCE(unit_cost, 0))::NUMERIC(18, 4) AS valuation_amount
+FROM public.stock_ledger
+GROUP BY product_id
+HAVING SUM(qty_delta) <> 0;
+
+-- ---------------------------------------------------------------------------
+-- RPC: post_stock_movement (single ledger insert, idempotent)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.post_stock_movement(
+  p_warehouse_id TEXT,
+  p_product_id TEXT,
+  p_movement_type TEXT,
+  p_qty_delta NUMERIC,
+  p_unit_cost NUMERIC DEFAULT 0,
+  p_document_type TEXT DEFAULT NULL,
+  p_document_id TEXT DEFAULT NULL,
+  p_document_line_id TEXT DEFAULT NULL,
+  p_reference TEXT DEFAULT NULL,
+  p_legacy_transaction_id TEXT DEFAULT NULL,
+  p_created_by TEXT DEFAULT NULL,
+  p_notes TEXT DEFAULT NULL,
+  p_occurred_at TIMESTAMPTZ DEFAULT now(),
+  p_idempotency_key TEXT DEFAULT NULL
+)
+RETURNS UUID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_id UUID;
+  v_key TEXT;
+BEGIN
+  IF p_warehouse_id IS NULL OR p_warehouse_id = '' THEN
+    RAISE EXCEPTION 'warehouse_id is required';
+  END IF;
+  IF p_product_id IS NULL OR p_product_id = '' THEN
+    RAISE EXCEPTION 'product_id is required';
+  END IF;
+  IF p_qty_delta IS NULL OR p_qty_delta = 0 THEN
+    RAISE EXCEPTION 'qty_delta must be non-zero';
+  END IF;
+
+  v_key := COALESCE(
+    p_idempotency_key,
+    encode(sha256(
+      (p_warehouse_id || '|' || p_product_id || '|' || p_movement_type || '|' ||
+       p_qty_delta::TEXT || '|' || COALESCE(p_reference, '') || '|' ||
+       COALESCE(p_legacy_transaction_id, '') || '|' ||
+       COALESCE(p_document_line_id, ''))::bytea
+    ), 'hex')
+  );
+
+  INSERT INTO public.stock_ledger (
+    occurred_at, warehouse_id, product_id, movement_type, qty_delta,
+    unit_cost, document_type, document_id, document_line_id, reference,
+    legacy_transaction_id, created_by, notes, idempotency_key
+  ) VALUES (
+    COALESCE(p_occurred_at, now()), p_warehouse_id, p_product_id, p_movement_type,
+    p_qty_delta, COALESCE(p_unit_cost, 0), p_document_type, p_document_id,
+    p_document_line_id, p_reference, p_legacy_transaction_id, p_created_by,
+    p_notes, v_key
+  )
+  ON CONFLICT (idempotency_key) DO NOTHING
+  RETURNING id INTO v_id;
+
+  IF v_id IS NULL THEN
+    SELECT id INTO v_id FROM public.stock_ledger WHERE idempotency_key = v_key;
+  END IF;
+
+  RETURN v_id;
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- RPC: post_warehouse_movement (document-level: IN/OUT/TRANSFER/OIL)
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.post_warehouse_movement(
+  p_movement_kind TEXT,
+  p_product_id TEXT,
+  p_quantity NUMERIC,
+  p_warehouse_id TEXT DEFAULT NULL,
+  p_from_warehouse_id TEXT DEFAULT NULL,
+  p_to_warehouse_id TEXT DEFAULT NULL,
+  p_unit_cost NUMERIC DEFAULT 0,
+  p_reference TEXT DEFAULT NULL,
+  p_legacy_transaction_id TEXT DEFAULT NULL,
+  p_created_by TEXT DEFAULT NULL,
+  p_notes TEXT DEFAULT NULL,
+  p_occurred_at TIMESTAMPTZ DEFAULT now()
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_ids UUID[] := ARRAY[]::UUID[];
+  v_id UUID;
+  v_qty NUMERIC;
+BEGIN
+  v_qty := ABS(p_quantity);
+  IF v_qty = 0 THEN
+    RAISE EXCEPTION 'quantity must be positive';
+  END IF;
+
+  IF p_movement_kind = 'IN' THEN
+    v_id := public.post_stock_movement(
+      p_warehouse_id, p_product_id, 'IN', v_qty, p_unit_cost,
+      'GRN', NULL, NULL, p_reference, p_legacy_transaction_id,
+      p_created_by, p_notes, p_occurred_at,
+      'in:' || COALESCE(p_legacy_transaction_id, p_reference) || ':' || p_product_id
+    );
+    v_ids := array_append(v_ids, v_id);
+
+  ELSIF p_movement_kind IN ('OUT', 'OIL_OUT') THEN
+    v_id := public.post_stock_movement(
+      p_warehouse_id, p_product_id,
+      CASE WHEN p_movement_kind = 'OIL_OUT' THEN 'OIL_OUT' ELSE 'OUT' END,
+      -v_qty, p_unit_cost, 'GI', NULL, NULL, p_reference, p_legacy_transaction_id,
+      p_created_by, p_notes, p_occurred_at,
+      'out:' || COALESCE(p_legacy_transaction_id, p_reference) || ':' || p_product_id
+    );
+    v_ids := array_append(v_ids, v_id);
+
+  ELSIF p_movement_kind = 'TRANSFER' THEN
+    IF p_from_warehouse_id IS NULL OR p_to_warehouse_id IS NULL THEN
+      RAISE EXCEPTION 'transfer requires from and to warehouse';
+    END IF;
+    IF p_from_warehouse_id = p_to_warehouse_id THEN
+      RAISE EXCEPTION 'from and to warehouse must differ';
+    END IF;
+
+    v_id := public.post_stock_movement(
+      p_from_warehouse_id, p_product_id, 'TRANSFER_OUT', -v_qty, p_unit_cost,
+      'TRF', NULL, NULL, p_reference, p_legacy_transaction_id,
+      p_created_by, p_notes, p_occurred_at,
+      'trf-out:' || COALESCE(p_legacy_transaction_id, p_reference) || ':' || p_product_id
+    );
+    v_ids := array_append(v_ids, v_id);
+
+    v_id := public.post_stock_movement(
+      p_to_warehouse_id, p_product_id, 'TRANSFER_IN', v_qty, p_unit_cost,
+      'TRF', NULL, NULL, p_reference, p_legacy_transaction_id,
+      p_created_by, p_notes, p_occurred_at,
+      'trf-in:' || COALESCE(p_legacy_transaction_id, p_reference) || ':' || p_product_id
+    );
+    v_ids := array_append(v_ids, v_id);
+  ELSE
+    RAISE EXCEPTION 'unknown movement kind: %', p_movement_kind;
+  END IF;
+
+  RETURN jsonb_build_object('ledger_entry_ids', to_jsonb(v_ids));
+END;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- RLS (permissive for anon during migration — tighten for production)
+-- ---------------------------------------------------------------------------
+ALTER TABLE public.stock_ledger ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.stock_document_lines ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.production_reports ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS stock_ledger_all ON public.stock_ledger;
+CREATE POLICY stock_ledger_all ON public.stock_ledger FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS stock_documents_all ON public.stock_documents;
+CREATE POLICY stock_documents_all ON public.stock_documents FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS production_reports_all ON public.production_reports;
+CREATE POLICY production_reports_all ON public.production_reports FOR ALL USING (true) WITH CHECK (true);
+
+GRANT SELECT ON public.v_stock_on_hand TO anon, authenticated;
+GRANT SELECT ON public.v_stock_on_hand_product TO anon, authenticated;
+GRANT ALL ON public.stock_ledger TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.post_stock_movement TO anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.post_warehouse_movement TO anon, authenticated;

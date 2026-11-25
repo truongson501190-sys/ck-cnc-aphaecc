@@ -150,8 +150,10 @@ Next steps:
 2. Run: pnpm run dev (for development)
 3. Or: pnpm run build && pnpm run preview (for production)
 
-Note: When enabled, make sure your Supabase database has the required tables.
-Run the SQL in supabase-schema.sql in your Supabase SQL Editor.
+Note: The current schema migration history is under supabase/migrations/.
+Apply only migrations that have not yet been run on the target database, in numeric order.
+The root-level supabase-schema.sql and supabase-migration-relational.sql files are legacy.
+Do not run them against a database managed by the current migration history.
   `);
 
 } catch (error) {

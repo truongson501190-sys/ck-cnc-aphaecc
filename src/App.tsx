@@ -33,6 +33,7 @@ const InventoryCount = lazy(() => import('@/modules/warehouse').then(m => ({ def
 const StockCard = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.StockCard })));
 const TransactionHistory = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.TransactionHistory })));
 const WarehouseReport = lazy(() => import('@/modules/warehouse').then(m => ({ default: m.WarehouseReport })));
+const InventoryValuationReport = lazy(() => import('@/modules/warehouse/pages/InventoryValuationReport'));
 
 // Manufacturing
 const ProductionPlan = lazy(() => import('@/modules/manufacturing').then(m => ({ default: m.ProductionPlan })));
@@ -230,6 +231,14 @@ const App: React.FC = () => {
                         element={
                           <ProtectedRoute requiredModule="lich_su_giao_dich">
                             <TransactionHistory />
+                          </ProtectedRoute>
+                        }
+                      />
+                      <Route
+                        path={ERP_ROUTE.reports.valuation}
+                        element={
+                          <ProtectedRoute requiredModule="bao_cao_kho">
+                            <InventoryValuationReport />
                           </ProtectedRoute>
                         }
                       />

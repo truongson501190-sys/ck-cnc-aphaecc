@@ -69,6 +69,7 @@ export const ERP_ROUTE = {
   reports: {
     summary: '/reports/summary',
     warehouse: '/reports/warehouse',
+    valuation: '/reports/warehouse-valuation',
     machining: {
       production: '/reports/machining/production',  // TỔNG HỢP SẢN XUẤT
       tools: '/reports/machining/tools',            // DAO CỤ SỬ DỤNG
@@ -162,6 +163,7 @@ export const ERP_NAVIGATION: ERPNavGroup[] = [
       { id: 'inventory-count', label: 'Kiểm kê kho', icon: ListChecks, path: ERP_ROUTE.warehouse.inventoryCount, permissionKey: 'kiem_ke_kho' },
       { id: 'inventory', label: 'Tồn kho', icon: HardDrive, path: ERP_ROUTE.reports.inventory, permissionKey: 'ton_kho' },
       { id: 'stock-card', label: 'Thẻ kho', icon: ClipboardList, path: ERP_ROUTE.warehouse.stockCard, permissionKey: 'the_kho' },
+      { id: 'inventory-valuation', label: 'Giá trị tồn kho', icon: DollarSign, path: ERP_ROUTE.reports.valuation, permissionKey: 'bao_cao_kho' },
       { id: 'transaction-history', label: 'Lịch sử giao dịch', icon: Clock, path: ERP_ROUTE.warehouse.transactionHistory, permissionKey: 'lich_su_giao_dich' },
     ],
   },

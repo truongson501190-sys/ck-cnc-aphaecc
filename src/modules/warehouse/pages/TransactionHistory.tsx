@@ -7,120 +7,125 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Search, FileSpreadsheet, RefreshCw } from 'lucide-react'; // Thêm RefreshCw vào import
+import { ArrowLeft, Search, FileSpreadsheet, RefreshCw, Eye } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
-
-const STORAGE_KEYS = {
-  imports: 'warehouseImports',
-  exports: 'warehouseExports',
-  transfers: 'warehouseTransfers',
-  consumables: 'consumableExports',
-};
+import { loadArrayFromStorage, STORAGE_KEYS } from '@/lib/localStorage';
+import type { Category, Transaction, ImportTransaction, ExportTransaction, TransferTransaction, ConsumableTransaction, AdjustmentTransaction } from '@/types/warehouse';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export function TransactionHistory() {
   const navigate = useNavigate();
-  const [transactions, setTransactions] = useState<any[]>([]);
-  const [filtered, setFiltered] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [filtered, setFiltered] = useState<Transaction[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedTx, setSelectedTx] = useState<Transaction | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
-  const loadTransactions = () => {
+  const loadData = () => {
     setIsLoading(true);
     try {
-      const imports = JSON.parse(localStorage.getItem(STORAGE_KEYS.imports) || '[]');
-      const exports = JSON.parse(localStorage.getItem(STORAGE_KEYS.exports) || '[]');
-      const transfers = JSON.parse(localStorage.getItem(STORAGE_KEYS.transfers) || '[]');
-      const consumables = JSON.parse(localStorage.getItem(STORAGE_KEYS.consumables) || '[]');
+      const cats = loadArrayFromStorage<Category>(STORAGE_KEYS.CATEGORIES);
+      setCategories(cats);
 
-      const importTx = imports.map((item: any) => ({ ...item, type: 'Nhập kho', icon: '📥' }));
-      const exportTx = exports.map((item: any) => ({ ...item, type: 'Xuất kho', icon: '📤' }));
-      const transferTx = transfers.map((item: any) => ({ ...item, type: 'Chuyển kho', icon: '🔄' }));
-      const consumableTx = consumables.map((item: any) => ({ ...item, type: 'Xuất vật tư', icon: '🔧' }));
+      const imports = loadArrayFromStorage<ImportTransaction>(STORAGE_KEYS.IMPORTS);
+      const exports = loadArrayFromStorage<ExportTransaction>(STORAGE_KEYS.EXPORTS);
+      const transfers = loadArrayFromStorage<TransferTransaction>(STORAGE_KEYS.TRANSFERS);
+      const consumables = loadArrayFromStorage<ConsumableTransaction>(STORAGE_KEYS.CONSUMABLES);
+      const adjustments = loadArrayFromStorage<AdjustmentTransaction>(STORAGE_KEYS.ADJUSTMENTS);
 
-      const all = [...importTx, ...exportTx, ...transferTx, ...consumableTx];
-      
-      all.sort((a, b) => {
-        const dateA = new Date(a.createdAt || a.ngayXuat || a.ngayChuyen || 0);
-        const dateB = new Date(b.createdAt || b.ngayXuat || b.ngayChuyen || 0);
-        return dateB.getTime() - dateA.getTime();
-      });
-
-      setTransactions(all);
-      setFiltered(all);
-      
+      const allTx: Transaction[] = [
+        ...imports.map(t => ({ ...t, type: 'import' as const })),
+        ...exports.map(t => ({ ...t, type: 'export' as const })),
+        ...transfers.map(t => ({ ...t, type: 'transfer' as const })),
+        ...consumables.map(t => ({ ...t, type: 'consumable' as const })),
+        ...adjustments.map(t => ({ ...t, type: 'adjustment' as const })),
+      ];
+      allTx.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setTransactions(allTx);
+      setFiltered(allTx);
     } catch (error) {
-      console.error('Error loading transactions:', error);
-      toast.error('Lỗi tải dữ liệu giao dịch');
+      console.error(error);
+      toast.error('Lỗi tải dữ liệu');
     } finally {
       setIsLoading(false);
     }
   };
 
   useEffect(() => {
-    loadTransactions();
+    loadData();
   }, []);
 
   useEffect(() => {
     let result = transactions;
-    
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      result = result.filter(t => 
-        (t.soPhieu || '').toLowerCase().includes(term) ||
-        (t.duAn || '').toLowerCase().includes(term) ||
-        (t.khoXuat || '').toLowerCase().includes(term) ||
-        (t.khoNhap || '').toLowerCase().includes(term) ||
-        (t.nguoiNhan || '').toLowerCase().includes(term)
-      );
+      result = result.filter(tx => {
+        const idMatch = tx.id.toLowerCase().includes(term);
+        const noteMatch = (tx.notes || '').toLowerCase().includes(term);
+        const warehouseMatch = (tx as any).warehouse?.toLowerCase().includes(term) ||
+                               (tx as any).fromWarehouse?.toLowerCase().includes(term) ||
+                               (tx as any).toWarehouse?.toLowerCase().includes(term);
+        const itemsMatch = tx.items?.some(item => {
+          const cat = categories.find(c => c.id === item.categoryId);
+          return cat?.name.toLowerCase().includes(term) || cat?.code.toLowerCase().includes(term);
+        });
+        return idMatch || noteMatch || warehouseMatch || itemsMatch;
+      });
     }
-    
     if (typeFilter !== 'all') {
-      result = result.filter(t => t.type === typeFilter);
+      result = result.filter(tx => tx.type === typeFilter);
     }
-    
     setFiltered(result);
-  }, [searchTerm, typeFilter, transactions]);
-
-  const getStatusBadge = (status: string, type: string) => {
-    const statusMap: { [key: string]: { label: string; color: string } } = {
-      pending: { label: 'Chờ duyệt', color: 'bg-yellow-100 text-yellow-800' },
-      approved: { label: 'Đã duyệt', color: 'bg-blue-100 text-blue-800' },
-      transferred: { label: 'Đã chuyển', color: 'bg-indigo-100 text-indigo-800' },
-      received: { label: 'Đã nhận', color: 'bg-green-100 text-green-800' },
-      rejected: { label: 'Từ chối', color: 'bg-red-100 text-red-800' },
-    };
-    
-    const info = statusMap[status] || { label: status || 'Không xác định', color: 'bg-gray-100 text-gray-800' };
-    return <Badge className={info.color}>{info.label}</Badge>;
-  };
+  }, [searchTerm, typeFilter, transactions, categories]);
 
   const exportExcel = () => {
     if (filtered.length === 0) {
-      toast.error('Không có dữ liệu để xuất');
+      toast.error('Không có dữ liệu');
       return;
     }
-
-    const data = filtered.map((t, index) => ({
-      'STT': index + 1,
-      'Số phiếu': t.soPhieu || '',
-      'Loại': t.type || '',
-      'Ngày': t.ngayXuat || t.ngayChuyen || t.createdAt || '',
-      'Dự án': t.duAn || '',
-      'Kho xuất': t.khoXuat || '',
-      'Kho nhập': t.khoNhap || '',
-      'Người thực hiện': t.nguoiThucHien || t.nguoiXuat || '',
-      'Người nhận': t.nguoiNhan || '',
-      'Trạng thái': t.status || '',
-      'Tổng tiền': t.tongTien || t.totalValue || 0,
+    const data = filtered.map((tx, idx) => ({
+      'STT': idx + 1,
+      'Số phiếu': tx.id,
+      'Loại': tx.type,
+      'Ngày': tx.date,
+      'Kho': (tx as any).warehouse || (tx as any).fromWarehouse || '',
+      'Kho nhận': (tx as any).toWarehouse || '',
+      'Dự án': (tx as any).project || '',
+      'Người thực hiện': (tx as any).createdBy || '',
+      'Trạng thái': tx.status,
+      'Ghi chú': tx.notes || '',
+      'Số lượng mặt hàng': tx.items?.length || 0,
+      'Tổng số lượng': tx.items?.reduce((sum, item) => sum + item.quantity, 0) || 0,
     }));
-
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'LichSuGiaoDich');
-    XLSX.writeFile(wb, `LichSuGiaoDich_${new Date().toLocaleDateString('vi-VN')}.xlsx`);
+    XLSX.writeFile(wb, `LichSuGiaoDich_${new Date().toISOString().slice(0,10)}.xlsx`);
     toast.success('Xuất Excel thành công');
+  };
+
+  const viewDetail = (tx: Transaction) => {
+    setSelectedTx(tx);
+    setDetailOpen(true);
+  };
+
+  const typeMap: Record<string, { label: string; icon: string; color: string }> = {
+    import: { label: 'Nhập kho', icon: '📥', color: 'bg-green-50 text-green-700 border-green-200' },
+    export: { label: 'Xuất kho', icon: '📤', color: 'bg-red-50 text-red-700 border-red-200' },
+    transfer: { label: 'Chuyển kho', icon: '🔄', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+    consumable: { label: 'Xuất vật tư', icon: '🔧', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+    adjustment: { label: 'Điều chỉnh', icon: '⚙️', color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  };
+
+  const statusMap: Record<string, { label: string; color: string }> = {
+    pending: { label: 'Chờ duyệt', color: 'bg-yellow-100 text-yellow-800' },
+    approved: { label: 'Đã duyệt', color: 'bg-blue-100 text-blue-800' },
+    completed: { label: 'Hoàn thành', color: 'bg-green-100 text-green-800' },
+    rejected: { label: 'Từ chối', color: 'bg-red-100 text-red-800' },
   };
 
   return (
@@ -128,37 +133,33 @@ export function TransactionHistory() {
       <div className="max-w-7xl mx-auto">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex items-center gap-4">
-            <Button variant="outline" size="icon" onClick={() => navigate("/")}>
+            <Button variant="outline" size="icon" onClick={() => navigate('/')}>
               <ArrowLeft className="w-5 h-5" />
             </Button>
             <div>
               <h1 className="text-2xl font-bold text-gray-800">Lịch sử giao dịch</h1>
-              <p className="text-gray-600 text-sm">
-                Tổng hợp từ <strong>Nhập kho, Xuất kho, Chuyển kho, Xuất vật tư</strong>
-              </p>
+              <p className="text-gray-600 text-sm">Tất cả các giao dịch kho</p>
             </div>
           </div>
           <div className="flex gap-2">
             <Button variant="outline" onClick={exportExcel}>
               <FileSpreadsheet className="w-4 h-4 mr-2" /> Xuất Excel
             </Button>
-            <Button variant="outline" onClick={loadTransactions}>
+            <Button variant="outline" onClick={loadData}>
               <RefreshCw className="w-4 h-4 mr-2" /> Làm mới
             </Button>
           </div>
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Bộ lọc</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Bộ lọc</CardTitle></CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-4">
               <div className="flex-1 min-w-[200px]">
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
                   <Input
-                    placeholder="Tìm kiếm theo số phiếu, dự án, kho..."
+                    placeholder="Tìm theo số phiếu, kho, vật tư..."
                     className="pl-10"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -171,10 +172,9 @@ export function TransactionHistory() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Tất cả loại</SelectItem>
-                  <SelectItem value="Nhập kho">📥 Nhập kho</SelectItem>
-                  <SelectItem value="Xuất kho">📤 Xuất kho</SelectItem>
-                  <SelectItem value="Chuyển kho">🔄 Chuyển kho</SelectItem>
-                  <SelectItem value="Xuất vật tư">🔧 Xuất vật tư</SelectItem>
+                  {Object.entries(typeMap).map(([key, val]) => (
+                    <SelectItem key={key} value={key}>{val.icon} {val.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <Badge variant="secondary" className="text-sm px-3 py-2">
@@ -194,42 +194,46 @@ export function TransactionHistory() {
                     <TableHead>Số phiếu</TableHead>
                     <TableHead>Loại</TableHead>
                     <TableHead>Ngày</TableHead>
+                    <TableHead>Kho</TableHead>
                     <TableHead>Dự án</TableHead>
-                    <TableHead>Kho xuất</TableHead>
-                    <TableHead>Kho nhập</TableHead>
-                    <TableHead>Người thực hiện</TableHead>
+                    <TableHead>SL mặt hàng</TableHead>
                     <TableHead>Trạng thái</TableHead>
+                    <TableHead className="text-center">Chi tiết</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {isLoading ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8">Đang tải...</TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-8">Đang tải...</TableCell></TableRow>
                   ) : filtered.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={9} className="text-center py-8 text-gray-500">
-                        Không có giao dịch nào
-                      </TableCell>
-                    </TableRow>
+                    <TableRow><TableCell colSpan={9} className="text-center py-8 text-gray-500">Không có giao dịch nào</TableCell></TableRow>
                   ) : (
-                    filtered.map((t, index) => (
-                      <TableRow key={`${t.soPhieu}-${index}`} className="hover:bg-gray-50">
-                        <TableCell>{index + 1}</TableCell>
-                        <TableCell className="font-medium">{t.soPhieu}</TableCell>
-                        <TableCell>
-                          <span className="flex items-center gap-1">
-                            {t.icon} {t.type}
-                          </span>
-                        </TableCell>
-                        <TableCell>{t.ngayXuat || t.ngayChuyen || t.createdAt?.split('T')[0] || ''}</TableCell>
-                        <TableCell>{t.duAn || '---'}</TableCell>
-                        <TableCell>{t.khoXuat || '---'}</TableCell>
-                        <TableCell>{t.khoNhap || '---'}</TableCell>
-                        <TableCell>{t.nguoiThucHien || t.nguoiXuat || '---'}</TableCell>
-                        <TableCell>{getStatusBadge(t.status, t.type)}</TableCell>
-                      </TableRow>
-                    ))
+                    filtered.map((tx, idx) => {
+                      const typeInfo = typeMap[tx.type] || { label: tx.type, icon: '📄', color: 'bg-gray-100' };
+                      const statusInfo = statusMap[tx.status] || { label: tx.status || 'Không xác định', color: 'bg-gray-100 text-gray-800' };
+                      return (
+                        <TableRow key={`${tx.id}-${idx}`} className="hover:bg-gray-50">
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell className="font-medium">{tx.id}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={typeInfo.color}>
+                              {typeInfo.icon} {typeInfo.label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{new Date(tx.date).toLocaleDateString('vi-VN')}</TableCell>
+                          <TableCell>{(tx as any).warehouse || (tx as any).fromWarehouse || '---'}</TableCell>
+                          <TableCell>{(tx as any).project || '---'}</TableCell>
+                          <TableCell className="text-center">{tx.items?.length || 0}</TableCell>
+                          <TableCell>
+                            <Badge className={statusInfo.color}>{statusInfo.label}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            <Button variant="ghost" size="sm" onClick={() => viewDetail(tx)}>
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -237,6 +241,47 @@ export function TransactionHistory() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="max-w-3xl bg-white p-6">
+          <DialogHeader><DialogTitle className="text-xl">Chi tiết giao dịch</DialogTitle></DialogHeader>
+          {selectedTx && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div><strong>Số phiếu:</strong> {selectedTx.id}</div>
+                <div><strong>Loại:</strong> {typeMap[selectedTx.type]?.label || selectedTx.type}</div>
+                <div><strong>Ngày:</strong> {new Date(selectedTx.date).toLocaleString('vi-VN')}</div>
+                <div><strong>Trạng thái:</strong> {statusMap[selectedTx.status]?.label || selectedTx.status}</div>
+                <div><strong>Kho:</strong> {(selectedTx as any).warehouse || (selectedTx as any).fromWarehouse || '---'}</div>
+                <div><strong>Dự án:</strong> {(selectedTx as any).project || '---'}</div>
+              </div>
+              <div className="border rounded-lg p-3 bg-gray-50">
+                <h4 className="font-medium text-sm mb-2">Danh sách vật tư</h4>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr><th className="text-left">Vật tư</th><th className="text-right">Số lượng</th><th className="text-right">Đơn giá</th><th className="text-right">Thành tiền</th></tr>
+                  </thead>
+                  <tbody>
+                    {selectedTx.items?.map((item, idx) => {
+                      const cat = categories.find(c => c.id === item.categoryId);
+                      const name = cat ? `${cat.code} - ${cat.name}` : item.categoryId;
+                      return (
+                        <tr key={idx} className="border-t border-gray-200">
+                          <td className="py-1">{name}</td>
+                          <td className="text-right">{item.quantity}</td>
+                          <td className="text-right">{item.price?.toLocaleString('vi-VN') || '---'}</td>
+                          <td className="text-right">{(item.quantity * (item.price || 0)).toLocaleString('vi-VN')}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="text-sm"><strong>Ghi chú:</strong> {selectedTx.notes || 'Không có'}</div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

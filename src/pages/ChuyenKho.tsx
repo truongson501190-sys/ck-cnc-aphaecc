@@ -1,0 +1,1 @@
+export { ChuyenKho, ChuyenKho as default } from '@/modules/warehouse/pages/ChuyenKho';

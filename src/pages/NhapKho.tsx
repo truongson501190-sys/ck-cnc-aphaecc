@@ -1,0 +1,1 @@
+export { NhapKho, NhapKho as default } from '@/modules/warehouse/pages/NhapKho';

@@ -7,6 +7,7 @@ import { ChartContainer, ChartLegendContent, ChartTooltipContent } from '@/compo
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft } from 'lucide-react';
+import { LowStockBadge } from '@/components/inventory/LowStockBadge';
 import { 
   summaryStats, 
   dailyFlowChart, 
@@ -66,9 +67,12 @@ function DashboardSummary() {
               </p>
             </div>
           </div>
-          <Button variant="secondary" className="h-11" onClick={() => window.location.reload()}>
-            Làm mới dữ liệu
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <LowStockBadge />
+            <Button variant="secondary" className="h-11" onClick={() => window.location.reload()}>
+              Làm mới dữ liệu
+            </Button>
+          </div>
         </div>
 
         {isLoading ? (

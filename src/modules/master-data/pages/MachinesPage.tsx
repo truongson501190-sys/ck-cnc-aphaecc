@@ -70,7 +70,7 @@ export function MachinesPage() {
 
         {/* Footer thông tin */}
         <div className="mt-6 pt-4 border-t border-gray-200 text-center text-xs text-gray-400">
-          <p>© 2024 - Hệ thống quản lý máy móc | Tổng số máy được cập nhật tự động</p>
+          <p>© 2026 - Hệ thống quản lý máy móc | Tổng số máy được cập nhật tự động</p>
         </div>
       </div>
     </div>

@@ -78,3 +78,23 @@ backend_ai/original.jpg
 backend_ai/preprocessed.jpg
 backend_ai/ocr_benchmark/original.jpg
 backend_ai/ocr_benchmark/preprocessed.jpg
+
+# Virtual environments (local only; keep backend_ai/venv311 out of Git too)
+/venv*/
+**/venv/
+**/venv*/
+**/.venv/
+**/env/
+
+# Backups
+*.backup
+
+# ============================================
+# Legacy SQL (ð? archive vào supabase/_legacy/)
+# File g?c b? Windows lock, không move ðý?c
+# ============================================
+/supabase-schema.sql
+/supabase-migration-relational.sql
+
+# Archive folders
+scripts/_archive/

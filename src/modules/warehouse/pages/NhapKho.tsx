@@ -2,12 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { WarehouseImport } from '@/modules/warehouse/components/WarehouseImport';
 import { toast } from 'sonner';
-import { postStockDocument } from '@/api/stock';
+import { listDocuments, deleteDocument, createDocument, postDocument } from '@/api/stockDocument';
+import { getSupabase } from '@/supabase';
 import type { WarehouseTransaction, WarehouseTransactionItem } from '@/types/inventory';
 import { useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plus, Eye, Download, Upload, X, Trash2, CheckSquare, Square, RefreshCw, FileSpreadsheet, Edit, Save } from 'lucide-react';
+import { Plus, Eye, Download, Upload, X, Trash2, CheckSquare, Square, FileSpreadsheet, Edit, Save } from 'lucide-react';
 import { usePermission } from '@/hooks/usePermission';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 // INTERFACE
 // ============================================================
 interface ImportRecord {
+  id: string;               // document id (UUID/text từ stock_documents)
   soPhieu: string;
   ngayNhap: string;
   khoNhap: string;
@@ -26,6 +28,7 @@ interface ImportRecord {
   nhaCungCap?: string;
   ghiChu?: string;
   tongTien: number;
+  workflow_status: string;
   items: Array<{
     tenChungLoai: string;
     soLuong: number;
@@ -39,7 +42,6 @@ interface ImportRecord {
 // ============================================================
 // CONSTANTS
 // ============================================================
-const STORAGE_KEY = 'warehouseImports';
 const PAGE_SIZE = 10;
 
 const EXCEL_COLUMN_MAP: { [key: string]: string } = {
@@ -70,7 +72,7 @@ const EXCEL_COLUMN_MAP: { [key: string]: string } = {
 const REQUIRED_COLUMNS = ['Ngày', 'Chung Loại', 'So Luong', 'Don vi', 'Don gia'];
 
 const DEFAULT_IMPORT_VALUES = {
-  khoNhap: 'Kho chính',
+  khoNhap: 'Kho Tổng',
   nguoiNhap: 'Admin',
   nhaCungCap: '',
   ghiChu: '',
@@ -85,7 +87,7 @@ export const NhapKho: React.FC = () => {
   const canAdd = canEdit('nhap_kho');
   const canDelete = canEdit('nhap_kho');
   const canEditData = canEdit('nhap_kho');
-  
+
   // ===== STATE =====
   const [open, setOpen] = useState(false);
   const [imports, setImports] = useState<ImportRecord[]>([]);
@@ -94,33 +96,71 @@ export const NhapKho: React.FC = () => {
   const [importExcelOpen, setImportExcelOpen] = useState(false);
   const [excelData, setExcelData] = useState<any[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
-  
+
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [isAllSelected, setIsAllSelected] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   // Filter & Search
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  
-  // ===== EDIT STATE =====
+
+  // Edit state
   const [editOpen, setEditOpen] = useState(false);
   const [editFormData, setEditFormData] = useState<any>(null);
   const [isSaving, setIsSaving] = useState(false);
 
-  // ===== LOAD DATA =====
-  const loadImports = () => {
+  // ===== LOAD DATA (từ DB) =====
+  const loadImports = async () => {
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      if (data) {
-        const parsed = JSON.parse(data);
-        setImports(parsed);
-        setSelectedIds(new Set());
-        setIsAllSelected(false);
+      const result = await listDocuments({ documentType: 'IN' });
+      if (!result.ok) {
+        toast.error(`Lỗi tải dữ liệu: ${result.error}`);
+        return;
       }
+
+      // Fetch kèm lines cho từng document (Supabase nested hoặc query riêng)
+      const client = getSupabase();
+      const records: ImportRecord[] = [];
+
+      for (const doc of result.data) {
+        let lines: any[] = [];
+        if (client) {
+          const { data: lineData } = await client
+            .from('stock_document_lines')
+            .select('*')
+            .eq('document_id', doc.id)
+            .order('line_no');
+          lines = lineData ?? [];
+        }
+
+        records.push({
+          id: doc.id,
+          soPhieu: doc.reference_number,
+          ngayNhap: doc.transaction_date,
+          khoNhap: doc.warehouse_id || '',
+          nguoiNhap: doc.created_by || '',
+          nhaCungCap: doc.supplier || '',
+          ghiChu: doc.notes || '',
+          tongTien: doc.total_value || 0,
+          workflow_status: doc.workflow_status || 'pending',
+          createdAt: doc.created_at,
+          items: lines.map((l) => ({
+            tenChungLoai: l.product_id,
+            soLuong: l.quantity,
+            donVi: l.unit || '',
+            donGia: l.unit_cost || 0,
+            thanhTien: l.total_value || 0,
+          })),
+        });
+      }
+
+      setImports(records);
+      setSelectedIds(new Set());
+      setIsAllSelected(false);
     } catch (error) {
       console.error('Error loading imports:', error);
       toast.error('Lỗi tải dữ liệu');
@@ -128,19 +168,19 @@ export const NhapKho: React.FC = () => {
   };
 
   useEffect(() => {
-    loadImports();
+    void loadImports();
   }, []);
 
   // ===== FILTER & PAGINATION =====
   const filteredImports = imports.filter((imp) => {
-    const matchSearch = !searchTerm || 
+    const matchSearch = !searchTerm ||
       imp.soPhieu.toLowerCase().includes(searchTerm.toLowerCase()) ||
       imp.khoNhap.toLowerCase().includes(searchTerm.toLowerCase()) ||
       imp.nguoiNhap.toLowerCase().includes(searchTerm.toLowerCase()) ||
       (imp.nhaCungCap && imp.nhaCungCap.toLowerCase().includes(searchTerm.toLowerCase()));
-    
+
     const matchDate = !filterDate || imp.ngayNhap === filterDate;
-    
+
     return matchSearch && matchDate;
   });
 
@@ -157,7 +197,6 @@ export const NhapKho: React.FC = () => {
   // ===== DATE PARSER =====
   const parseDate = (dateStr: string): string => {
     if (!dateStr) return new Date().toISOString().split('T')[0];
-    
     try {
       if (dateStr.includes('/')) {
         const parts = dateStr.split('/');
@@ -168,12 +207,10 @@ export const NhapKho: React.FC = () => {
           return `${year}-${month}-${day}`;
         }
       }
-      
       const date = new Date(dateStr);
       if (!isNaN(date.getTime())) {
         return date.toISOString().split('T')[0];
       }
-      
       return new Date().toISOString().split('T')[0];
     } catch (error) {
       console.error('Error parsing date:', error);
@@ -181,117 +218,78 @@ export const NhapKho: React.FC = () => {
     }
   };
 
-  // ===== CONVERT TO WAREHOUSE TRANSACTION =====
-  const convertToWarehouseTransaction = (record: ImportRecord): Omit<WarehouseTransaction, 'id' | 'createdAt'> => {
-    const items: WarehouseTransactionItem[] = record.items.map((item, index) => ({
-      id: `item_${Date.now()}_${index}`,
-      itemName: item.tenChungLoai,
-      quantity: item.soLuong,
-      unit: item.donVi,
-      price: item.donGia,
-      totalValue: item.thanhTien,
-      ghiChu: ''
-    }));
-
-    const transactionDate = parseDate(record.ngayNhap);
-
-    return {
-      type: 'import',
-      referenceNumber: record.soPhieu,
-      transactionDate: transactionDate,
-      warehouse_id: record.khoNhap,
-      recipient: record.nguoiNhap,
-      supplier: record.nhaCungCap || '',
-      notes: record.ghiChu || '',
-      status: 'approved',
-      items: items,
-      reason: `Nhập kho - ${record.soPhieu}`,
-    };
-  };
-
   // ===== API HANDLERS =====
   const handleSubmitAPI = async (transaction: Omit<WarehouseTransaction, 'id' | 'createdAt'>) => {
-    try {
-      const { ok } = await postStockDocument({
-        ...transaction,
-        status: 'approved',
-      } as WarehouseTransaction);
-      if (!ok) throw new Error('API error');
-      await queryClient.invalidateQueries({ queryKey: ['inventory'] });
-    } catch (error) {
-      console.error('Error in handleSubmitAPI:', error);
-      throw error;
-    }
+    const r1 = await createDocument({
+      documentType: 'IN',
+      referenceNumber: transaction.referenceNumber,
+      transactionDate: transaction.transactionDate,
+      warehouseId: transaction.warehouse_id,
+      supplier: transaction.supplier,
+      notes: transaction.notes,
+      createdBy: transaction.created_by,
+      lines: (transaction.items || []).map((it, idx) => ({
+        lineNo: idx + 1,
+        productId: it.itemName || it.category_id || '',
+        quantity: it.quantity,
+        unit: it.unit,
+        unitCost: it.price || 0,
+        totalValue: it.totalValue ?? undefined,
+      })),
+    });
+    if (!r1.ok) throw new Error(r1.error);
+
+    const r2 = await postDocument(r1.documentId, transaction.created_by);
+    if (!r2.ok) throw new Error(r2.error);
+
+    await queryClient.invalidateQueries({ queryKey: ['inventory'] });
   };
 
   const handleSuccess = () => {
     setOpen(false);
-    loadImports();
+    void loadImports();
     toast.success('Phiếu nhập đã được thêm');
   };
 
-  // ===== EDIT HANDLERS =====
+  // ===== EDIT HANDLERS (chỉ metadata) =====
   const handleEdit = (imp: ImportRecord) => {
     setEditFormData({
+      id: imp.id,
       soPhieu: imp.soPhieu,
       ngayNhap: imp.ngayNhap,
       khoNhap: imp.khoNhap,
       nguoiNhap: imp.nguoiNhap,
       nhaCungCap: imp.nhaCungCap || '',
       ghiChu: imp.ghiChu || '',
-      items: imp.items.map(item => ({ ...item })),
-      tongTien: imp.tongTien
+      items: imp.items.map((item) => ({ ...item })),
+      tongTien: imp.tongTien,
     });
     setEditOpen(true);
   };
 
   const handleSaveEdit = async () => {
     if (!editFormData) return;
-    
     setIsSaving(true);
     try {
-      // Tính lại tổng tiền
-      const newTongTien = editFormData.items.reduce((sum: number, item: any) => sum + (item.soLuong * item.donGia), 0);
-      
-      // Cập nhật dữ liệu
-      const updatedImports = imports.map(imp => {
-        if (imp.soPhieu === editFormData.soPhieu) {
-          return {
-            ...imp,
-            ngayNhap: editFormData.ngayNhap,
-            khoNhap: editFormData.khoNhap,
-            nguoiNhap: editFormData.nguoiNhap,
-            nhaCungCap: editFormData.nhaCungCap,
-            ghiChu: editFormData.ghiChu,
-            items: editFormData.items.map((item: any) => ({
-              ...item,
-              thanhTien: item.soLuong * item.donGia
-            })),
-            tongTien: newTongTien
-          };
-        }
-        return imp;
-      });
-      
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedImports));
-      setImports(updatedImports);
-      
-      // Gọi API cập nhật nếu cần
-      const updatedRecord = updatedImports.find(imp => imp.soPhieu === editFormData.soPhieu);
-      if (updatedRecord) {
-        try {
-          const transactionData = convertToWarehouseTransaction(updatedRecord);
-          await handleSubmitAPI(transactionData);
-        } catch (error) {
-          console.error('API update error:', error);
-          // Vẫn tiếp tục vì đã lưu localStorage
-        }
-      }
-      
+      const client = getSupabase();
+      if (!client) throw new Error('Supabase not available');
+
+      const { error } = await client
+        .from('stock_documents')
+        .update({
+          transaction_date: editFormData.ngayNhap,
+          warehouse_id: editFormData.khoNhap,
+          supplier: editFormData.nhaCungCap || null,
+          notes: editFormData.ghiChu || null,
+        })
+        .eq('id', editFormData.id);
+
+      if (error) throw new Error(error.message);
+
+      toast.success('Đã cập nhật phiếu nhập');
       setEditOpen(false);
       setEditFormData(null);
-      toast.success('Đã cập nhật phiếu nhập thành công!');
-      loadImports();
+      await loadImports();
     } catch (error) {
       console.error('Error updating:', error);
       toast.error('Lỗi cập nhật phiếu nhập');
@@ -300,41 +298,14 @@ export const NhapKho: React.FC = () => {
     }
   };
 
-  const handleEditItemChange = (index: number, field: string, value: any) => {
-    const newItems = [...editFormData.items];
-    newItems[index][field] = value;
-    if (field === 'soLuong' || field === 'donGia') {
-      newItems[index].thanhTien = newItems[index].soLuong * newItems[index].donGia;
-    }
-    setEditFormData({ ...editFormData, items: newItems });
-  };
-
-  const handleAddItem = () => {
-    setEditFormData({
-      ...editFormData,
-      items: [...editFormData.items, {
-        tenChungLoai: '',
-        soLuong: 0,
-        donVi: '',
-        donGia: 0,
-        thanhTien: 0
-      }]
-    });
-  };
-
-  const handleRemoveItem = (index: number) => {
-    const newItems = editFormData.items.filter((_: any, i: number) => i !== index);
-    setEditFormData({ ...editFormData, items: newItems });
-  };
-
-  // ===== PRINT / PDF =====
+  // ===== PRINT =====
   const handlePrint = () => {
     const printContent = document.getElementById('phieu-nhap-content');
     if (!printContent || !selectedImport) return;
-    
+
     const originalTitle = document.title;
     document.title = `PhieuNhap_${selectedImport.soPhieu}`;
-    
+
     const printWindow = window.open('', '_blank');
     if (printWindow) {
       printWindow.document.write(`
@@ -376,16 +347,15 @@ export const NhapKho: React.FC = () => {
         const workbook = XLSX.read(data, { type: 'array' });
         const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
         const jsonData = XLSX.utils.sheet_to_json(firstSheet);
-        
+
         if (jsonData.length === 0) {
           toast.error('File Excel không có dữ liệu');
           return;
         }
 
         const columns = Object.keys(jsonData[0] || {});
-        
         const missingFields = REQUIRED_COLUMNS.filter(field => !columns.includes(field));
-        
+
         if (missingFields.length > 0) {
           toast.error(`Thiếu các cột bắt buộc: ${missingFields.join(', ')}`);
           toast.info(`Các cột hiện có: ${columns.join(', ')}`);
@@ -394,7 +364,6 @@ export const NhapKho: React.FC = () => {
 
         const mappedData = jsonData.map((row: any, index: number) => {
           const mappedRow: any = {};
-          
           Object.keys(row).forEach(key => {
             const mappedKey = EXCEL_COLUMN_MAP[key] || key;
             mappedRow[mappedKey] = row[key];
@@ -403,7 +372,7 @@ export const NhapKho: React.FC = () => {
           mappedRow.soLuong = Number(mappedRow.soLuong) || 0;
           mappedRow.donGia = Number(String(mappedRow.donGia).replace(/,/g, '')) || 0;
           mappedRow.thanhTien = Number(String(mappedRow.thanhTien).replace(/,/g, '')) || 0;
-          
+
           if (!mappedRow.thanhTien || mappedRow.thanhTien === 0) {
             mappedRow.thanhTien = mappedRow.soLuong * mappedRow.donGia;
           }
@@ -412,7 +381,6 @@ export const NhapKho: React.FC = () => {
             toast.warning(`Dòng ${index + 1}: Số lượng phải lớn hơn 0`);
             return null;
           }
-          
           if (mappedRow.donGia <= 0) {
             toast.warning(`Dòng ${index + 1}: Đơn giá phải lớn hơn 0`);
             return null;
@@ -443,7 +411,6 @@ export const NhapKho: React.FC = () => {
     event.target.value = '';
   };
 
-  // ===== IMPORT EXCEL DATA =====
   const handleImportExcel = async () => {
     if (excelData.length === 0) {
       toast.error('Không có dữ liệu để import');
@@ -456,43 +423,49 @@ export const NhapKho: React.FC = () => {
         const key = row.ngayNhap || 'unknown_date';
         if (!acc[key]) {
           acc[key] = {
-            soPhieu: `PN${Date.now()}_${Object.keys(acc).length + 1}`,
+            soPhieu: `NK${Date.now()}_${Object.keys(acc).length + 1}`,
             ngayNhap: row.ngayNhap || new Date().toISOString().split('T')[0],
             khoNhap: row.khoNhap || DEFAULT_IMPORT_VALUES.khoNhap,
             nguoiNhap: row.nguoiNhap || DEFAULT_IMPORT_VALUES.nguoiNhap,
             nhaCungCap: row.nhaCungCap || DEFAULT_IMPORT_VALUES.nhaCungCap,
             ghiChu: row.ghiChu || DEFAULT_IMPORT_VALUES.ghiChu,
-            items: [],
-            tongTien: 0,
-            createdAt: new Date().toISOString()
+            items: [] as WarehouseTransactionItem[],
           };
         }
-        
+
         acc[key].items.push({
-          tenChungLoai: row.tenChungLoai,
-          soLuong: row.soLuong,
-          donVi: row.donVi,
-          donGia: row.donGia,
-          thanhTien: row.thanhTien
+          id: `item-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          category_id: row.tenChungLoai,
+          itemId: row.tenChungLoai,
+          itemName: row.tenChungLoai,
+          quantity: row.soLuong,
+          unit: row.donVi || '',
+          price: row.donGia,
+          totalValue: row.thanhTien,
         });
-        acc[key].tongTien += row.thanhTien;
-        
+
         return acc;
       }, {});
 
-      const importRecords = Object.values(groupedData) as ImportRecord[];
-      
-      const existingImports = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
-      const updatedImports = [...existingImports, ...importRecords];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updatedImports));
-      
-      setImports(updatedImports);
-      
+      const importRecords = Object.values(groupedData) as any[];
+
       let successCount = 0;
       for (const record of importRecords) {
         try {
-          const transactionData = convertToWarehouseTransaction(record);
-          await handleSubmitAPI(transactionData);
+          const tx: Omit<WarehouseTransaction, 'id' | 'createdAt'> = {
+            type: 'import',
+            referenceNumber: record.soPhieu,
+            transactionDate: record.ngayNhap,
+            warehouse_id: record.khoNhap,
+            supplier: record.nhaCungCap,
+            notes: record.ghiChu,
+            status: 'approved',
+            created_by: record.nguoiNhap,
+            operator: record.nguoiNhap,
+            items: record.items,
+            reason: 'Import Excel',
+          };
+          await handleSubmitAPI(tx);
           successCount++;
         } catch (error) {
           console.error(`Error importing record ${record.soPhieu}:`, error);
@@ -503,9 +476,10 @@ export const NhapKho: React.FC = () => {
       if (successCount > 0) {
         toast.success(`Import thành công ${successCount}/${importRecords.length} phiếu nhập`);
       }
-      
+
       setExcelData([]);
       setImportExcelOpen(false);
+      await loadImports();
     } catch (error) {
       console.error('Error importing Excel:', error);
       toast.error('Lỗi import dữ liệu: ' + (error as Error).message);
@@ -515,12 +489,12 @@ export const NhapKho: React.FC = () => {
   };
 
   // ===== SELECTION HANDLERS =====
-  const toggleSelect = (soPhieu: string) => {
+  const toggleSelect = (id: string) => {
     const newSelected = new Set(selectedIds);
-    if (newSelected.has(soPhieu)) {
-      newSelected.delete(soPhieu);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
     } else {
-      newSelected.add(soPhieu);
+      newSelected.add(id);
     }
     setSelectedIds(newSelected);
     setIsAllSelected(newSelected.size === paginatedImports.length && paginatedImports.length > 0);
@@ -530,7 +504,7 @@ export const NhapKho: React.FC = () => {
     if (isAllSelected) {
       setSelectedIds(new Set());
     } else {
-      const allIds = new Set(paginatedImports.map(imp => imp.soPhieu));
+      const allIds = new Set(paginatedImports.map(imp => imp.id));
       setSelectedIds(allIds);
     }
     setIsAllSelected(!isAllSelected);
@@ -548,14 +522,16 @@ export const NhapKho: React.FC = () => {
   const confirmDelete = async () => {
     setIsDeleting(true);
     try {
-      const remainingImports = imports.filter(imp => !selectedIds.has(imp.soPhieu));
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(remainingImports));
-      setImports(remainingImports);
+      let okCount = 0;
+      for (const id of selectedIds) {
+        const result = await deleteDocument(id);
+        if (result.ok) okCount++;
+      }
+      toast.success(`Đã xóa ${okCount}/${selectedIds.size} phiếu nhập`);
+      setDeleteDialogOpen(false);
       setSelectedIds(new Set());
       setIsAllSelected(false);
-      
-      toast.success(`Đã xóa thành công ${selectedIds.size} phiếu nhập`);
-      setDeleteDialogOpen(false);
+      await loadImports();
     } catch (error) {
       console.error('Error deleting:', error);
       toast.error('Lỗi khi xóa phiếu nhập');
@@ -592,13 +568,13 @@ export const NhapKho: React.FC = () => {
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'PhieuNhap');
-    
+
     const dateStr = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
     XLSX.writeFile(wb, `Danh_sach_phieu_nhap_${dateStr}.xlsx`);
     toast.success('Xuất Excel thành công');
   };
 
-  // ===== COMPONENT: PHIẾU NHẬP CONTENT =====
+  // ===== PHIẾU NHẬP CONTENT =====
   const PhieuNhapContent = ({ data }: { data: ImportRecord }) => (
     <div id="phieu-nhap-content" className="bg-white p-6 rounded-lg">
       <div className="header">
@@ -657,7 +633,7 @@ export const NhapKho: React.FC = () => {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {/* Import Excel Button */}
+          {/* Import Excel */}
           <Dialog open={importExcelOpen} onOpenChange={setImportExcelOpen}>
             <DialogTrigger asChild>
               <Button variant="outline" className="border-blue-500 text-blue-600 hover:bg-blue-50" disabled={!canAdd}>
@@ -668,7 +644,7 @@ export const NhapKho: React.FC = () => {
               <DialogHeader className="mb-4">
                 <DialogTitle className="text-xl">Import phiếu nhập từ Excel</DialogTitle>
               </DialogHeader>
-              
+
               <div className="space-y-4">
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-400 transition-colors bg-gray-50">
                   <input
@@ -697,8 +673,8 @@ export const NhapKho: React.FC = () => {
                     <p className="text-xs text-blue-600">* Nếu không có cột "Thanh Tien", hệ thống sẽ tự động tính = Số lượng × Đơn giá</p>
                     <p className="text-xs text-blue-600">* Các mặt hàng cùng ngày nhập sẽ được nhóm thành 1 phiếu nhập</p>
                   </div>
-                  <Button 
-                    variant="link" 
+                  <Button
+                    variant="link"
                     className="text-blue-700 p-0 h-auto mt-2"
                     onClick={() => {
                       const sampleData = [
@@ -725,7 +701,7 @@ export const NhapKho: React.FC = () => {
                           'Ghi chú': 'Nhập lô hàng mới'
                         }
                       ];
-                      
+
                       const ws = XLSX.utils.json_to_sheet(sampleData);
                       const wb = XLSX.utils.book_new();
                       XLSX.utils.book_append_sheet(wb, ws, 'Sheet1');
@@ -740,9 +716,9 @@ export const NhapKho: React.FC = () => {
                   <div className="bg-white border rounded-lg p-4">
                     <div className="flex justify-between items-center mb-2">
                       <span className="font-medium">📊 Dữ liệu đã đọc ({excelData.length} dòng)</span>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
+                      <Button
+                        variant="ghost"
+                        size="sm"
                         onClick={() => setExcelData([])}
                         className="text-red-500 hover:text-red-700"
                       >
@@ -797,7 +773,7 @@ export const NhapKho: React.FC = () => {
                   }}>
                     Hủy
                   </Button>
-                  <Button 
+                  <Button
                     onClick={handleImportExcel}
                     disabled={excelData.length === 0 || isProcessing}
                     className="bg-green-600 hover:bg-green-700 text-white"
@@ -809,12 +785,12 @@ export const NhapKho: React.FC = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Export Excel Button */}
+          {/* Export Excel */}
           <Button variant="outline" className="border-emerald-500 text-emerald-600 hover:bg-emerald-50" onClick={handleExportExcel}>
             <FileSpreadsheet className="w-4 h-4 mr-2" /> Xuất Excel
           </Button>
 
-          {/* Add New Button */}
+          {/* Add New */}
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
               <Button className="bg-green-600 hover:bg-green-700" disabled={!canAdd}>
@@ -829,10 +805,10 @@ export const NhapKho: React.FC = () => {
             </DialogContent>
           </Dialog>
 
-          {/* Delete Button */}
+          {/* Delete */}
           {canDelete && (
-            <Button 
-              variant="destructive" 
+            <Button
+              variant="destructive"
               onClick={handleDeleteSelected}
               disabled={selectedIds.size === 0}
               className="bg-red-600 hover:bg-red-700"
@@ -908,22 +884,22 @@ export const NhapKho: React.FC = () => {
               {paginatedImports.length === 0 ? (
                 <tr>
                   <td colSpan={9} className="px-6 py-10 text-center text-gray-400">
-                    {imports.length === 0 
+                    {imports.length === 0
                       ? 'Chưa có phiếu nhập nào. Nhấn "Thêm phiếu nhập" để tạo mới hoặc "Import Excel" để nhập từ file.'
                       : 'Không tìm thấy phiếu nhập phù hợp với bộ lọc.'}
                   </td>
                 </tr>
               ) : (
                 paginatedImports.map((imp) => (
-                  <tr key={imp.soPhieu} className="hover:bg-gray-50 transition-colors">
+                  <tr key={imp.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-4 py-4">
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => toggleSelect(imp.soPhieu)}
+                        onClick={() => toggleSelect(imp.id)}
                         className="p-0 h-8 w-8"
                       >
-                        {selectedIds.has(imp.soPhieu) ? (
+                        {selectedIds.has(imp.id) ? (
                           <CheckSquare className="w-4 h-4 text-blue-600" />
                         ) : (
                           <Square className="w-4 h-4 text-gray-400" />
@@ -949,7 +925,7 @@ export const NhapKho: React.FC = () => {
                           onClick={() => handleEdit(imp)}
                           className="text-blue-600 hover:text-blue-800"
                           disabled={!canEditData}
-                          title="Chỉnh sửa phiếu nhập"
+                          title="Chỉnh sửa metadata phiếu nhập"
                         >
                           <Edit className="w-4 h-4" />
                         </Button>
@@ -1004,17 +980,18 @@ export const NhapKho: React.FC = () => {
         )}
       </div>
 
-      {/* EDIT DIALOG */}
+      {/* EDIT DIALOG — chỉ metadata */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto bg-white p-6">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto bg-white p-6">
           <DialogHeader>
             <DialogTitle className="text-xl">✏️ Chỉnh sửa phiếu nhập</DialogTitle>
-            <p className="text-sm text-gray-500">Sửa thông tin phiếu {editFormData?.soPhieu}</p>
+            <p className="text-sm text-gray-500">
+              Sửa metadata phiếu {editFormData?.soPhieu}. <span className="text-red-500 font-medium">Lưu ý: Không thể sửa số lượng / vật tư vì đã ghi sổ kho.</span>
+            </p>
           </DialogHeader>
-          
+
           {editFormData && (
             <div className="space-y-4">
-              {/* Thông tin phiếu */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label className="text-sm font-medium">Số phiếu</Label>
@@ -1025,51 +1002,47 @@ export const NhapKho: React.FC = () => {
                   <Input
                     type="date"
                     value={editFormData.ngayNhap}
-                    onChange={(e) => setEditFormData({...editFormData, ngayNhap: e.target.value})}
+                    onChange={(e) => setEditFormData({ ...editFormData, ngayNhap: e.target.value })}
                   />
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Kho nhập</Label>
                   <Input
                     value={editFormData.khoNhap}
-                    onChange={(e) => setEditFormData({...editFormData, khoNhap: e.target.value})}
+                    onChange={(e) => setEditFormData({ ...editFormData, khoNhap: e.target.value })}
                   />
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Người nhập</Label>
                   <Input
                     value={editFormData.nguoiNhap}
-                    onChange={(e) => setEditFormData({...editFormData, nguoiNhap: e.target.value})}
+                    disabled
+                    className="bg-gray-100"
                   />
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Nhà cung cấp</Label>
                   <Input
                     value={editFormData.nhaCungCap}
-                    onChange={(e) => setEditFormData({...editFormData, nhaCungCap: e.target.value})}
+                    onChange={(e) => setEditFormData({ ...editFormData, nhaCungCap: e.target.value })}
                   />
                 </div>
                 <div>
                   <Label className="text-sm font-medium">Ghi chú</Label>
                   <Textarea
                     value={editFormData.ghiChu}
-                    onChange={(e) => setEditFormData({...editFormData, ghiChu: e.target.value})}
-                    rows={1}
+                    onChange={(e) => setEditFormData({ ...editFormData, ghiChu: e.target.value })}
+                    rows={2}
                   />
                 </div>
               </div>
-              
-              {/* Danh sách items */}
+
+              {/* Items — chỉ hiển thị read-only */}
               <div>
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="font-medium">Danh sách vật tư</h4>
-                  <Button variant="outline" size="sm" onClick={handleAddItem}>
-                    <Plus className="w-4 h-4 mr-1" /> Thêm dòng
-                  </Button>
-                </div>
+                <h4 className="font-medium mb-2">Danh sách vật tư (không thể sửa)</h4>
                 <div className="border rounded-lg overflow-hidden">
                   <div className="overflow-x-auto">
-                    <table className="w-full">
+                    <table className="w-full text-sm">
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-3 py-2 text-left text-xs font-medium">Tên vật tư</th>
@@ -1077,78 +1050,34 @@ export const NhapKho: React.FC = () => {
                           <th className="px-3 py-2 text-left text-xs font-medium">Đơn vị</th>
                           <th className="px-3 py-2 text-right text-xs font-medium">Đơn giá</th>
                           <th className="px-3 py-2 text-right text-xs font-medium">Thành tiền</th>
-                          <th className="px-3 py-2 text-center text-xs font-medium">Thao tác</th>
                         </tr>
                       </thead>
                       <tbody>
                         {editFormData.items.map((item: any, idx: number) => (
                           <tr key={idx} className="border-t">
-                            <td className="px-3 py-2">
-                              <Input
-                                value={item.tenChungLoai}
-                                onChange={(e) => handleEditItemChange(idx, 'tenChungLoai', e.target.value)}
-                                placeholder="Tên vật tư"
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <Input
-                                type="number"
-                                value={item.soLuong}
-                                onChange={(e) => handleEditItemChange(idx, 'soLuong', Number(e.target.value))}
-                                className="text-right"
-                                placeholder="0"
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <Input
-                                value={item.donVi}
-                                onChange={(e) => handleEditItemChange(idx, 'donVi', e.target.value)}
-                                placeholder="Đơn vị"
-                              />
-                            </td>
-                            <td className="px-3 py-2">
-                              <Input
-                                type="number"
-                                value={item.donGia}
-                                onChange={(e) => handleEditItemChange(idx, 'donGia', Number(e.target.value))}
-                                className="text-right"
-                                placeholder="0"
-                              />
-                            </td>
+                            <td className="px-3 py-2">{item.tenChungLoai}</td>
+                            <td className="px-3 py-2 text-right">{item.soLuong}</td>
+                            <td className="px-3 py-2">{item.donVi}</td>
+                            <td className="px-3 py-2 text-right">{item.donGia.toLocaleString('vi-VN')}</td>
                             <td className="px-3 py-2 text-right font-medium">
-                              {(item.soLuong * item.donGia).toLocaleString('vi-VN')} ₫
-                            </td>
-                            <td className="px-3 py-2 text-center">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleRemoveItem(idx)}
-                                className="text-red-500 hover:text-red-700"
-                                disabled={editFormData.items.length <= 1}
-                              >
-                                <X className="w-4 h-4" />
-                              </Button>
+                              {item.thanhTien.toLocaleString('vi-VN')} ₫
                             </td>
                           </tr>
                         ))}
                       </tbody>
                       <tfoot className="bg-gray-50">
                         <tr>
-                          <td colSpan={4} className="px-3 py-2 text-right font-bold">
-                            Tổng cộng:
-                          </td>
+                          <td colSpan={4} className="px-3 py-2 text-right font-bold">Tổng cộng:</td>
                           <td className="px-3 py-2 text-right font-bold text-green-600">
-                            {editFormData.items.reduce((sum: number, item: any) => sum + (item.soLuong * item.donGia), 0).toLocaleString('vi-VN')} ₫
+                            {editFormData.tongTien.toLocaleString('vi-VN')} ₫
                           </td>
-                          <td></td>
                         </tr>
                       </tfoot>
                     </table>
                   </div>
                 </div>
               </div>
-              
-              {/* Nút lưu */}
+
               <div className="flex justify-end gap-3 pt-4 border-t">
                 <Button variant="outline" onClick={() => {
                   setEditOpen(false);
@@ -1156,7 +1085,7 @@ export const NhapKho: React.FC = () => {
                 }}>
                   Hủy
                 </Button>
-                <Button 
+                <Button
                   onClick={handleSaveEdit}
                   disabled={isSaving}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
@@ -1175,7 +1104,7 @@ export const NhapKho: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* VIEW DETAIL MODAL */}
+      {/* VIEW DETAIL */}
       <Dialog open={viewOpen} onOpenChange={setViewOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-white p-6">
           <DialogHeader>
@@ -1193,7 +1122,7 @@ export const NhapKho: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* DELETE CONFIRM DIALOG */}
+      {/* DELETE CONFIRM */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent className="bg-white p-6">
           <DialogHeader>
@@ -1203,13 +1132,15 @@ export const NhapKho: React.FC = () => {
             <p>
               Bạn có chắc chắn muốn xóa <strong>{selectedIds.size}</strong> phiếu nhập đã chọn?
             </p>
-            <p className="text-red-500 text-sm mt-2">Hành động này không thể hoàn tác!</p>
+            <p className="text-red-500 text-sm mt-2">
+              ⚠️ Lưu ý: Phiếu đã ghi sổ kho — xóa phiếu sẽ làm ledger mất tham chiếu. Cân nhắc dùng nghiệp vụ reversal (Phase 4).
+            </p>
           </div>
           <div className="flex justify-end gap-3">
             <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={isDeleting}>
               Hủy
             </Button>
-            <Button 
+            <Button
               onClick={confirmDelete}
               disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700 text-white"

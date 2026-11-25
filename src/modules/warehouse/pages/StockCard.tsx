@@ -3,98 +3,139 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ArrowLeft, Search, FileSpreadsheet } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { ArrowLeft, FileSpreadsheet } from 'lucide-react';
 import { toast } from 'sonner';
 import * as XLSX from 'xlsx';
-
-const STORAGE_KEYS = {
-  imports: 'warehouseImports',
-  exports: 'warehouseExports',
-  transfers: 'warehouseTransfers',
-  consumables: 'consumableExports',
-};
+import { loadArrayFromStorage, STORAGE_KEYS } from '@/lib/localStorage';
+import type { Category, Transaction, ImportTransaction, ExportTransaction, TransferTransaction, ConsumableTransaction, AdjustmentTransaction } from '@/types/warehouse';
 
 export function StockCard() {
   const navigate = useNavigate();
-  const [categories, setCategories] = useState<any[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>('');
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filtered, setFiltered] = useState<any[]>([]);
 
   useEffect(() => {
-    // Load categories
-    const cats = JSON.parse(localStorage.getItem('saved_categories_key_hoac_tuong_duong') || '[]');
+    const cats = loadArrayFromStorage<Category>(STORAGE_KEYS.CATEGORIES);
     setCategories(cats);
-    
-    // Load all transactions
-    const imports = JSON.parse(localStorage.getItem(STORAGE_KEYS.imports) || '[]');
-    const exports = JSON.parse(localStorage.getItem(STORAGE_KEYS.exports) || '[]');
-    const transfers = JSON.parse(localStorage.getItem(STORAGE_KEYS.transfers) || '[]');
-    const consumables = JSON.parse(localStorage.getItem(STORAGE_KEYS.consumables) || '[]');
-    
-    const all = [...imports, ...exports, ...transfers, ...consumables];
-    setTransactions(all);
+
+    const imports = loadArrayFromStorage<ImportTransaction>(STORAGE_KEYS.IMPORTS);
+    const exports = loadArrayFromStorage<ExportTransaction>(STORAGE_KEYS.EXPORTS);
+    const transfers = loadArrayFromStorage<TransferTransaction>(STORAGE_KEYS.TRANSFERS);
+    const consumables = loadArrayFromStorage<ConsumableTransaction>(STORAGE_KEYS.CONSUMABLES);
+    const adjustments = loadArrayFromStorage<AdjustmentTransaction>(STORAGE_KEYS.ADJUSTMENTS);
+
+    const allTx: Transaction[] = [
+      ...imports.map(t => ({ ...t, type: 'import' as const })),
+      ...exports.map(t => ({ ...t, type: 'export' as const })),
+      ...transfers.map(t => ({ ...t, type: 'transfer' as const })),
+      ...consumables.map(t => ({ ...t, type: 'consumable' as const })),
+      ...adjustments.map(t => ({ ...t, type: 'adjustment' as const })),
+    ];
+    setTransactions(allTx);
   }, []);
 
   useEffect(() => {
-    if (!selectedCategory) {
+    if (!selectedCategoryId) {
       setFiltered([]);
       return;
     }
-    
-    const cat = categories.find(c => c.id === selectedCategory || c.maLoai === selectedCategory);
+
+    const cat = categories.find(c => c.id === selectedCategoryId);
     if (!cat) return;
-    
-    const catName = cat.tenLoai || cat.tenChungLoai || '';
-    
-    // Lọc các giao dịch có chứa mặt hàng này
-    const result = transactions.filter(t => {
-      if (!t.items) return false;
-      return t.items.some((item: any) => {
-        const itemName = item.tenChungLoai || item.itemName || item.tenLoai || '';
-        return itemName.includes(catName) || catName.includes(itemName);
-      });
+
+    const result = transactions
+      .filter(tx => tx.items?.some(item => item.categoryId === selectedCategoryId))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+    let runningStock = 0;
+    const enriched = result.map(tx => {
+      const item = tx.items?.find(it => it.categoryId === selectedCategoryId);
+      const qty = item?.quantity || 0;
+      let change = 0;
+      if (tx.type === 'import' || (tx.type === 'adjustment' && qty > 0)) change = qty;
+      else if (tx.type === 'export' || tx.type === 'transfer' || tx.type === 'consumable' || (tx.type === 'adjustment' && qty < 0)) {
+        change = -Math.abs(qty);
+      }
+      runningStock += change;
+      return {
+        ...tx,
+        change,
+        runningStock,
+        itemQuantity: qty,
+        unit: cat.unit,
+      };
     });
-    
-    // Sắp xếp theo thời gian
-    result.sort((a, b) => {
-      const dateA = new Date(a.createdAt || a.ngayXuat || a.ngayChuyen || 0);
-      const dateB = new Date(b.createdAt || b.ngayXuat || b.ngayChuyen || 0);
-      return dateA.getTime() - dateB.getTime();
-    });
-    
-    setFiltered(result);
-  }, [selectedCategory, categories, transactions]);
+
+    setFiltered(enriched);
+  }, [selectedCategoryId, categories, transactions]);
+
+  const exportExcel = () => {
+    if (filtered.length === 0) {
+      toast.error('Không có dữ liệu');
+      return;
+    }
+    const cat = categories.find(c => c.id === selectedCategoryId);
+    const data = filtered.map((t, idx) => ({
+      'STT': idx + 1,
+      'Số phiếu': t.id,
+      'Loại': t.type,
+      'Ngày': t.date,
+      'Số lượng': t.itemQuantity,
+      'Tăng/Giảm': t.change,
+      'Tồn sau': t.runningStock,
+      'Đơn vị': t.unit,
+      'Ghi chú': t.notes || '',
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, `TheKho_${cat?.code}`);
+    XLSX.writeFile(wb, `TheKho_${cat?.code}_${new Date().toISOString().slice(0,10)}.xlsx`);
+    toast.success('Xuất Excel thành công');
+  };
+
+  const selectedCategory = categories.find(c => c.id === selectedCategoryId);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50 p-4 md:p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="mb-6 flex items-center gap-4">
-          <Button variant="outline" size="icon" onClick={() => navigate("/")}>
-            <ArrowLeft className="w-5 h-5" />
-          </Button>
-          <div>
-            <h1 className="text-2xl font-bold text-gray-800">Thẻ kho</h1>
-            <p className="text-gray-600 text-sm">Xem chi tiết biến động của từng mặt hàng</p>
+        <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" size="icon" onClick={() => navigate('/')}>
+              <ArrowLeft className="w-5 h-5" />
+            </Button>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">Thẻ kho</h1>
+              <p className="text-gray-600 text-sm">Chi tiết biến động theo mặt hàng</p>
+            </div>
           </div>
+          {selectedCategory && (
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="text-sm">
+                {selectedCategory.code} - {selectedCategory.name}
+              </Badge>
+              <Button variant="outline" size="sm" onClick={exportExcel}>
+                <FileSpreadsheet className="w-4 h-4 mr-2" /> Xuất Excel
+              </Button>
+            </div>
+          )}
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Chọn mặt hàng</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Chọn mặt hàng</CardTitle></CardHeader>
           <CardContent>
-            <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+            <Select value={selectedCategoryId} onValueChange={setSelectedCategoryId}>
               <SelectTrigger className="w-full max-w-md">
                 <SelectValue placeholder="Chọn mặt hàng..." />
               </SelectTrigger>
               <SelectContent>
-                {categories.map((cat) => (
-                  <SelectItem key={cat.id || cat.maLoai} value={cat.id || cat.maLoai}>
-                    {cat.maLoai} - {cat.tenLoai || cat.tenChungLoai}
+                {categories.map(cat => (
+                  <SelectItem key={cat.id} value={cat.id}>
+                    {cat.code} - {cat.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -102,16 +143,12 @@ export function StockCard() {
           </CardContent>
         </Card>
 
-        {selectedCategory && (
+        {selectedCategoryId && (
           <Card className="mt-6">
             <CardHeader>
-              <CardTitle>
-                Chi tiết biến động
-                {categories.find(c => c.id === selectedCategory || c.maLoai === selectedCategory) && (
-                  <span className="ml-2 text-sm font-normal text-gray-500">
-                    {categories.find(c => c.id === selectedCategory || c.maLoai === selectedCategory)?.tenLoai}
-                  </span>
-                )}
+              <CardTitle className="text-base">
+                Biến động của <span className="font-bold">{selectedCategory?.name}</span>
+                <span className="ml-2 text-sm font-normal text-gray-500">(Đơn vị: {selectedCategory?.unit})</span>
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -120,62 +157,54 @@ export function StockCard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>STT</TableHead>
-                      <TableHead>Số phiếu</TableHead>
                       <TableHead>Loại</TableHead>
                       <TableHead>Ngày</TableHead>
-                      <TableHead>Số lượng</TableHead>
-                      <TableHead>Đơn vị</TableHead>
+                      <TableHead className="text-right">Số lượng</TableHead>
+                      <TableHead className="text-right">Tăng (+)</TableHead>
+                      <TableHead className="text-right">Giảm (-)</TableHead>
+                      <TableHead className="text-right">Tồn sau</TableHead>
                       <TableHead>Ghi chú</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filtered.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={7} className="text-center py-8 text-gray-500">
-                          Không có giao dịch nào cho mặt hàng này
-                        </TableCell>
-                      </TableRow>
+                      <TableRow><TableCell colSpan={8} className="text-center py-8 text-gray-500">Không có giao dịch</TableCell></TableRow>
                     ) : (
-                      filtered.map((t, index) => {
-                        const typeMap: { [key: string]: string } = {
-                          'warehouseImports': '📥 Nhập',
-                          'warehouseExports': '📤 Xuất',
-                          'warehouseTransfers': '🔄 Chuyển',
-                          'consumableExports': '🔧 Xuất vật tư'
-                        };
-                        return (
-                          <TableRow key={index}>
-                            <TableCell>{index + 1}</TableCell>
-                            <TableCell>{t.soPhieu}</TableCell>
-                            <TableCell>{t.type || '---'}</TableCell>
-                            <TableCell>{t.ngayXuat || t.ngayChuyen || t.createdAt?.split('T')[0] || ''}</TableCell>
-                            <TableCell>
-                              {t.items?.reduce((sum: number, item: any) => {
-                                const cat = categories.find(c => c.id === selectedCategory || c.maLoai === selectedCategory);
-                                const catName = cat?.tenLoai || cat?.tenChungLoai || '';
-                                const itemName = item.tenChungLoai || item.itemName || item.tenLoai || '';
-                                if (itemName.includes(catName) || catName.includes(itemName)) {
-                                  return sum + Number(item.soLuong || item.quantity || 0);
-                                }
-                                return sum;
-                              }, 0) || 0}
-                            </TableCell>
-                            <TableCell>
-                              {t.items?.find((item: any) => {
-                                const cat = categories.find(c => c.id === selectedCategory || c.maLoai === selectedCategory);
-                                const catName = cat?.tenLoai || cat?.tenChungLoai || '';
-                                const itemName = item.tenChungLoai || item.itemName || item.tenLoai || '';
-                                return itemName.includes(catName) || catName.includes(itemName);
-                              })?.donVi || '---'}
-                            </TableCell>
-                            <TableCell>{t.ghiChu || t.notes || '---'}</TableCell>
-                          </TableRow>
-                        );
-                      })
+                      filtered.map((t, idx) => (
+                        <TableRow key={`${t.id}-${idx}`} className="hover:bg-gray-50">
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={
+                              t.type === 'import' ? 'bg-green-50 text-green-700 border-green-200' :
+                              t.type === 'export' ? 'bg-red-50 text-red-700 border-red-200' :
+                              t.type === 'transfer' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                              t.type === 'consumable' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                              'bg-purple-50 text-purple-700 border-purple-200'
+                            }>
+                              {t.type === 'import' ? '📥 Nhập' :
+                               t.type === 'export' ? '📤 Xuất' :
+                               t.type === 'transfer' ? '🔄 Chuyển' :
+                               t.type === 'consumable' ? '🔧 Xuất VT' :
+                               '⚙️ Điều chỉnh'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{new Date(t.date).toLocaleDateString('vi-VN')}</TableCell>
+                          <TableCell className="text-right font-medium">{t.itemQuantity}</TableCell>
+                          <TableCell className="text-right text-green-600">{t.change > 0 ? t.change : 0}</TableCell>
+                          <TableCell className="text-right text-red-600">{t.change < 0 ? Math.abs(t.change) : 0}</TableCell>
+                          <TableCell className="text-right font-bold">{t.runningStock}</TableCell>
+                          <TableCell className="text-xs text-gray-500">{t.notes || '---'}</TableCell>
+                        </TableRow>
+                      ))
                     )}
                   </TableBody>
                 </Table>
               </div>
+              {filtered.length > 0 && (
+                <div className="mt-4 text-sm text-gray-600">
+                  Tồn cuối: <strong>{filtered[filtered.length-1]?.runningStock || 0}</strong> {selectedCategory?.unit}
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -183,3 +212,5 @@ export function StockCard() {
     </div>
   );
 }
+
+export default StockCard;

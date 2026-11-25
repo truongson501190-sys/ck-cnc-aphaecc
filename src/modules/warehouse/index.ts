@@ -7,3 +7,4 @@ export { InventoryCount } from './pages/InventoryCount';
 export { StockCard } from './pages/StockCard';
 export { TransactionHistory } from './pages/TransactionHistory';
 export { WarehouseReport } from './WarehouseReport'; 
+export { default as InventoryValuationReport } from './pages/InventoryValuationReport';

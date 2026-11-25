@@ -6,7 +6,7 @@ export type MovementType =
   | 'ADJUSTMENT'
   | 'OIL_OUT';
 
-export type WarehouseMovementKind = 'IN' | 'OUT' | 'TRANSFER' | 'OIL_OUT';
+export type WarehouseMovementKind = 'IN' | 'OUT' | 'TRANSFER' | 'OIL_OUT' | 'ADJUSTMENT';
 
 export interface StockLedgerRow {
   id: string;
@@ -55,6 +55,8 @@ export interface PostWarehouseMovementInput {
   toWarehouseId?: string;
   reference: string;
   legacyTransactionId: string;
+  /** Link tới stock_documents.id — dùng để trace ngược ledger → phiếu */
+  documentId?: string;
   createdBy?: string;
   notes?: string;
   occurredAt?: string;

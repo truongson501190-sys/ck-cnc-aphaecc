@@ -273,7 +273,7 @@ export function ConsumableExport({ onSubmit, onSuccess }: ConsumableExportProps)
                   {items.map((item, idx) => (
                     <tr key={item.id} className="hover:bg-gray-50">
                       <td className="p-2 text-center">{idx+1}</td>
-                      <td className="p-2"><Combobox value={item.itemId} onValueChange={v => updateItem(item.id, 'itemId', v)} placeholder="Chọn vật tư" options={categories.map(c => ({ label: c.tenLoai || c.tenChungLoai || '', value: c.id })).filter(opt => opt.label)} allowCustom={true} /></td>
+                      <td className="p-2"><Combobox value={item.itemId ?? ''} onValueChange={v => updateItem(item.id, 'itemId', v)} placeholder="Chọn vật tư" options={categories.map(c => ({ label: c.tenLoai || c.tenChungLoai || '', value: c.id }))} allowCustom={true} /></td>
                       <td className="p-2"><Input type="number" value={item.quantity} onChange={e => updateItem(item.id, 'quantity', parseFloat(e.target.value))} /></td>
                       <td className="p-2"><Input value={item.unit} readOnly className="bg-gray-50" /></td>
                       <td className="p-2"><Input value={item.price} readOnly className="bg-gray-50" /></td>
