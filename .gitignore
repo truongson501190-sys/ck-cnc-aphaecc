@@ -63,3 +63,29 @@ src/modules/reports/pages/WarehouseReport.tsx
 src/modules/system/pages/Roles_new.tsx
 audit-output/
 audit-output-2/
+
+# ============================================================
+# AI models (l?n, t?i riêng khi deploy production)
+# ============================================================
+backend_ai/*.pt
+backend_ai/*.onnx
+backend_ai/models/
+
+# AI local database (learning data, corrections - backup riêng)
+backend_ai/data/*.db
+backend_ai/data/*.db-journal
+backend_ai/data/*.sqlite
+backend_ai/data/chroma/
+
+# AI benchmark results (reference only, không c?n cho runtime)
+backend_ai/benchmark_results/
+backend_ai/ocr_benchmark/
+backend_ai/benchmark_*.json
+backend_ai/*_benchmark.json
+backend_ai/*_benchmark.xlsx
+
+# AI uploads (test PDFs/images - upload m?i khi test)
+backend_ai/uploads/
+backend_ai/*.jpg
+backend_ai/*.jpeg
+backend_ai/*.png
