@@ -1,0 +1,59 @@
+﻿# ============================================================
+# VERCEL DEPLOY IGNORE
+# Chỉ upload frontend cần thiết. KHÔNG upload backend_ai (6.3GB venv).
+# ============================================================
+
+# Dependencies (Vercel tự cài lại)
+node_modules
+.pnpm-store
+
+# Build output (Vercel tự build)
+dist
+dist_old
+dist-*
+
+# Vercel internal
+.vercel
+
+# Git
+.git
+.github
+.husky
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Environment (dùng Vercel Dashboard env)
+.env
+.env.*
+!.env.example
+
+# Backend AI (6.3GB venv, deploy riêng)
+backend_ai
+
+# Audit debug files
+audit-output
+audit-output-2
+
+# Large files
+structure.txt
+*.log
+*.tsbuildinfo
+
+# Docs
+docs
+ROADMAP.md
+*.md
+!README.md
+
+# Scripts & data (không cần runtime)
+scripts
+data
+supabase
+
+# OS
+.DS_Store
+Thumbs.db
