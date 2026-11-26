@@ -104,3 +104,6 @@ src/components/inventory/ExactLayout*.tsx
 src/modules/warehouse/components/ExactLayout*.tsx
 src/modules/reports/pages/WarehouseReport.tsx
 src/modules/system/pages/Roles_new.tsx
+
+audit-output/
+audit-output-2/

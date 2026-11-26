@@ -1,1 +1,0 @@
-﻿Supabase CLI not available or not linked
