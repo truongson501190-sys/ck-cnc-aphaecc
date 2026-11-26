@@ -21,92 +21,45 @@ venv/
 .venv/
 env/
 backend_ai/venv_ocr_bench/
-
 # Python temporary files
 tmp_*.py
-
 # OCR uploads
 backend_ocr/uploads/
-
 # Local OCR cache
 backend_ocr/__pycache__/
 # Environment / secrets
-.env
-.env.local
-
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Virtual environments
-venv/
-.venv/
-env/
-backend_ai/venv_ocr_bench/
-
-# Python temporary files
-tmp_*.py
-
-# OCR uploads
-backend_ocr/uploads/
-
 # ERP AI uploads
 backend_ai/uploads/
-
 # ERP AI benchmark outputs
 backend_ai/benchmark_results/
-
 # OCR benchmark artifacts
 backend_ai/ocr_benchmark/
-
 structure.txt
-
-backend_ai/benchmark_results/
-
 # OCR benchmark generated results
-backend_ai/benchmark_results/
-
 test_gemini.py
-
-structure.txt
-
-backend_ocr/uploads/
-
-# OCR benchmark artifacts
 backend_ai/original.jpg
 backend_ai/preprocessed.jpg
 backend_ai/ocr_benchmark/original.jpg
 backend_ai/ocr_benchmark/preprocessed.jpg
-
 # Virtual environments (local only; keep backend_ai/venv311 out of Git too)
 /venv*/
 **/venv/
 **/venv*/
 **/.venv/
 **/env/
-
 # Backups
 *.backup
-
 # ============================================
 # Legacy SQL (ð? archive vào supabase/_legacy/)
 # File g?c b? Windows lock, không move ðý?c
-# ============================================
 /supabase-schema.sql
 /supabase-migration-relational.sql
-
 # Archive folders
 scripts/_archive/
-
 tailwind.config.ts
 src/components/inventory/ExactLayout*.tsx
 src/modules/warehouse/components/ExactLayout*.tsx
 src/modules/reports/pages/WarehouseReport.tsx
 src/modules/system/pages/Roles_new.tsx
-
-audit-output/
-audit-output-2/
-
 audit-output/
 audit-output-2/
